@@ -47,8 +47,6 @@ import { TrustDisclosureCallout } from '@/components/cf/trust-disclosure';
 import { tokens } from '@/constants/theme';
 import { useSubmitTip, type SubmitTipResult } from '@/lib/hooks/use-submit-tip';
 
-const ANTICIPATION_MS = 200;
-
 interface Route {
   id: string;
   agency: { name: string; short_name?: string };
@@ -117,9 +115,9 @@ export default function TipModalScreen() {
         userAgentSummary: 'mobile/expo',
       });
 
-      // T+0..200ms: anticipation. Run the wait in parallel with the insert so
-      // the deep-link attempt fires as soon as both are ready.
-      await new Promise((r) => setTimeout(r, ANTICIPATION_MS));
+      // T+0..anticipationMs: anticipation. Run the wait in parallel with the
+      // insert so the deep-link attempt fires as soon as both are ready.
+      await new Promise((r) => setTimeout(r, tokens.tipFlow.anticipationMs));
       const result = await resultPromise;
 
       // T+200ms: attempt deep link.

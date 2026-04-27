@@ -163,6 +163,16 @@ export const tokens = {
     },
     /** Tip-success animation: 600ms total, ease-out — only sanctioned use of tip.success in-app. */
     successFlashMs: { in: 200, hold: 100, out: 300 },
+    /**
+     * Anticipation pause between tap and deep-link attempt.
+     *
+     * Gives the optimistic insert time to register and prevents the success
+     * flash from colliding with the modal-dismiss animation. Tune on a real
+     * device — 200ms is the starting estimate, not a final number. A value
+     * that controls product feel lives in tokens, never as a screen-local
+     * constant.
+     */
+    anticipationMs: 200,
   },
 } as const;
 

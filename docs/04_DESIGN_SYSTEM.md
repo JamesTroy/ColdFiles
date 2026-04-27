@@ -456,7 +456,7 @@ T+200ms    Attempt the deep-link / external browser open.
                               fallback affordance (see below).
 ```
 
-The 200ms anticipation pause is what gives the success flash room to read as the success signal it was specced to be. Without it, the flash collides with the modal-dismiss animation and reads as a glitch. **Tune the value with a real device prototype** — 200ms is a starting estimate, not a final number; build it, feel it, adjust.
+The anticipation pause (`tokens.tipFlow.anticipationMs`) is what gives the success flash room to read as the success signal it was specced to be. Without it, the flash collides with the modal-dismiss animation and reads as a glitch. The current value is 200ms — **tune it on a real device prototype**. Build it, feel it, adjust the token. The value lives in `tokens.tipFlow.anticipationMs` rather than as a screen-local constant because product-feel timing belongs with the rest of the design rules.
 
 **What the success flash is:**
 
@@ -641,6 +641,12 @@ export const tokens = {
     },
     /** Tip-success animation: 600ms total, ease-out — the only sanctioned use of tip.success in-app. */
     successFlashMs: { in: 200, hold: 100, out: 300 },
+    /**
+     * Anticipation pause between user tap and deep-link attempt. A value that
+     * controls product feel lives in tokens, never as a screen-local constant.
+     * 200ms is the starting estimate — tune on a real device.
+     */
+    anticipationMs: 200,
   },
 } as const;
 ```
