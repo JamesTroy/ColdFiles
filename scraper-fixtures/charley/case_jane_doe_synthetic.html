@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!--
+  SYNTHETIC fixture for The Charley Project case detail.
+  Structural approximation only — real responses MUST be vendored before any
+  selector goes to production. See scraper-fixtures/README.md.
+
+  Fields modelled to exercise every selector in sources/charley.ts:
+    name, age, sex, race, height, weight,
+    incidentDate (= missing-since), lastSeenDate,
+    locationText, narrative, photoUrls,
+    agencyName, agencyPhone, ncicNumber, namusNumber,
+    distinguishingMarks, clothing
+-->
+<html lang="en">
+<head><title>Jane Synthetic Doe — The Charley Project</title></head>
+<body>
+  <article>
+    <h1 class="case-name">Jane Synthetic Doe</h1>
+
+    <dl class="case-meta">
+      <dt>Age</dt>            <dd>23 years old</dd>
+      <dt>Sex</dt>            <dd>Female</dd>
+      <dt>Race</dt>           <dd>White / Caucasian</dd>
+      <dt>Height</dt>         <dd>5'6"</dd>
+      <dt>Weight</dt>         <dd>130 lbs</dd>
+      <dt>Missing Since</dt>  <dd>June 13, 1985</dd>
+      <dt>Last Seen</dt>      <dd>June 13, 1985</dd>
+      <dt>Missing From</dt>   <dd>Claremont, California</dd>
+      <dt>NCIC</dt>           <dd>NC1234567890</dd>
+      <dt>NamUs</dt>          <dd>MP12345</dd>
+      <dt>Distinguishing Marks</dt> <dd>Small scar above the left eyebrow; pierced ears.</dd>
+      <dt>Last seen wearing</dt>    <dd>Blue denim jeans and a white short-sleeve t-shirt.</dd>
+      <dt>Investigating Agency</dt> <dd class="agency-name">Claremont Police Department</dd>
+      <dt>Phone</dt>                <dd class="agency-phone">(909) 399-5411</dd>
+    </dl>
+
+    <div class="case-narrative field--name-body">
+      <p>Doe was last seen leaving her workplace at approximately 5:30pm on the
+      evening of June 13, 1985. She was scheduled to meet a friend for dinner
+      that night but never arrived.</p>
+      <p>Her vehicle, a silver 1982 Honda Civic, was found three days later
+      at a gas station thirty miles east of her last known location. The
+      driver's-side door was unlocked. Her purse was on the passenger seat
+      with her wallet and identification still inside.</p>
+      <p>Investigators consider Doe's case suspicious. Anyone with information
+      is asked to contact Claremont PD.</p>
+    </div>
+
+    <div class="case-photos">
+      <img src="/sites/default/files/case-photos/jane-doe-1985.jpg" alt="Jane Doe — last known photo" />
+      <img src="/sites/default/files/case-photos/jane-doe-age-progression.jpg" alt="Age progression to current age" />
+    </div>
+  </article>
+</body>
+</html>
