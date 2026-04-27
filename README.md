@@ -20,7 +20,8 @@ coldfile/
 ├── docs/
 │   ├── 00_DECISIONS.md           Architecture decision log
 │   ├── 01_DATA_SOURCES.md        Tiered source strategy + state-by-state matrix
-│   └── 02_SCRAPER_ARCHITECTURE.md Config-driven scraper, dedupe, trust merge, cron
+│   ├── 02_SCRAPER_ARCHITECTURE.md Config-driven scraper, dedupe, trust merge, cron
+│   └── 04_DESIGN_SYSTEM.md       Locked v1 design tokens, typography, pin system, clustering
 ├── migrations/
 │   └── 01_schema.sql             PostGIS schema, RLS, RPCs (drop-in for Supabase)
 ├── scripts/
