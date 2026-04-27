@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "cheerio": "npm:cheerio@1.0.0",
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2",
+    "@shared/": "./_shared/"
+  }
+}
