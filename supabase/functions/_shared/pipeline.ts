@@ -166,51 +166,81 @@ async function jsonApiDiscovery(
 ): Promise<string[]> {
   const seen = new Set<string>();
   const urls: string[] = [];
-  let cursor: string | undefined = undefined;
   let pageIdx = 0;
 
-  while (true) {
-    const url = appendQuery(strat.endpoint, {
-      page_size: String(strat.pageSize),
-      ...(cursor ? { cursor } : {}),
-    });
-    opts.onProgress?.({ kind: 'list_page', url, index: pageIdx });
-    const json = await fetcher.getJson<Record<string, unknown>>(url);
-    const items = pickPath(json, strat.itemsPath);
-    if (!Array.isArray(items)) break;
-    for (const item of items as Record<string, unknown>[]) {
-      const u = strat.detailUrl(item);
-      if (seen.has(u)) continue;
-      seen.add(u);
-      urls.push(u);
-      opts.onProgress?.({ kind: 'detail_url_queued', url: u });
-      if (opts.detailLimit && urls.length >= opts.detailLimit) return urls;
+  for (const endpoint of strat.endpoints) {
+    let cursor: string | undefined = undefined;
+    while (true) {
+      const url = strat.paginate
+        ? appendQuery(endpoint, {
+            page_size: String(strat.paginate.pageSize),
+            ...(cursor ? { cursor } : {}),
+          })
+        : endpoint;
+
+      opts.onProgress?.({ kind: 'list_page', url, index: pageIdx });
+      pageIdx += 1;
+
+      let json: unknown;
+      try {
+        json = await fetcher.getJson<unknown>(url);
+      } catch (err) {
+        opts.onProgress?.({ kind: 'extract_error', url, error: errMessage(err) });
+        break;
+      }
+
+      const items = strat.itemsPath ? pickPath(json, strat.itemsPath) : json;
+      if (!Array.isArray(items)) break;
+
+      for (const item of items as Record<string, unknown>[]) {
+        const u = strat.detailUrl(item);
+        if (seen.has(u)) continue;
+        seen.add(u);
+        urls.push(u);
+        opts.onProgress?.({ kind: 'detail_url_queued', url: u });
+        if (opts.detailLimit && urls.length >= opts.detailLimit) return urls;
+      }
+
+      if (!strat.paginate) break; // single-shot endpoint; move to next
+      const next = pickPath(json, strat.paginate.cursorPath);
+      if (!next || typeof next !== 'string') break;
+      cursor = next;
+      if (opts.listLimit && pageIdx >= opts.listLimit) break;
     }
-    const next = pickPath(json, strat.cursorPath);
-    if (!next || typeof next !== 'string') break;
-    cursor = next;
-    pageIdx += 1;
-    if (opts.listLimit && pageIdx >= opts.listLimit) break;
+    if (opts.detailLimit && urls.length >= opts.detailLimit) break;
   }
   return urls;
 }
 
 /**
  * Fetch + parse a single detail page into a CaseRecord (or skip with an error event).
+ * Dispatches on source.detail.kind: 'cheerio' (HTML scrape) or 'json' (JSON API).
  */
 export async function extractDetail(
   source: SourceConfig,
   detailUrl: string,
   fetcher: PoliteFetcher,
 ): Promise<CaseRecord | { error: string }> {
-  let html: string;
+  let partial: Partial<CaseRecord>;
   try {
-    html = await fetcher.getText(detailUrl);
+    if (source.detail.kind === 'cheerio') {
+      const html = await fetcher.getText(detailUrl);
+      const $ = load(html);
+      partial = extractWithStrategy($, detailUrl, source.detail);
+    } else {
+      const urls = source.detail.fetchUrls(detailUrl);
+      const data: Record<string, unknown> = {};
+      for (const [key, url] of Object.entries(urls)) {
+        data[key] = await fetcher.getJson<unknown>(url);
+      }
+      partial = source.detail.mapJson(data, detailUrl);
+      if (source.detail.inferKind && !partial.kind) {
+        partial.kind = source.detail.inferKind(partial);
+      }
+    }
   } catch (err) {
     return { error: errMessage(err) };
   }
-  const $ = load(html);
-  const partial = extractWithStrategy($, detailUrl, source.detail);
 
   // The runner is responsible for kind/status fallbacks and merging defaults.
   const record: CaseRecord = {

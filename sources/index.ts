@@ -4,10 +4,12 @@
 
 import type { SourceConfig } from '../supabase/functions/_shared/types.ts';
 import { charleyProject } from './charley.ts';
+import { doeNetwork } from './doe_network.ts';
 
 export const SOURCES: SourceConfig[] = [
   charleyProject,
-  // Week 2: doe_network, project_cold_case
+  doeNetwork,
+  // Week 2: project_cold_case
   // Week 3: namus
   // Week 4: lapd_unsolved, lasd_homicide
 ];

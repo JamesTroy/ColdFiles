@@ -146,14 +146,18 @@ export interface ListStrategySitemap {
 
 export interface ListStrategyJsonApi {
   kind: 'json_api';
-  endpoint: string;
-  pageSize: number;
-  /** Dot-path into the response for the next-cursor value. */
-  cursorPath: string;
-  /** Dot-path into the response for the array of result items. */
+  /** One or more index endpoint URLs. Each is fetched independently. */
+  endpoints: string[];
+  /** Dot-path into the response for the array of result items. Empty string for top-level array. */
   itemsPath: string;
   /** Map a JSON item into the URL of its detail page. */
   detailUrl: (item: Record<string, unknown>) => string;
+  /** Optional pagination. Omit for single-shot endpoints (Doe Network). */
+  paginate?: {
+    pageSize: number;
+    /** Dot-path into the response for the next-cursor value. */
+    cursorPath: string;
+  };
 }
 
 export interface ListStrategyAlphaIndex {
@@ -196,7 +200,7 @@ export interface DetailSelectors {
   clothing?: string;
 }
 
-export interface DetailStrategy {
+export interface DetailStrategyCheerio {
   kind: 'cheerio';
   selectors: DetailSelectors;
   /** Date formats to try in order when parsing extracted date strings. Uses date-fns-style tokens. */
@@ -210,6 +214,24 @@ export interface DetailStrategy {
   /** If a source uses photos differently per field — override the default 'photo_victim' kind. */
   photoKind?: (imgUrl: string, alt: string) => MediaKind;
 }
+
+/**
+ * For sources whose detail data lives in one or more JSON endpoints (Doe Network's
+ * mpdatabase.php?id=X&fields=true / &agencies=true / &images=true). The runner
+ * fetches every URL fetchUrls() returns, keyed by the same key, and hands the
+ * resulting record to mapJson.
+ */
+export interface DetailStrategyJson {
+  kind: 'json';
+  /** Build URLs to fetch for one detail. Multiple URLs supported when a source splits data across endpoints. */
+  fetchUrls: (detailUrl: string) => Record<string, string>;
+  /** Map the fetched JSON map (keyed by fetchUrls keys) into a partial CaseRecord. */
+  mapJson: (data: Record<string, unknown>, detailUrl: string) => Partial<CaseRecord>;
+  /** Inferred case kind if mapJson can't determine it. */
+  inferKind?: (record: Partial<CaseRecord>) => CaseKind;
+}
+
+export type DetailStrategy = DetailStrategyCheerio | DetailStrategyJson;
 
 export interface SourceAttribution {
   html: string;

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "9001DMCA",
+    "minimized_race": "White",
+    "minimized_age": "23 years old",
+    "missing_since": "June 13, 1985",
+    "pname": "Jane Synthetic Doe",
+    "image_text": "",
+    "img_reference": "<img src=\"https://www.doenetwork.org/cases/images/JSDoe.jpg\" alt=\"Jane Doe\" title=\"\" onmouseover=\"\" onmouseout=\"\" />"
+  },
+  {
+    "id": "9002DMNV",
+    "minimized_race": "Hispanic",
+    "minimized_age": "31 years old",
+    "missing_since": "March 04, 2002",
+    "pname": "John Synthetic Doe",
+    "image_text": "",
+    "img_reference": "<img src=\"https://www.doenetwork.org/cases/images/JSDoe2.jpg\" alt=\"\" />"
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "id": "9001DMCA",
+  "pname": "Jane Synthetic Doe",
+  "nickname_alias": "Janie",
+  "case_classification": "Endangered Missing",
+  "missing_since": "June 13, 1985",
+  "location_last_seen": "Claremont, Los Angeles County, California",
+  "date_of_birth": "August 3, 1962",
+  "age": "23 years old",
+  "race": "White",
+  "gender": "Female",
+  "height": "5'6\"",
+  "weight": "130 lbs.",
+  "hair_color": "Brown",
+  "eye_color": "Hazel",
+  "distinguishing_marks_and_features": "Small scar above the left eyebrow.",
+  "clothing": "Blue denim jeans and a white short-sleeve t-shirt.",
+  "circumstances_of_disappearance": "<p>Doe was last seen leaving her workplace on June 13, 1985.<br>Her vehicle was found three days later at a gas station thirty miles east.</p><p>Investigators consider the case suspicious.</p>",
+  "information_sources": "<p><a href=\"https://www.namus.gov/MissingPersons/Case#/9876\" target=\"top\">NamUs</a></p>",
+  "is_closed": ""
+}

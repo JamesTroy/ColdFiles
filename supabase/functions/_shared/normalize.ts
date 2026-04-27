@@ -27,19 +27,33 @@ export function dedupeNorm(s: string): string {
     .trim();
 }
 
-/** Split a "First Middle Last" name. Returns [first, last]. Tolerates "Last, First" and "First Last". */
+const NAME_SUFFIX_RE = /^(Jr\.?|Sr\.?|II|III|IV|V|2nd|3rd|4th)$/i;
+
+/**
+ * Split a "First Middle Last" name. Returns first + last.
+ * Tolerates:
+ *   - "First Last"               → first=First, last=Last
+ *   - "First Middle Last"        → first=First, last=Last
+ *   - "Last, First"              → first=First, last=Last
+ *   - "First Middle Last, Jr."   → first=First, last=Last (suffix dropped)
+ */
 export function splitName(name: string): { first?: string; last?: string } {
-  const cleaned = name.replace(/\s+/g, ' ').trim();
+  let cleaned = name.replace(/\s+/g, ' ').trim();
   if (!cleaned) return {};
 
-  // "Smith, John" form
   if (cleaned.includes(',')) {
-    const [last, ...rest] = cleaned.split(',').map((p) => p.trim());
-    const first = rest.join(' ').split(/\s+/)[0];
-    return { first, last };
+    const segments = cleaned.split(',').map((p) => p.trim()).filter(Boolean);
+    const tail = segments[segments.length - 1] ?? '';
+    if (NAME_SUFFIX_RE.test(tail) && segments.length > 1) {
+      // "Duane Robert Talmon, Jr." — the comma is offsetting a suffix, not a "Last, First" form.
+      cleaned = segments.slice(0, -1).join(' ').trim();
+    } else {
+      const [last, ...rest] = segments;
+      const first = rest.join(' ').split(/\s+/)[0];
+      return { first, last };
+    }
   }
 
-  // "John Smith" or "John Q. Smith"
   const parts = cleaned.split(/\s+/);
   if (parts.length === 1) return { last: parts[0] };
   return { first: parts[0], last: parts[parts.length - 1] };
@@ -230,4 +244,31 @@ export function buildSlug(rec: Pick<CaseRecord, 'victim_name' | 'location_state'
 export function truncateNarrative(text: string, maxLen = 8000): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen - 1) + '…';
+}
+
+/**
+ * Strip HTML tags out of a string and collapse whitespace, preserving paragraph
+ * breaks. Used by JSON-detail sources whose narrative field is HTML-in-a-string
+ * (e.g. Doe Network's circumstances_of_disappearance).
+ */
+export function stripHtml(input: string): string {
+  if (!input) return '';
+  return input
+    // <br> and </p> become paragraph breaks
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    // remove all other tags
+    .replace(/<[^>]+>/g, '')
+    // decode the small set of entities we expect
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    // tidy whitespace, preserve paragraph breaks
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

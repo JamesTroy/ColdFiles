@@ -25,6 +25,12 @@ describe('normalize.splitName', () => {
   it('takes first + last around a middle initial', () => {
     expect(splitName('Jane Q. Doe')).toEqual({ first: 'Jane', last: 'Doe' });
   });
+  it('drops a "Jr." suffix that is comma-separated', () => {
+    expect(splitName('Duane Robert Talmon, Jr.')).toEqual({ first: 'Duane', last: 'Talmon' });
+  });
+  it('drops a "III" suffix that is comma-separated', () => {
+    expect(splitName('John Smith, III')).toEqual({ first: 'John', last: 'Smith' });
+  });
 });
 
 describe('normalize.parseDate', () => {

@@ -3,7 +3,7 @@
 import * as cheerio from 'cheerio';
 import type {
   CaseRecord,
-  DetailStrategy,
+  DetailStrategyCheerio,
   ExtractedPhoto,
   MediaKind,
 } from './types.ts';
@@ -29,7 +29,7 @@ export type CheerioRoot = ReturnType<typeof cheerio.load>;
 export function extractWithStrategy(
   $: CheerioRoot,
   pageUrl: string,
-  strategy: DetailStrategy,
+  strategy: DetailStrategyCheerio,
 ): Partial<CaseRecord> {
   const sel = strategy.selectors;
   const out: Partial<CaseRecord> = {

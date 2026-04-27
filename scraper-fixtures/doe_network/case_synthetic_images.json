@@ -1,0 +1,12 @@
+[
+  {
+    "id": "9001DMCA",
+    "img_reference": "<img src=\"https://www.doenetwork.org/cases/images/jane_synth_1.jpg\" alt=\"Jane Doe\" title=\"\" onmouseover=\"\" onmouseout=\"\" />",
+    "is_selected": "1"
+  },
+  {
+    "id": "9001DMCA",
+    "img_reference": "<img src=\"https://www.doenetwork.org/cases/images/jane_synth_2.jpg\" alt=\"\" />",
+    "is_selected": "0"
+  }
+]
