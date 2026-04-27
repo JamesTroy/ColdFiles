@@ -96,6 +96,9 @@ describe('normalize.weightToKg', () => {
   it('parses 150 lbs', () => {
     expect(weightToKg('150 lbs')).toBe(68);
   });
+  it('parses 170 pounds (Charley uses "pounds")', () => {
+    expect(weightToKg('170 pounds')).toBe(77);
+  });
   it('parses 68 kg', () => {
     expect(weightToKg('68 kg')).toBe(68);
   });

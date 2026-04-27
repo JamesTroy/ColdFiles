@@ -56,9 +56,9 @@ export function heightToCm(raw: string): number | undefined {
   return undefined;
 }
 
-/** "150 lbs" → 68kg. Best-effort. */
+/** "150 lbs" / "150 pounds" → 68kg. Best-effort. */
 export function weightToKg(raw: string): number | undefined {
-  const lb = raw.match(/(\d{2,3})\s*lb/i);
+  const lb = raw.match(/(\d{2,3})\s*(?:lb|pound)/i);
   if (lb) return Math.round(parseInt(lb[1], 10) * 0.453592);
   const kg = raw.match(/(\d{2,3})\s*kg/i);
   if (kg) return parseInt(kg[1], 10);

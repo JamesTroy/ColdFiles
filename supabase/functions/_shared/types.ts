@@ -1,5 +1,7 @@
 // Shared types used by every source config, the ingest runner, and the local CLI.
-// Pure TS — no runtime imports. Safe to import from Node and Deno alike.
+// `import type` only — no runtime imports. Safe to import from Node and Deno alike.
+
+import type { CheerioAPI } from 'cheerio';
 
 export type CaseKind =
   | 'homicide'
@@ -201,11 +203,7 @@ export interface DetailStrategy {
   dateFormats?: string[];
   /** Per-field transforms when selectors aren't enough. The transform receives the raw selector text. */
   transforms?: {
-    [field in keyof CaseRecord]?: (
-      raw: string,
-      // The Cheerio root is opaque here so this file stays runtime-free.
-      $: unknown,
-    ) => unknown;
+    [field in keyof CaseRecord]?: (raw: string, $: CheerioAPI) => unknown;
   };
   /** Inferred case kind if not derivable from URL/selectors. */
   inferKind?: (record: Partial<CaseRecord>) => CaseKind;

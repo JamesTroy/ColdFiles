@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC sitemap fragment mirroring Charley Project's
+  https://charleyproject.org/wp-sitemap-posts-case-N.xml shape. Used by the
+  pipeline.sitemap-strategy test to verify URL filtering against the
+  charleyProject.list.urlPattern regex.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://charleyproject.org/case/jane-synthetic-doe</loc>
+    <lastmod>2026-04-27T00:00:00+00:00</lastmod>
+  </url>
+  <url>
+    <loc>https://charleyproject.org/case/john-synthetic-doe</loc>
+    <lastmod>2026-04-26T00:00:00+00:00</lastmod>
+  </url>
+  <url>
+    <loc>https://charleyproject.org/case-searches/advanced-search</loc>
+    <lastmod>2024-01-01T00:00:00+00:00</lastmod>
+  </url>
+  <url>
+    <loc>https://charleyproject.org/information/about-meaghan</loc>
+    <lastmod>2024-01-01T00:00:00+00:00</lastmod>
+  </url>
+</urlset>

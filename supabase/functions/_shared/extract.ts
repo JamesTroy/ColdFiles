@@ -283,6 +283,35 @@ export function linksFromSelector(
 /** Re-export the cheerio loader so source configs can `import { load } from '@shared/extract'`. */
 export const load = cheerio.load;
 
+/**
+ * Find a list item whose <strong>/<dt>/<b> label text equals `label`, then return
+ * the text content of the item with the label prefix stripped. Useful for sources
+ * that lay out meta fields as `<li><strong>{Label}</strong> {value}</li>`
+ * (Charley Project, Doe Network, and most legacy non-profit sites).
+ *
+ * Returns undefined if no match.
+ */
+export function byLabel(
+  $: CheerioRoot,
+  itemSelector: string,
+  label: string,
+): string | undefined {
+  const items = $(itemSelector).filter((_, el) => {
+    const labelText = $(el).find('strong, b, dt').first().text().trim();
+    return labelText === label || labelText === `${label}:`;
+  });
+  if (!items.length) return undefined;
+  const item = items.first();
+
+  const fullText = item.text().replace(/\s+/g, ' ').trim();
+  const labelText = item.find('strong, b, dt').first().text().trim();
+  if (!labelText) return fullText || undefined;
+
+  const escaped = labelText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const value = fullText.replace(new RegExp(`^${escaped}:?\\s*`), '').trim();
+  return value || undefined;
+}
+
 /** Helper: classify a photo URL into a media_kind. Source configs can override. */
 export function defaultPhotoKind(url: string, alt: string): MediaKind {
   const a = `${url} ${alt}`.toLowerCase();

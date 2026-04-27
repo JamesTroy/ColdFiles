@@ -1,12 +1,37 @@
 import type { SourceConfig } from '../supabase/functions/_shared/types.ts';
+import { byLabel, textOf } from '../supabase/functions/_shared/extract.ts';
+import {
+  extractPhone,
+  heightToCm,
+  parseAge,
+  parseDate,
+  parseSex,
+  parseState,
+  truncateNarrative,
+  weightToKg,
+} from '../supabase/functions/_shared/normalize.ts';
 
 /**
- * The Charley Project — single-operator site, ~16k missing-person profiles.
+ * The Charley Project — single-operator WordPress site, ~16k missing-person profiles.
  * Be exceptionally polite (5s between requests, 02:00–05:00 UTC window).
  *
- * Selectors are best-effort starting points based on the public site structure.
- * Verify against fixtures in scraper-fixtures/charley/*.html before promoting
- * out of dryrun.
+ * Real DOM (vendored fixture: case_john-andrew-aarlie.html):
+ *   article.type-case > .entry-content > h1.entry-title
+ *                                       > #case
+ *                                         > #case-top
+ *                                           > #photos > ul > li > img
+ *                                           > .column > ul > li > <strong>{Label}</strong> {value}
+ *                                         > #case-bottom
+ *                                           > .column:first-child > h3 + p (narrative)
+ *                                           > .column > #agencies > ul > li (name + phone, newline-separated)
+ *
+ * Meta-list labels we extract from #case-top:
+ *   "Missing Since", "Missing From", "Classification", "Sex", "Race", "Date of Birth",
+ *   "Age", "Height and Weight", "Clothing/Jewelry Description", "Medical Conditions",
+ *   "Distinguishing Characteristics".
+ *
+ * Discovery uses the WordPress sitemap (wp-sitemap-posts-case-N.xml) — far cleaner
+ * than the alphabetical index, and the site publishes one anyway.
  */
 export const charleyProject: SourceConfig = {
   slug: 'charley_project',
@@ -14,7 +39,7 @@ export const charleyProject: SourceConfig = {
   kind: 'nonprofit',
   baseUrl: 'https://charleyproject.org',
   rateLimitMs: 5000,
-  scheduleCron: '0 9 1 * *', // first of month, 09:00 UTC
+  scheduleCron: '0 9 1 * *',
   trustWeight: 75,
   windowUtc: { startHour: 2, endHour: 5 },
   attribution: {
@@ -22,35 +47,79 @@ export const charleyProject: SourceConfig = {
     linkBackRequired: true,
   },
   list: {
-    kind: 'alpha_index',
-    indexUrl: 'https://charleyproject.org/cases',
-    detailLinkSelector: 'a[href*="/case/"]',
+    kind: 'sitemap',
+    sitemapUrl: 'https://charleyproject.org/wp-sitemap.xml',
+    urlPattern: /\/case\/[a-z0-9-]+\/?$/i,
   },
   detail: {
     kind: 'cheerio',
     selectors: {
-      name: 'h1, .case-name',
-      age: '.case-meta .age, dt:contains("Age") + dd',
-      sex: '.case-meta .sex, dt:contains("Sex") + dd',
-      race: '.case-meta .race, dt:contains("Race") + dd',
-      height: 'dt:contains("Height") + dd',
-      weight: 'dt:contains("Weight") + dd',
-      incidentDate: '.case-meta .missing-since, dt:contains("Missing Since") + dd',
-      lastSeenDate: 'dt:contains("Last Seen") + dd',
-      locationText: '.case-meta .missing-from, dt:contains("Missing From") + dd',
-      narrative:
-        'article .case-narrative, article .field--name-body, article .body, .case-body',
-      photoUrls: 'article img, .case-photos img',
-      agencyName:
-        '.case-agency .name, dt:contains("Investigating Agency") + dd',
-      agencyPhone:
-        '.case-agency .phone, dt:contains("Phone") + dd, dt:contains("Telephone") + dd',
-      ncicNumber: 'dt:contains("NCIC") + dd',
-      namusNumber: 'dt:contains("NamUs") + dd, dt:contains("NCMA") + dd',
-      distinguishingMarks:
-        'dt:contains("Distinguishing") + dd, dt:contains("Marks") + dd',
-      clothing:
-        'dt:contains("Clothing") + dd, dt:contains("Last seen wearing") + dd',
+      name: 'h1.entry-title',
+      photoUrls: '#photos img',
+    },
+    transforms: {
+      victim_age: (_, $) => parseAge(byLabel($, '#case-top li', 'Age') ?? ''),
+      victim_sex: (_, $) => parseSex(byLabel($, '#case-top li', 'Sex') ?? ''),
+      victim_race: (_, $) => orUndef(byLabel($, '#case-top li', 'Race')),
+      victim_height_cm: (_, $) => {
+        const hw = byLabel($, '#case-top li', 'Height and Weight');
+        return hw ? heightToCm(hw.split(',')[0] ?? '') : undefined;
+      },
+      victim_weight_kg: (_, $) => {
+        const hw = byLabel($, '#case-top li', 'Height and Weight');
+        const part = hw?.split(',')[1];
+        return part ? weightToKg(part) : undefined;
+      },
+      distinguishing_marks: (_, $) =>
+        orUndef(byLabel($, '#case-top li', 'Distinguishing Characteristics')),
+      last_seen_clothing: (_, $) =>
+        orUndef(byLabel($, '#case-top li', 'Clothing/Jewelry Description')),
+      incident_date: (_, $) => {
+        const raw = byLabel($, '#case-top li', 'Missing Since');
+        return raw ? parseDate(raw).iso : undefined;
+      },
+      incident_date_quality: (_, $) => {
+        const raw = byLabel($, '#case-top li', 'Missing Since');
+        return raw ? parseDate(raw).quality : 'unknown';
+      },
+      incident_date_text: (_, $) => {
+        const raw = byLabel($, '#case-top li', 'Missing Since');
+        return raw && parseDate(raw).quality !== 'exact' ? raw : undefined;
+      },
+      location_text: (_, $) => orUndef(byLabel($, '#case-top li', 'Missing From')),
+      location_state: (_, $) => {
+        const raw = byLabel($, '#case-top li', 'Missing From');
+        const tail = raw?.split(',').pop()?.trim();
+        return tail ? parseState(tail) : undefined;
+      },
+      location_city: (_, $) => {
+        const raw = byLabel($, '#case-top li', 'Missing From');
+        const head = raw?.split(',')[0]?.trim();
+        return head || undefined;
+      },
+      agency_hint: (_, $) => {
+        const li = $('#agencies li').first();
+        if (!li.length) return undefined;
+        const lines = li
+          .text()
+          .split(/\n+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return {
+          name: lines[0] || undefined,
+          phone: lines[1] ? extractPhone(lines[1]) : undefined,
+        };
+      },
+      narrative: (_, $) => {
+        const raw = textOf($, '#case-bottom .column', { preserveNewlines: true });
+        const cleaned = raw.replace(/^Details of Disappearance\s*/i, '').trim();
+        return cleaned ? truncateNarrative(cleaned) : undefined;
+      },
+      narrative_short: (_, $) => {
+        const raw = textOf($, '#case-bottom .column', { preserveNewlines: true });
+        const cleaned = raw.replace(/^Details of Disappearance\s*/i, '').trim();
+        return cleaned.split(/\n{2,}/)[0]?.slice(0, 240) || undefined;
+      },
     },
     inferKind: () => 'missing',
   },
@@ -62,3 +131,7 @@ export const charleyProject: SourceConfig = {
     raw: {},
   },
 };
+
+function orUndef(v: string | undefined): string | undefined {
+  return v && v.length ? v : undefined;
+}
