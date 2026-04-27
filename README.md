@@ -19,6 +19,7 @@ coldfile/
 ├── app/                          Next.js App Router (UI, API routes)
 ├── data/
 │   └── agencies/                 Per-metro agency JSON. Loaded via npm run load:agencies.
+├── mobile/                       Expo (React Native) app — Play Store / App Store target. See mobile/README.md.
 ├── docs/
 │   ├── 00_DECISIONS.md           Architecture decision log
 │   ├── 01_DATA_SOURCES.md        Tiered source strategy + state-by-state matrix
