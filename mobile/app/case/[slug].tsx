@@ -34,6 +34,7 @@ import { TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
 import { tokens } from '@/constants/theme';
 import { displayName, formatDateMonthDay, formatPlace } from '@/lib/format';
 import { useCaseDetail } from '@/lib/hooks/use-case-detail';
+import { useFreshReceiptCount } from '@/lib/hooks/use-fresh-receipt';
 import { useSubmittedTip } from '@/lib/hooks/use-submitted-tips';
 import type { CaseMediaRow, CaseRowFull, CaseSourceRow } from '@/lib/types/database';
 
@@ -52,6 +53,7 @@ export default function CaseDetailScreen() {
 
   const { data, loading, error } = useCaseDetail(slug);
   const { receipt } = useSubmittedTip(slug);
+  const flashKey = useFreshReceiptCount(slug);
   const c = data.case;
 
   if (loading && !c) {
@@ -182,7 +184,11 @@ export default function CaseDetailScreen() {
         }}
       >
         {receipt ? (
-          <ReceiptCaption agencyName={receipt.agencyName} submittedAt={receipt.submittedAt} />
+          <ReceiptCaption
+            agencyName={receipt.agencyName}
+            submittedAt={receipt.submittedAt}
+            flashKey={flashKey}
+          />
         ) : null}
 
         <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -212,26 +218,21 @@ export default function CaseDetailScreen() {
  * Receipt caption: ✓ ROUTED TO {AGENCY} · {relative date}.
  * Mono caps in evidence.chrome — receipt register, not active.
  *
- * On a FRESH receipt (submitted within the last 5 seconds, i.e. the user just
- * came back from the agency's tip portal), the {AGENCY} segment fires the
- * SuccessFlash — the only sanctioned use of tip.success in the entire app.
+ * The {AGENCY} segment fires the SuccessFlash whenever flashKey changes (and
+ * is > 0). flashKey comes from useFreshReceiptCount, which is set by
+ * useSubmitTip on a successful handoff — driven by an event flag, not a
+ * wall-clock window. See lib/hooks/use-fresh-receipt.ts for the rationale.
  */
-const FRESH_RECEIPT_WINDOW_MS = 5_000;
-
 function ReceiptCaption({
   agencyName,
   submittedAt,
+  flashKey,
 }: {
   agencyName: string;
   submittedAt: string;
+  flashKey: number;
 }) {
   const label = relativeReceiptLabel(submittedAt);
-  const ageMs = Date.now() - new Date(submittedAt).getTime();
-  const isFresh = ageMs >= 0 && ageMs <= FRESH_RECEIPT_WINDOW_MS;
-
-  // Identical layout for fresh and settled — only the agency-name segment
-  // animates color. Two MonoLabels for the prefix/suffix bookends and a
-  // SuccessFlash for the agency name in the middle.
   return (
     <View
       style={{
@@ -249,7 +250,7 @@ function ReceiptCaption({
         {'✓ ROUTED TO '}
       </MonoLabel>
       <SuccessFlash
-        trigger={isFresh}
+        flashKey={flashKey}
         baseColor={tokens.color.evidence.chrome}
         style={{
           fontFamily: tokens.font.mono,
