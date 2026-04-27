@@ -58,12 +58,28 @@ That's the ceiling. Every one of these is genuinely about the user's intent. If 
 
 | Token | Hex | Use |
 |-------|-----|-----|
-| `you.here` | `#5b8fb0` | "Map: you are here" dot, "Search: your last viewed" indicator, "Watch zones: your zones" affordance, profile tab. Intentionally outside the case-color family — represents the user, never a case. |
+| `you.here` | `#5b8fb0` | Saturated mid blue for edge accents and dot fills: map "you are here" dot, last-viewed indicator, my-zones affordance, profile tab, the 2px left edge on a trust-disclosure callout. |
+| `text.info` | `#b5d4f4` | Desaturated light blue for sustained reading at 11–13px on near-black: trust-disclosure callout body text, future "your data" prose. Not interchangeable with `you.here` — the saturated mid is unreadable as body copy at small sizes; the light is invisible as an edge accent. Edge accents go saturated; prose goes light. |
 | `tip.success` | `#b04545` | The flash that confirms a tip was successfully routed to the agency. Only this. Do not use this color anywhere else in the app. |
 | `status.resolved` | `#6a8b6e` | Recently-resolved case pill (status changed `open → identified` or `→ cleared_arrest` within the last 30 days). The only sanctioned use of green in the entire app. |
 | `evidence.chrome` | `#5a5550` | Filing-system furniture: photo corner brackets, photo caption strip, source-chip borders. Optionally section labels (CASE FILE, SOURCES · 3) — see typography note. Anything that's structural, not content. |
 
-The blue stays clean for "the user, not a case." Reuse it anywhere a screen is communicating user-state — last-viewed, my-zones, profile — and leave it out of anything that's about cases themselves.
+### Amber-tinted backgrounds
+
+Two prebaked tints, each tuned for a specific affordance ratio. Don't synthesize tinted backgrounds with arbitrary opacity — use these tokens.
+
+| Token | Hex | Use | Affordance ratio |
+|-------|-----|-----|------------------|
+| `bg.amberTintCard` | `#161208` | Selected radio cards, full-card selection states (recommended-route card in the submit-tip modal). | **Border carries selection, bg reinforces.** The 1px `accent.amber` border survives across themes and accessibility settings; the dim amber bg is supporting evidence. A future "selected card" pattern that's bg-only without border violates this contract — push back. |
+| `bg.amberTintPill` | `#2a2520` | Small amber affordances: UNSOLVED pill, active filter chip. | **Bg carries the affordance alone**, because pill geometry is too small for a useful border without crowding the text. Different element, different ratio, both correct. |
+
+### Blue rule (load-bearing)
+
+> **Blue means user-state OR user-trust contract. Never case-state.**
+
+The trust contract is specifically *the product's promises to the user* — privacy posture, data handling, what the app does and doesn't do with what the user sends. **Third-party trust signals are not the user's trust contract.** A future `Verified by LASD` badge on a case is *about the case*, not about the user — it does not get blue. It gets `text.secondary` or a neutral. The principle preserves blue's signal weight by keeping it tightly bound to the user-relationship.
+
+The `you.here` ↔ `text.info` split is a separate operational rule inside the same family: edge accents and dot fills use the saturated mid; body and prose-length content use the desaturated light. Two tokens, two contexts.
 
 `#b04545` is the alarm-color affordance. It exists in the system because tip-routed-success is a moment the user *should* feel. Using it in any other context (a recently-updated ring, an error toast, a delete confirmation) erodes the moment. Reach for `text.secondary` or `accent.amber` for those.
 
@@ -328,13 +344,118 @@ The save button has two visual states:
 
 No confirmation tap on save/unsave. Single tap toggles, with a 200ms haptic + 600ms toast (`Saved to your list` / `Removed from saved`).
 
+#### Trust-disclosure caption (required, not optional)
+
+Directly below the sticky bar buttons, on the case detail screen:
+
+| Property | Value |
+|---|---|
+| Copy | `Tips route to the agency · The Cold File never stores them` |
+| Style | Mono 10px Medium, `text.secondary`, tracking 0.05em |
+| Padding | 8px top, 0 sides (sits inside the sticky-bar container so it scrolls with the home-indicator safe area) |
+
+This caption is **non-negotiable.** A user on the case-detail screen who taps `Submit a tip` is in the highest-confidence moment of the flow — they've decided to act. They will skim the modal that opens and tap the bottom button. The disclosure inside the modal is read by users who hesitate, not by users who proceed. The caption-under-button gives the contract to the user who'd otherwise skip — which is exactly the user the disclosure exists for.
+
+It's also the cheapest legal-posture surface in the app: caption text under a button is approximately free in attention budget; the user who needs it gets it without looking, and the user who doesn't filters it out. Same promise, four placements (case-detail caption + modal disclosure + success screen + FAQ), redundancy is the point.
+
+See "Trust-disclosure surfaces" under the Submit-tip flow section for the full list and copy variants.
+
+---
+
+## Submit-tip flow
+
+The highest-stakes surface in the app from a "design carrying legal weight" perspective. Case detail respects the case; submit-tip is what keeps the product from getting sued and what keeps users trusting it. Every rule below is load-bearing, not stylistic.
+
+### Routing logic — which route gets RECOMMENDED
+
+The recommended route is the agency's own anonymous tip pipeline. For most US cases that's the local Crime Stoppers P3 affiliate covering the case-owning agency's jurisdiction (LASD → LA Crime Stoppers, NYPD → NYC Crime Stoppers, etc.). The user is sending a tip exactly as they would have if they'd called the agency's own hotline directly — with the convenience of one tap from a case they were already looking at.
+
+**Resolution order (per-case, not per-agency):**
+
+1. `cases.tip_route_kind` + `cases.tip_url` / `cases.tip_phone` — case-specific override (e.g. an FBI field office has taken the lead on a case the local agency would otherwise own)
+2. `cases.primary_agency.tip_route_kind` + `agencies.tip_url` / `agencies.phone_tip` — agency default
+3. FBI tip line — federal jurisdiction or no agency-level route exists
+
+The recommended badge attaches to whichever route resolves at the highest priority above. The other routes still appear (different jurisdictions or specific-detective relationships matter) but only one card carries the `RECOMMENDED` mono-cap label.
+
+The per-metro agency-to-P3 mapping is **operational data, not design data.** It lives in `agencies.tip_route_kind` + `agencies.tip_url`. About 40 P3 affiliates nationally cover most of the US population; populating them for the launch metros is its own week of research. See `docs/05_TIP_ROUTING.md` (TBD) for the operational mapping.
+
+### Modal layout
+
+| Region | Treatment |
+|---|---|
+| Grab handle | 36×4px, `border.strong`, centered |
+| Title row | Serif 19px `text.primary` `Submit a tip` left, sans 12px `text.secondary` `re: {Victim Name} · {Month YYYY}` underneath. 28px circular close button right (`bg.elev1`, 0.5px `border.strong`, ×). |
+| `ROUTE TO` section label | Mono 11px Medium tracking 0.05em, `text.secondary` |
+| Route cards | Stacked, 8px gap. See radio-card spec below. |
+| `YOUR TIP · OPTIONAL` section label | Mono 11px Medium tracking 0.05em, `text.secondary` |
+| Tip composer | `bg.base` (`#0e0e0e`-ish; use `bg.base` token) with 0.5px `border.strong`, 8px radius, 12px padding, 70px min-height, sans 13px italic `#4a4a4a` placeholder text |
+| Trust callout | `bg.base` with 2px `you.here` left edge, 10×12px padding, sans 11px `text.info`, line-height 1.6. See "Trust-disclosure surfaces" below for copy. |
+| Sticky CTA | Full-width `accent.amber` button, dark text (`#1a1408`), 14px sans Medium, 8px radius, 14px tall padding. Copy follows the CTA-copy precedence chain below. |
+
+### Radio-card pattern
+
+Each route is a card. **Border carries selection, bg reinforces.** A bg-only selection state without border violates the system — push back if proposed.
+
+| State | Treatment |
+|---|---|
+| Selected (recommended OR user-picked) | `bg.amberTintCard` (#161208), 1px `accent.amber` border, 8px radius, 14px padding. 16px circular radio with 1.5px `accent.amber` ring + 8px solid `accent.amber` inner dot. |
+| Unselected | `bg.elev1` (#161616), 0.5px `border.strong`, 8px radius, 14px padding. 16px circular radio with 1.5px `border.strong` ring, no inner dot. |
+| Card title | Sans 14px Medium, `text.primary` |
+| Card meta line | Sans 12px Regular, `text.secondary`, line-height 1.5. Describes the route's properties: `Anonymous · routes to {agency} on this case · reward eligible` |
+| `RECOMMENDED` badge | Mono 9px Medium tracking 0.08em, `accent.amber`, right-aligned on the title row |
+
+The meta-line grammar is structured: `{anonymity} · {routing} · {reward}` where each segment may be omitted if not applicable. For an FBI tip card: `Federal jurisdiction or interstate` (no anonymity claim, no reward affordance). For a direct-line phone card: `{phone} · direct line` (mono for the number).
+
+### CTA-copy precedence chain
+
+The button names the receiving agency, never bare "Submit." This is a trust-contract requirement: the user must see *who they're sending to* before they tap.
+
+```ts
+function ctaCopy(agency: { name: string; short_name?: string }): string {
+  const short = agency.short_name;
+  if (short && short.length <= 18) return `Send to ${short}`;
+  // Match a leading acronym ("FBI Albuquerque Field Office" → "FBI")
+  const acronymMatch = agency.name.match(/^[A-Z]{2,5}\b/);
+  if (acronymMatch && acronymMatch[0].length <= 18) return `Send to ${acronymMatch[0]}`;
+  return 'Send to the agency';
+}
+```
+
+Disclosure copy always uses the full `agency.name` — the trust contract is that the user always sees the receiver's full name *somewhere* on the screen. The button can be terse; the disclosure right above it is exhaustive.
+
+The `'Send to the agency'` fallback is rare (both `short_name` is too long and no acronym at the start of `name`). It's better than truncating mid-name with an ellipsis, which feels sloppy on a legal-stakes button.
+
+### Trust-disclosure surfaces
+
+Same promise, four placements, three lengths. The redundancy is the point — the privacy posture being repeated until it's load-bearing in the user's understanding of the product.
+
+| Surface | Length | Copy |
+|---|---|---|
+| Case detail (caption under sticky bar) | Short | `Tips route to the agency · The Cold File never stores them` |
+| Submit-tip modal (blue callout above CTA) | Full | `Routes directly to {agency.name}. The Cold File never reads, holds, or stores tip content.` |
+| Tip-success screen | Full | Same as modal |
+| FAQ "How does The Cold File handle tips?" | Expanded | Same as modal, plus: tips are submitted as opaque content directly to the agency's intake (Crime Stoppers P3, agency form, agency phone). The Cold File logs only that a tip was routed (timestamp, target agency, content hash for abuse rate-limiting). The content itself is never stored, read, or shared. |
+
+The disclosure formatting is the same in every surface that uses the full version: 2px `you.here` left edge, sans 11px `text.info`, line-height 1.6, on `bg.base`. That visual consistency makes the disclosure recognizable across the product — a user who sees it once on a case detail screen recognizes it immediately when it appears in the success screen.
+
+### Success state
+
+After the user taps the CTA, the modal transitions to a confirmation state. This is the only sanctioned use of `tip.success` (#b04545) in the entire app — a 600ms flash (200ms in / 100ms hold / 300ms out, ease-out) on the receiving-agency name as it appears in the success copy:
+
+> Tip sent to **LA Crime Stoppers**. They'll review it and contact LASD if it's actionable.
+
+The agency name flashes in `tip.success`, then settles to `text.primary`. Below: the standard full disclosure callout. Below that: a `Done` CTA in `accent.amber`.
+
+The flash is the moment the alarm-color affordance earns its keep. It tells the user, viscerally, that something just happened that matters. Using `#b04545` in any context that *isn't* this moment dilutes the affordance.
+
 ---
 
 ## "You are here"
 
-The user-location dot is `you.here` (#5b8fb0), with a soft outer ring at 50% alpha and a faint outer halo at 10% alpha. **Never tinted with the case palette.** The user is not a case; the dot must not compete with cases visually. Cool blue is the system's signal that "this is about you, not about a case."
+The user-location dot uses `you.here` (#5b8fb0), with a soft outer ring at 50% alpha and a faint outer halo at 10% alpha. **Never tinted with the case palette.** The user is not a case; the dot must not compete with cases visually.
 
-The token covers more than the map dot — see the palette table for the full scope (last-viewed indicator, my-zones affordance, profile tab). The principle is the same everywhere: blue means user-state, never case-state.
+The blue rule is fully specified in the palette section above (user-state OR user-trust contract; never case-state). The map dot is the canonical instance, but `you.here` extends to the last-viewed indicator, my-zones affordance, profile tab, and the trust-disclosure callout edge. `text.info` carries the prose-length variant of the same family for sustained reading.
 
 ---
 
@@ -354,12 +475,23 @@ When the Expo scaffold lands in Week 5, this gets exported from `theme.ts` and i
 // theme.ts — drop-in for the Week 5 Expo scaffold (and the Next.js web property).
 export const tokens = {
   color: {
-    bg: { base: '#0a0a0a', elev1: '#161616', elev2: '#2a2a2a' },
+    bg: {
+      base: '#0a0a0a', elev1: '#161616', elev2: '#2a2a2a',
+      /** Selected radio cards — border carries selection, this bg reinforces. */
+      amberTintCard: '#161208',
+      /** Small amber affordances (UNSOLVED pill, active filter chip) — bg carries the affordance alone. */
+      amberTintPill: '#2a2520',
+    },
     border: { subtle: '#1f1f1f', strong: '#2a2a2a' },
-    text: { primary: '#f5f1ea', secondary: '#8a8580', disabled: '#5a5550' },
+    text: {
+      primary: '#f5f1ea', secondary: '#8a8580', disabled: '#5a5550',
+      /** Desaturated light blue for prose-length user-trust copy at 11–13px on near-black. NOT interchangeable with you.here. */
+      info: '#b5d4f4',
+    },
     accent: { amber: '#c5a572', amberHot: '#e3c485' },
     pin: { homicide: '#9a8569', missing: '#c5a572', doe: '#d5cdb8' },
     cluster: { fill: '#3a3a3a', text: '#f5f1ea' },
+    /** Saturated mid blue for edge accents and dot fills — never used as body text. */
     you: { here: '#5b8fb0' },
     tip: { success: '#b04545' },
     status: { resolved: '#6a8b6e' },
@@ -419,6 +551,32 @@ export const tokens = {
     /** Source-chip ordering: sort by trust_weight DESC, then last_ingested_at DESC as tiebreaker. */
     sourceSortOrder: ['trust_weight desc', 'last_ingested_at desc'] as const,
   },
+  tipFlow: {
+    /**
+     * CTA copy precedence: agency.short_name (≤18 chars) → leading acronym → 'the agency' fallback.
+     * The full agency.name always appears in the disclosure callout right above the button —
+     * the user never taps a button without seeing the receiver's full name on the same screen.
+     */
+    ctaCopy: (agency: { name: string; short_name?: string }): string => {
+      const short = agency.short_name;
+      if (short && short.length <= 18) return `Send to ${short}`;
+      const acronym = agency.name.match(/^[A-Z]{2,5}\b/);
+      if (acronym && acronym[0].length <= 18) return `Send to ${acronym[0]}`;
+      return 'Send to the agency';
+    },
+    /** Per-case override beats agency default beats federal fallback. See "Routing logic" in the doc. */
+    routeResolutionOrder: ['case', 'agency', 'fbi'] as const,
+    /** Trust-disclosure surfaces — required, not optional. The redundancy is the point. */
+    disclosureSurfaces: {
+      caseDetailCaption: 'Tips route to the agency · The Cold File never stores them',
+      modal: (agencyName: string) =>
+        `Routes directly to ${agencyName}. The Cold File never reads, holds, or stores tip content.`,
+      success: (agencyName: string) =>
+        `Routes directly to ${agencyName}. The Cold File never reads, holds, or stores tip content.`,
+    },
+    /** Tip-success animation: 600ms total, ease-out — the only sanctioned use of tip.success in-app. */
+    successFlashMs: { in: 200, hold: 100, out: 300 },
+  },
 } as const;
 ```
 
@@ -428,8 +586,9 @@ export const tokens = {
 
 1. **Filter chip behavior with shape encoding.** When a user activates a "Homicide" chip, do remaining pins fade or disappear? Recommend fade (50% alpha) so the user keeps spatial context, but verify with a low-fi mock before locking.
 2. **Selected-pin layering with recency.** The treatment is specced, but render-order on Mapbox needs verification — selection halo must render *outside* the recency ring. Empirically this means selection layer above recency layer.
-3. **Tip-success animation.** The `#b04545` flash needs duration + curve. Stub: 600ms total, 200ms in / 100ms hold / 300ms out, ease-out. Confirm in Week 5 with a real prototype before locking.
+3. **Tip-success animation duration.** Locked in `tipFlow.successFlashMs` (200/100/300, ease-out) — re-verify with a device prototype in Week 5; the haptic should fire on the in-edge of the flash, not the out-edge.
 4. **Cluster threshold per metro.** Initial values in the token snapshot are guesses. Calibrate on a real LA County dataset before launch.
 5. **`evidence.chrome` for text section labels — A/B.** The token covers non-text chrome unambiguously (photo brackets, caption strips, source-chip borders). For *text* labels (`CASE FILE`, `SOURCES · 3`, `DATE` / `LOCATION` / `AGENCY`), it may read too dim against `bg.base` at 10–11px. A/B against `text.secondary` (#8a8580) in the next mockup pass — if it holds, use `evidence.chrome` everywhere for the unified "filing system furniture" story; if it doesn't, keep `text.secondary` for text labels and reserve `evidence.chrome` strictly for non-text chrome.
 6. **Photo `taken_year` field.** The hero-photo caption strip currently falls back to incident year because `case_media` has no `taken_year`. For evidence photos taken months/years before the incident (a victim's portrait taken in 1980, incident in 1985), the fallback misleads. Schema add for v2: `case_media.taken_year integer null` with extraction logic per-source where available.
 7. **Doe-case detail header.** The case-detail spec assumes a victim name in serif. Doe cases (`kind = 'unidentified'`) have no name. Spec stub: serif `Unidentified Female, est. 18–25` with the demographic estimate; if no demographic, just `Unidentified`. Mono-cap label above changes from `MISSING / 1985 / CLAREMONT, CA` to `UNIDENTIFIED / RECOVERED 2003 / MIAMI-DADE, FL` (recovery date, not disappearance). Settle in next mockup pass.
+8. **Per-metro agency-to-P3 mapping.** Operational data, not design data — but the design assumes it exists. About 40 Crime Stoppers P3 affiliates nationally cover most of the US population. The mapping lives in `agencies.tip_route_kind` + `agencies.tip_url`, but populating it is its own week of research before launch. Track in `docs/05_TIP_ROUTING.md` (TBD); seed the LA-county subset (LA Crime Stoppers, OC Crime Stoppers, San Bernardino) before the v1 LA beta.
