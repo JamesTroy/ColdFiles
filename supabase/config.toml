@@ -1,0 +1,56 @@
+# Supabase project config — applied on `supabase start` for local dev.
+# Production values live in the Supabase dashboard; this file just shapes
+# local dev to mirror prod.
+
+project_id = "coldfile"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+
+[storage.buckets.case-media]
+public = true
+file_size_limit = "10MiB"
+allowed_mime_types = ["image/png", "image/jpeg", "image/webp", "application/pdf"]
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+
+[functions.ingest-source]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.ingest-tick]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.photo-cache]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[functions.geocode-pending]
+verify_jwt = false
+import_map = "./functions/import_map.json"
