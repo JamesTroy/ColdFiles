@@ -8,8 +8,9 @@ The web property at `coldfile.app` is a separate Next.js codebase. **Two thin fr
 
 ```bash
 cd mobile
-npm install     # one time
-npx expo start  # interactive runner — press i for iOS sim, a for Android emulator
+npm install                         # one time
+cp .env.example .env                # configure Supabase access (optional — see below)
+npx expo start                      # interactive runner — press i for iOS sim, a for Android emulator
 ```
 
 Native runs require:
@@ -17,6 +18,12 @@ Native runs require:
 - Android: Android Studio + an AVD, or a physical device with USB debugging.
 
 For early UI iteration, **Expo Go** on a physical device is fastest — no native build required. The map's SVG-canvas placeholder works in Expo Go; the real Mapbox native integration (Week 5b) will need a custom dev client.
+
+### Designer mode (no backend)
+
+If `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are unset, every data hook falls back to sample data from `lib/sample-data.ts`. The UI iterates without anyone needing a Supabase project. The header on the Map screen and the List tab append `· SAMPLE` so it's obvious which mode you're in.
+
+When the env vars are set, the same hooks switch to live queries (`cases_within_radius` RPC, slug-keyed table reads) automatically. No screen-level changes required.
 
 ## Layout
 
@@ -62,12 +69,12 @@ The tokens file mirrors the snapshot in the design doc exactly. Geometry math (`
 **Wired:**
 - Design system tokens, fonts, navigation skeleton
 - All four tabs render with the correct visual language
-- Case detail + submit-tip modal screens render with sample data
 - The Pin renderer enforces the geometry contract (filled / ring+dot / open ring, stroke scaling, recency decay, selected halo)
+- **Supabase data layer**: `lib/supabase.ts` + typed schema in `lib/types/database.ts` + per-screen hooks in `lib/hooks/`. Map / List / Case-detail screens call the live RPCs and table reads when env is configured; designer-mode sample data otherwise.
 
 **Stubbed (Week 5b–5c):**
-- Mapbox native (the SVG canvas is a visual placeholder; real markers replace it behind the same `<MapCanvas>` contract)
-- Supabase queries (the screens use static sample data — replace with `cases_within_radius` / `cases_in_bbox` RPC calls and slug-keyed selects)
-- Expo Notifications + FCM
-- Tip-routing wire-up (the modal calls `router.back()` on submit; should POST to a tip-routing Edge Function and transition to the success state with the `tip.success` flash)
-- Auth + premium upsell
+- **Mapbox native** — the SVG canvas is a visual placeholder; real markers replace it behind the same `<MapCanvas>` contract. Pin xy positions on the map screen are deterministic hashes of case slug today; real coordinates land with Mapbox.
+- **Auth** — Supabase client runs with `persistSession: false` for now. When auth lands, swap in `@react-native-async-storage/async-storage` as the storage adapter; the saved tab and watch zones go live then.
+- **Expo Notifications + FCM** — needed for watch-zone alerts.
+- **Tip-routing wire-up** — the modal calls `router.back()` on submit; should POST to a tip-routing Edge Function and transition to the success state with the `tip.success` flash.
+- **Premium upsell** — the Me tab has a placeholder row.

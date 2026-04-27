@@ -1,29 +1,23 @@
 /**
- * Case detail screen.
+ * Case detail screen — slug-keyed.
  *
- * The destination from every map peek and list row. Every primitive on this
- * screen is a tokenized component — every visual rule from
- * docs/04_DESIGN_SYSTEM.md "Case detail screen" is enforced by the components
- * themselves, not by re-decided per-render styles.
+ * Wired to useCaseDetail() — three reads run in parallel (case row + agency
+ * join, case_sources, case_media). Renders progressively as each settles.
  *
- *   PhotoFrame        evidence-register hero (corner brackets + caption strip)
- *   SerifTitle        victim name — arrival starts here
- *   Pills row         UNSOLVED + (cold OR resolved). Case kind is NOT a pill — it's in the key-facts table.
- *   KeyFactsTable     verifiable case data (TYPE / DATE / LOCATION / AGENCY)
- *   NarrativeText     truncated to ~40 words; "Read full file →" affordance
- *   SourceChipRow     trust-weight DESC + last_ingested_at DESC ordering
- *   Sticky bar        AmberCTA "Submit a tip" + SecondaryCTA save (★)
- *   Trust caption     under the bar — required, not optional
+ * Every visual rule from docs/04_DESIGN_SYSTEM.md "Case detail screen" is
+ * enforced by the cf/* components themselves, not by per-render styles. The
+ * pill grammar, the photo-frame contract, the trust-disclosure caption, the
+ * source-chip ordering — all carried by the primitives.
  */
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA, SecondaryCTA } from '@/components/cf/cta-button';
-import { KeyFactsTable } from '@/components/cf/key-facts';
+import { KeyFactsTable, type KeyFact } from '@/components/cf/key-facts';
 import { PhotoFrame } from '@/components/cf/photo-frame';
 import { ColdPill, UnsolvedPill } from '@/components/cf/pill';
 import { SourceChipRow } from '@/components/cf/source-chip';
@@ -36,31 +30,16 @@ import {
 } from '@/components/cf/text';
 import { TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
 import { tokens } from '@/constants/theme';
+import { displayName, formatDateMonthDay, formatPlace } from '@/lib/format';
+import { useCaseDetail } from '@/lib/hooks/use-case-detail';
+import type { CaseMediaRow, CaseRowFull, CaseSourceRow } from '@/lib/types/database';
 
-// Static sample case so the screen renders without backend wiring. Will be
-// replaced by a Supabase query keyed on slug when the data layer is wired.
-const SAMPLE_CASE = {
-  slug: 'evans-1985',
-  caseNumber: 'CASE-LASD-1985-0413',
-  victimName: 'David R. Evans',
-  metaSubtitle: 'Age 57 · VP, Pomona First Federal',
-  photoUri: null as string | null,
-  photoCaption: 'PHOTO 01 · LASD HOMICIDE BUREAU · 1985',
-  incidentDate: new Date('1985-10-13'),
-  dateQuality: 'exact' as const,
-  facts: [
-    { label: 'TYPE', value: 'Homicide' },
-    { label: 'DATE', value: 'Oct 13, 1985', mono: true },
-    { label: 'LOCATION', value: 'Claremont, CA' },
-    { label: 'AGENCY', value: 'LASD Homicide Bureau' },
-  ],
-  narrative:
-    'Mr. Evans was found beaten to death inside his Claremont residence on a Sunday evening. His body was discovered by Claremont Police Officers responding to a possible burglary call from neighbors. At the time, the investigation had…',
-  sources: [
-    { slug: 'lasd.org', url: 'https://lasd.org' },
-    { slug: 'projectcoldcase', url: 'https://projectcoldcase.org' },
-  ],
-  agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
+const KIND_DISPLAY: Record<CaseRowFull['kind'], string> = {
+  homicide: 'Homicide',
+  missing: 'Missing',
+  unidentified: 'Unidentified',
+  unclaimed: 'Unclaimed',
+  suspicious_death: 'Suspicious Death',
 };
 
 export default function CaseDetailScreen() {
@@ -68,13 +47,51 @@ export default function CaseDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const [saved, setSaved] = useState(false);
 
-  // TODO: Supabase query keyed on slug. For now use the sample.
-  const c = SAMPLE_CASE;
-  const coldText = tokens.caseDetail.coldPill(c.incidentDate, c.dateQuality);
+  const { data, loading, error } = useCaseDetail(slug);
+  const c = data.case;
+
+  if (loading && !c) {
+    return <FullPageState>{<ActivityIndicator color={tokens.color.accent.amber} />}</FullPageState>;
+  }
+
+  if (error || !c) {
+    return (
+      <FullPageState>
+        <SerifTitle size="h1" style={{ fontSize: 48, color: tokens.color.text.secondary, marginBottom: 16 }}>
+          —
+        </SerifTitle>
+        <SansBody
+          style={{
+            color: tokens.color.text.secondary,
+            textAlign: 'center',
+            lineHeight: tokens.size.body * 1.5,
+            paddingHorizontal: 32,
+          }}
+        >
+          {error ? `Couldn't load case: ${error.message}` : 'This case is no longer available.'}
+        </SansBody>
+        <Pressable onPress={() => router.back()} style={{ marginTop: 24 }}>
+          <Mono size={tokens.size.meta} style={{ color: tokens.color.accent.amber }}>
+            ← Back
+          </Mono>
+        </Pressable>
+      </FullPageState>
+    );
+  }
+
+  const coldText = tokens.caseDetail.coldPill(
+    c.incident_date ? new Date(c.incident_date) : null,
+    c.incident_date_quality,
+  );
+
+  const facts = buildKeyFacts(c);
+  const photoUri = primaryPhotoUri(data.media);
+  const photoCaption = buildPhotoCaption(c, data.media[0] ?? null);
+  const heroName = displayName(c);
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      {/* Top chrome — back, case number (mono), share */}
+      {/* Top chrome */}
       <View
         style={{
           paddingTop: insets.top + 6,
@@ -95,7 +112,7 @@ export default function CaseDetailScreen() {
             letterSpacing: tokens.size.monoLabel * tokens.tracking.label,
           }}
         >
-          {c.caseNumber}
+          {c.case_number_primary ?? c.slug.toUpperCase()}
         </Mono>
         <CircleButton onPress={() => {}}>
           <Ionicons name="share-outline" size={16} color={tokens.color.text.primary} />
@@ -103,15 +120,18 @@ export default function CaseDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
-        <PhotoFrame uri={c.photoUri} caption={c.photoCaption} />
+        <PhotoFrame uri={photoUri} caption={photoCaption} />
 
         <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
-          <SerifTitle size="h1">{c.victimName}</SerifTitle>
-          <SansBody style={{ color: tokens.color.text.secondary, fontSize: tokens.size.meta, marginTop: 4 }}>
-            {c.metaSubtitle}
-          </SansBody>
+          <SerifTitle size="h1">{heroName}</SerifTitle>
+          {c.victim_age != null ? (
+            <SansBody
+              style={{ color: tokens.color.text.secondary, fontSize: tokens.size.meta, marginTop: 4 }}
+            >
+              {`Age ${c.victim_age}${c.victim_race ? ` · ${c.victim_race}` : ''}`}
+            </SansBody>
+          ) : null}
 
-          {/* Pills row — state + urgency only. Case kind lives in KeyFactsTable. */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
             <UnsolvedPill />
             <ColdPill text={coldText} />
@@ -119,33 +139,34 @@ export default function CaseDetailScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
-          <KeyFactsTable facts={c.facts} />
+          <KeyFactsTable facts={facts} />
         </View>
 
-        <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
-          <MonoLabel size={tokens.size.monoChip} tracking={tokens.tracking.chip} style={{ marginBottom: 8 }}>
-            CASE FILE
-          </MonoLabel>
-          <NarrativeText>{c.narrative}</NarrativeText>
-          <Pressable onPress={() => {}}>
-            <Mono
-              size={tokens.size.meta}
-              style={{ color: tokens.color.accent.amber, marginTop: 10 }}
-            >
-              Read full file →
-            </Mono>
-          </Pressable>
-        </View>
+        {c.narrative ? (
+          <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
+            <MonoLabel size={tokens.size.monoChip} tracking={tokens.tracking.chip} style={{ marginBottom: 8 }}>
+              CASE FILE
+            </MonoLabel>
+            <NarrativeText>{c.narrative}</NarrativeText>
+            <Pressable onPress={() => {}}>
+              <Mono size={tokens.size.meta} style={{ color: tokens.color.accent.amber, marginTop: 10 }}>
+                Read full file →
+              </Mono>
+            </Pressable>
+          </View>
+        ) : null}
 
-        <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
-          <MonoLabel size={tokens.size.monoChip} tracking={tokens.tracking.chip} style={{ marginBottom: 8 }}>
-            {`SOURCES · ${c.sources.length}`}
-          </MonoLabel>
-          <SourceChipRow chips={c.sources} />
-        </View>
+        {data.sources.length > 0 ? (
+          <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
+            <MonoLabel size={tokens.size.monoChip} tracking={tokens.tracking.chip} style={{ marginBottom: 8 }}>
+              {`SOURCES · ${data.sources.length}`}
+            </MonoLabel>
+            <SourceChipRow chips={sourceChipsFor(data.sources)} />
+          </View>
+        ) : null}
       </ScrollView>
 
-      {/* Sticky bar — AmberCTA + SecondaryCTA, with trust caption beneath */}
+      {/* Sticky bar */}
       <View
         style={{
           backgroundColor: tokens.color.bg.base,
@@ -159,7 +180,7 @@ export default function CaseDetailScreen() {
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <AmberCTA
             label="Submit a tip"
-            onPress={() => router.push(`/tip/${slug ?? c.slug}`)}
+            onPress={() => router.push(`/tip/${c.slug}`)}
           />
           <SecondaryCTA active={saved} onPress={() => setSaved((s) => !s)}>
             <Ionicons
@@ -169,11 +190,60 @@ export default function CaseDetailScreen() {
             />
           </SecondaryCTA>
         </View>
-        {/* Required trust caption — non-negotiable per design doc */}
         <TrustDisclosureCaption />
       </View>
     </View>
   );
+}
+
+function buildKeyFacts(c: CaseRowFull): KeyFact[] {
+  const out: KeyFact[] = [
+    { label: 'TYPE', value: KIND_DISPLAY[c.kind] },
+  ];
+
+  if (c.incident_date) {
+    out.push({
+      label: 'DATE',
+      value: formatDateMonthDay(c.incident_date),
+      mono: true,
+    });
+  } else if (c.incident_date_text) {
+    out.push({ label: 'DATE', value: c.incident_date_text });
+  }
+
+  const place = formatPlace(c);
+  if (place) out.push({ label: 'LOCATION', value: place });
+
+  if (c.primary_agency?.name) {
+    out.push({ label: 'AGENCY', value: c.primary_agency.name });
+  }
+
+  return out;
+}
+
+function primaryPhotoUri(media: CaseMediaRow[]): string | null {
+  const primary = media.find((m) => m.is_primary && m.kind === 'photo_victim');
+  if (primary?.url) return primary.url;
+  const anyPhoto = media.find((m) => m.kind.startsWith('photo'));
+  return anyPhoto?.url ?? null;
+}
+
+function buildPhotoCaption(c: CaseRowFull, primary: CaseMediaRow | null): string {
+  const sourceLabel = primary?.source_id
+    ? 'PHOTO 01' // sources name lookup happens in a future enrichment pass
+    : 'PHOTO 01';
+  const agencyName = c.primary_agency?.name?.toUpperCase() ?? 'CASE FILE';
+  const year = c.incident_date ? c.incident_date.slice(0, 4) : '—';
+  return `${sourceLabel} · ${agencyName} · ${year}`;
+}
+
+function sourceChipsFor(sources: CaseSourceRow[]): { slug: string; url: string }[] {
+  return sources.map((s) => {
+    // Show the source's slug (per design system — case-detail surface uses
+    // SOURCE / lasd.org style chips).
+    const display = s.source?.slug ?? new URL(s.source_url).hostname;
+    return { slug: display, url: s.source_url };
+  });
 }
 
 function CircleButton({
@@ -202,5 +272,20 @@ function CircleButton({
     >
       {children}
     </Pressable>
+  );
+}
+
+function FullPageState({ children }: { children: React.ReactNode }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: tokens.color.bg.base,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {children}
+    </View>
   );
 }
