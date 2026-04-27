@@ -95,12 +95,22 @@ create table agencies (
   cold_case_url   text,
   notes           text,
   active          boolean not null default true,
+  /**
+   * When the tip route was last verified live. null = never verified.
+   * A weekly CI check pings tip_url and updates this field on success;
+   * 404 or HTTP-error responses leave it stale and flag the row for review.
+   * Manually-verified phones use the same field, set on the day the test tip
+   * was confirmed received.
+   */
+  routing_last_verified_at timestamptz,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
 
 create index agencies_state_idx on agencies(state);
 create index agencies_jurisdiction_geom_idx on agencies using gist(jurisdiction_geom);
+create index agencies_routing_stale_idx on agencies(routing_last_verified_at)
+  where active = true and tip_url is not null;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────

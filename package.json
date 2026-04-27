@@ -14,6 +14,7 @@
     "scrape": "tsx scripts/scrape-cli.ts",
     "scrape:tick": "tsx scripts/scrape-cli.ts --tick",
     "vendor:fixture": "tsx tools/vendor-fixture.ts",
+    "load:agencies": "tsx scripts/load-agencies.ts",
     "test": "vitest run"
   },
   "dependencies": {
