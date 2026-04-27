@@ -1,0 +1,41 @@
+# Node / Next
+node_modules/
+.next/
+out/
+build/
+dist/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Scraper artifacts
+.cache/
+scraper-fixtures/*.html
+!scraper-fixtures/README.md
+
+# Coverage
+coverage/
+.nyc_output/
