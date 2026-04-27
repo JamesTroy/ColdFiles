@@ -54,3 +54,8 @@ import_map = "./functions/import_map.json"
 [functions.geocode-pending]
 verify_jwt = false
 import_map = "./functions/import_map.json"
+
+[functions.tip-route-submit]
+# Anonymous tips are first-class — the client calls this without an auth token.
+verify_jwt = false
+import_map = "./functions/import_map.json"

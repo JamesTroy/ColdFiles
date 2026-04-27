@@ -439,15 +439,80 @@ Same promise, four placements, three lengths. The redundancy is the point — th
 
 The disclosure formatting is the same in every surface that uses the full version: 2px `you.here` left edge, sans 11px `text.info`, line-height 1.6, on `bg.base`. That visual consistency makes the disclosure recognizable across the product — a user who sees it once on a case detail screen recognizes it immediately when it appears in the success screen.
 
-### Success state
+### Tip-flow choreography (the redirect handoff)
 
-After the user taps the CTA, the modal transitions to a confirmation state. This is the only sanctioned use of `tip.success` (#b04545) in the entire app — a 600ms flash (200ms in / 100ms hold / 300ms out, ease-out) on the receiving-agency name as it appears in the success copy:
+The submit-tip flow doesn't end inside The Cold File. The user taps `Send to LA Crime Stoppers`, and the actual tip-form lives on the agency's existing public infrastructure (P3 portal, agency form, agency phone). That handoff has design implications the modal copy alone doesn't carry.
+
+**Sequence on submit:**
+
+```
+T+0ms      User taps the AmberCTA.
+           Optimistic tip_routings insert fires (don't block on it).
+           UI enters "anticipation" state: CTA dims slightly, no spinner.
+T+200ms    Attempt the deep-link / external browser open.
+                ├─ success → fire success flash, close modal,
+                │            return to case detail (now in receipt state).
+                └─ failure → cancel the flash, replace the CTA with the
+                              fallback affordance (see below).
+```
+
+The 200ms anticipation pause is what gives the success flash room to read as the success signal it was specced to be. Without it, the flash collides with the modal-dismiss animation and reads as a glitch. **Tune the value with a real device prototype** — 200ms is a starting estimate, not a final number; build it, feel it, adjust.
+
+**What the success flash is:**
+
+A 600ms flash on the agency name as the success copy renders, then settles to `text.primary`:
 
 > Tip sent to **LA Crime Stoppers**. They'll review it and contact LASD if it's actionable.
 
-The agency name flashes in `tip.success`, then settles to `text.primary`. Below: the standard full disclosure callout. Below that: a `Done` CTA in `accent.amber`.
+Timing locked in `tipFlow.successFlashMs` (200/100/300, ease-out). This is the only sanctioned use of `tip.success` (#b04545) in the entire app. The flash is the moment the alarm-color affordance earns its keep — it tells the user, viscerally, that something just happened that matters. Using `#b04545` anywhere else dilutes the moment.
 
-The flash is the moment the alarm-color affordance earns its keep. It tells the user, viscerally, that something just happened that matters. Using `#b04545` in any context that *isn't* this moment dilutes the affordance.
+**What the success flash is *not*:**
+
+The flash does **not** assert that the user *completed* a tip on the agency's site. We routed the user; they may or may not have filled out the receiving form. The trust contract holds: "tips route to the agency · The Cold File never stores them" is honest because we routed and walked away. The flash celebrates the routing, not the completion.
+
+### Tip-flow failure state
+
+When the deep link / browser open fails (P3 portal down, no network, deep-link malformed), the success flash never fires. Instead the CTA is replaced in place with a fallback affordance that lets the user finish the routing manually:
+
+| Property | Value |
+|---|---|
+| Container | Same sticky-bar geometry as the original CTA |
+| Two side-by-side affordances | `Copy link` (left, ~50% width, accent.amber) + `{tip phone}` (right, mono Medium 14px on `bg.elev1`, tappable to dial) |
+| Helper line above | Mono 10px `text.info` on a 2px `you.here` left edge (matches the trust-callout treatment): `Couldn't open the LA Crime Stoppers form. You can still route the tip manually.` |
+| Recovery duration | The fallback persists until the user navigates away. No auto-dismiss. |
+
+The blue helper line is a deliberate use of the user-trust-contract surface: the app is talking to the user about *their* routing problem, not about the case. Per the blue rule, that's allowed.
+
+### Receipt state — "you submitted a tip on this case"
+
+When the user returns to a case-detail screen after a successful routing handoff, the sticky bar shows a different shape: the Submit-a-tip CTA is replaced with a desaturated variant indicating they've already tipped this case. They can still tap to submit another tip — new info, follow-up — but the visual weight tells them they've already routed once.
+
+| Property | Value |
+|---|---|
+| Background | `bg.amberTintCard` (#161208) — barely amber, mostly bg.base |
+| Border | 1px `evidence.chrome` (#5a5550) — receipt register |
+| Label | `Send another tip`, sans Medium 14px, `text.primary` |
+| Receipt caption (above the button) | Mono 10px tracking 0.05em, `evidence.chrome`: `✓ TIP SUBMITTED · {relative date, e.g. "TODAY", "OCT 27", "MAR 2024"}` |
+
+The receipt state is **device-local** until auth lands — driven by an AsyncStorage record `{caseSlug → {submittedAt, agencyName}}` keyed off the device. When auth lands, the same query also checks `tip_routings.user_id = auth.uid()` so a user signed in across devices sees the receipt consistently.
+
+The "✓" character is the only sanctioned check in the app's UI surface — it stays scoped to the receipt state. A second usage somewhere would dilute the signal.
+
+The trust-disclosure caption beneath the bar is unchanged — same copy regardless of whether the user has tipped before. The disclosure is about the product's promise, not the user's history.
+
+### Content hash
+
+The `tip_routings.content_hash` field exists in the schema for abuse rate-limiting (the same content submitted across many cases is a signal). The hash must actually be populated for the lever to work; an empty column is decorative.
+
+| Property | Value |
+|---|---|
+| Algorithm | SHA-256 of `${COLD_FILE_TIP_HASH_SALT_V1}${user_text}` |
+| Where computed | On the device, in the mobile / web client. Never round-trips the plaintext. |
+| What gets sent | The hex digest only. Server never sees the plaintext. |
+| Empty tip body | `null` — don't hash the empty string. |
+| Salt | A constant baked into the client (`COLD_FILE_TIP_HASH_SALT_V1`). Not a security boundary; pepper to prevent commodity rainbow-table lookups against known phrases. Bump to `_V2` if rotation is ever needed (write a migration to recompute existing rows). |
+
+The hash never reverses to content. Even an internal observer with the salt can only check candidate plaintexts ("does this exact tip appear in the row set?") — they cannot recover any user's text.
 
 ---
 
