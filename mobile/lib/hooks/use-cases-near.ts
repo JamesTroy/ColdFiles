@@ -13,6 +13,11 @@ import { useEffect, useState } from 'react';
 import { SAMPLE_CASES_MAP } from '../sample-data';
 import { getSupabase, isSupabaseConfigured } from '../supabase';
 import type { CaseKind, CaseRowMapNear, CaseStatus } from '../types/database';
+import type { QueryResult } from '../types/hooks';
+
+// Re-export so consumers that already import { QueryResult } from this file
+// keep compiling. Canonical home is lib/types/hooks.ts.
+export type { QueryResult } from '../types/hooks';
 
 interface UseCasesNearOptions {
   lat: number;
@@ -21,14 +26,6 @@ interface UseCasesNearOptions {
   kinds?: CaseKind[] | null;
   status?: CaseStatus[] | null;
   limit?: number;
-}
-
-export interface QueryResult<T> {
-  data: T;
-  loading: boolean;
-  error: Error | null;
-  /** 'live' = backend; 'sample' = fallback (env not configured). */
-  source: 'live' | 'sample';
 }
 
 export function useCasesNear({

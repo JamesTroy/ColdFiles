@@ -34,7 +34,9 @@ import { useCallback, useState } from 'react';
 
 import { hashTipContent } from '../hash';
 import { getSupabase, isSupabaseConfigured } from '../supabase';
+import type { WriteHookShape } from '../types/hooks';
 
+import { markReceiptFresh } from './use-fresh-receipt';
 import { markCaseTipped } from './use-submitted-tips';
 
 export interface SubmitTipInput {
@@ -55,12 +57,7 @@ export interface SubmitTipResult {
   tip_phone: string | null;
 }
 
-interface UseSubmitTipShape {
-  submit: (input: SubmitTipInput) => Promise<SubmitTipResult>;
-  submitting: boolean;
-  lastResult: SubmitTipResult | null;
-  error: Error | null;
-}
+type UseSubmitTipShape = WriteHookShape<SubmitTipInput, SubmitTipResult>;
 
 export function useSubmitTip(): UseSubmitTipShape {
   const [submitting, setSubmitting] = useState(false);
@@ -110,6 +107,11 @@ export function useSubmitTip(): UseSubmitTipShape {
       markCaseTipped(input.caseSlug, result.agency_name).catch((err) =>
         console.warn('[useSubmitTip] markCaseTipped failed:', err),
       );
+
+      // Set the transient fresh-receipt flag. The case-detail screen will
+      // consume it on its next render — naturally one-shot, survives the
+      // user's 90-second detour on the agency form, no wall-clock window.
+      markReceiptFresh(input.caseSlug);
 
       setLastResult(result);
       return result;
