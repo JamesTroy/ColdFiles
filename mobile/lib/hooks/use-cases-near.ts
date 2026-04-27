@@ -1,0 +1,103 @@
+/**
+ * useCasesNear — radius query against the cases_within_radius() RPC.
+ *
+ * The home-screen map query: "what's near me?". Maps directly to the spatial
+ * RPC defined in migrations/01_schema.sql; respects the kind/status filters
+ * the user has applied via filter chips.
+ *
+ * Falls back to sample data when Supabase is not configured (designer mode).
+ */
+
+import { useEffect, useState } from 'react';
+
+import { SAMPLE_CASES_MAP } from '../sample-data';
+import { getSupabase, isSupabaseConfigured } from '../supabase';
+import type { CaseKind, CaseRowMapNear, CaseStatus } from '../types/database';
+
+interface UseCasesNearOptions {
+  lat: number;
+  lng: number;
+  radiusMiles?: number;
+  kinds?: CaseKind[] | null;
+  status?: CaseStatus[] | null;
+  limit?: number;
+}
+
+export interface QueryResult<T> {
+  data: T;
+  loading: boolean;
+  error: Error | null;
+  /** 'live' = backend; 'sample' = fallback (env not configured). */
+  source: 'live' | 'sample';
+}
+
+export function useCasesNear({
+  lat,
+  lng,
+  radiusMiles = 25,
+  kinds = null,
+  status = null,
+  limit = 100,
+}: UseCasesNearOptions): QueryResult<CaseRowMapNear[]> {
+  const [data, setData] = useState<CaseRowMapNear[]>(() =>
+    isSupabaseConfigured() ? [] : applySampleFilters(SAMPLE_CASES_MAP, kinds, status),
+  );
+  const [loading, setLoading] = useState<boolean>(isSupabaseConfigured());
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setData(applySampleFilters(SAMPLE_CASES_MAP, kinds, status));
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const supabase = getSupabase();
+    supabase
+      .rpc('cases_within_radius', {
+        search_lat: lat,
+        search_lng: lng,
+        radius_miles: radiusMiles,
+        filter_kinds: kinds,
+        filter_status: status ?? ['open'],
+        result_limit: limit,
+      })
+      .then(({ data: rows, error: rpcError }) => {
+        if (cancelled) return;
+        if (rpcError) {
+          setError(new Error(rpcError.message));
+          setData([]);
+        } else {
+          setData((rows ?? []) as CaseRowMapNear[]);
+        }
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng, radiusMiles, JSON.stringify(kinds), JSON.stringify(status), limit]);
+
+  return {
+    data,
+    loading,
+    error,
+    source: isSupabaseConfigured() ? 'live' : 'sample',
+  };
+}
+
+function applySampleFilters(
+  rows: CaseRowMapNear[],
+  kinds: CaseKind[] | null,
+  status: CaseStatus[] | null,
+): CaseRowMapNear[] {
+  return rows.filter((r) => {
+    if (kinds && kinds.length && !kinds.includes(r.kind)) return false;
+    if (status && status.length && !status.includes(r.status)) return false;
+    return true;
+  });
+}
