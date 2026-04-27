@@ -21,17 +21,20 @@ import { KeyFactsTable, type KeyFact } from '@/components/cf/key-facts';
 import { PhotoFrame } from '@/components/cf/photo-frame';
 import { ColdPill, UnsolvedPill } from '@/components/cf/pill';
 import { SourceChipRow } from '@/components/cf/source-chip';
+import { SuccessFlash } from '@/components/cf/success-flash';
 import {
   Mono,
   MonoLabel,
   NarrativeText,
   SansBody,
+  SansMedium,
   SerifTitle,
 } from '@/components/cf/text';
 import { TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
 import { tokens } from '@/constants/theme';
 import { displayName, formatDateMonthDay, formatPlace } from '@/lib/format';
 import { useCaseDetail } from '@/lib/hooks/use-case-detail';
+import { useSubmittedTip } from '@/lib/hooks/use-submitted-tips';
 import type { CaseMediaRow, CaseRowFull, CaseSourceRow } from '@/lib/types/database';
 
 const KIND_DISPLAY: Record<CaseRowFull['kind'], string> = {
@@ -48,6 +51,7 @@ export default function CaseDetailScreen() {
   const [saved, setSaved] = useState(false);
 
   const { data, loading, error } = useCaseDetail(slug);
+  const { receipt } = useSubmittedTip(slug);
   const c = data.case;
 
   if (loading && !c) {
@@ -177,11 +181,19 @@ export default function CaseDetailScreen() {
           paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 28,
         }}
       >
+        {receipt ? (
+          <ReceiptCaption agencyName={receipt.agencyName} submittedAt={receipt.submittedAt} />
+        ) : null}
+
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <AmberCTA
-            label="Submit a tip"
-            onPress={() => router.push(`/tip/${c.slug}`)}
-          />
+          {receipt ? (
+            <ReceiptCTA onPress={() => router.push(`/tip/${c.slug}`)} />
+          ) : (
+            <AmberCTA
+              label="Submit a tip"
+              onPress={() => router.push(`/tip/${c.slug}`)}
+            />
+          )}
           <SecondaryCTA active={saved} onPress={() => setSaved((s) => !s)}>
             <Ionicons
               name={saved ? 'star' : 'star-outline'}
@@ -194,6 +206,115 @@ export default function CaseDetailScreen() {
       </View>
     </View>
   );
+}
+
+/**
+ * Receipt caption: ✓ ROUTED TO {AGENCY} · {relative date}.
+ * Mono caps in evidence.chrome — receipt register, not active.
+ *
+ * On a FRESH receipt (submitted within the last 5 seconds, i.e. the user just
+ * came back from the agency's tip portal), the {AGENCY} segment fires the
+ * SuccessFlash — the only sanctioned use of tip.success in the entire app.
+ */
+const FRESH_RECEIPT_WINDOW_MS = 5_000;
+
+function ReceiptCaption({
+  agencyName,
+  submittedAt,
+}: {
+  agencyName: string;
+  submittedAt: string;
+}) {
+  const label = relativeReceiptLabel(submittedAt);
+  const ageMs = Date.now() - new Date(submittedAt).getTime();
+  const isFresh = ageMs >= 0 && ageMs <= FRESH_RECEIPT_WINDOW_MS;
+
+  // Identical layout for fresh and settled — only the agency-name segment
+  // animates color. Two MonoLabels for the prefix/suffix bookends and a
+  // SuccessFlash for the agency name in the middle.
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 8,
+        alignItems: 'baseline',
+      }}
+    >
+      <MonoLabel
+        size={tokens.size.monoLabel}
+        tracking={tokens.tracking.chip}
+        color={tokens.color.evidence.chrome}
+      >
+        {'✓ ROUTED TO '}
+      </MonoLabel>
+      <SuccessFlash
+        trigger={isFresh}
+        baseColor={tokens.color.evidence.chrome}
+        style={{
+          fontFamily: tokens.font.mono,
+          fontSize: tokens.size.monoLabel,
+          letterSpacing: tokens.size.monoLabel * tokens.tracking.chip,
+        }}
+      >
+        {agencyName.toUpperCase()}
+      </SuccessFlash>
+      <MonoLabel
+        size={tokens.size.monoLabel}
+        tracking={tokens.tracking.chip}
+        color={tokens.color.evidence.chrome}
+      >
+        {` · ${label}`}
+      </MonoLabel>
+    </View>
+  );
+}
+
+/**
+ * Receipt CTA — desaturated variant of the AmberCTA. Tappable to submit
+ * another tip. Border carries the affordance, dim bg reinforces it (same
+ * "border carries selection, bg reinforces" rule as the radio cards).
+ */
+function ReceiptCTA({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          flex: 1,
+          backgroundColor: tokens.color.bg.amberTintCard,
+          borderColor: tokens.color.evidence.chrome,
+          borderWidth: 1,
+          paddingVertical: 14,
+          borderRadius: tokens.radius.card,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
+    >
+      <SansMedium size={tokens.size.body} style={{ color: tokens.color.text.primary }}>
+        Send another tip
+      </SansMedium>
+    </Pressable>
+  );
+}
+
+function relativeReceiptLabel(iso: string): string {
+  const submitted = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    submitted.getFullYear() === now.getFullYear() &&
+    submitted.getMonth() === now.getMonth() &&
+    submitted.getDate() === now.getDate();
+  if (sameDay) return 'TODAY';
+
+  const sameYear = submitted.getFullYear() === now.getFullYear();
+  const month = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][
+    submitted.getMonth()
+  ];
+  if (sameYear) return `${month} ${submitted.getDate()}`;
+  return `${month} ${submitted.getFullYear()}`;
 }
 
 function buildKeyFacts(c: CaseRowFull): KeyFact[] {
