@@ -17,11 +17,14 @@ Map-first directory of cold cases (unsolved homicides, long-term missing, uniden
 ```
 coldfile/
 ├── app/                          Next.js App Router (UI, API routes)
+├── data/
+│   └── agencies/                 Per-metro agency JSON. Loaded via npm run load:agencies.
 ├── docs/
 │   ├── 00_DECISIONS.md           Architecture decision log
 │   ├── 01_DATA_SOURCES.md        Tiered source strategy + state-by-state matrix
 │   ├── 02_SCRAPER_ARCHITECTURE.md Config-driven scraper, dedupe, trust merge, cron
-│   └── 04_DESIGN_SYSTEM.md       Locked v1 design tokens, typography, pin system, clustering
+│   ├── 04_DESIGN_SYSTEM.md       Locked v1 design tokens, typography, pin system, clustering
+│   └── 05_TIP_ROUTING.md         Per-agency tip-routing verification log + research checklist
 ├── migrations/
 │   └── 01_schema.sql             PostGIS schema, RLS, RPCs (drop-in for Supabase)
 ├── scripts/
