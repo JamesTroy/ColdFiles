@@ -17,7 +17,6 @@ import {
 } from '@expo-google-fonts/jetbrains-mono';
 import { Newsreader_500Medium } from '@expo-google-fonts/newsreader';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
-import Mapbox from '@rnmapbox/maps';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -27,14 +26,6 @@ import { View } from 'react-native';
 import 'react-native-reanimated';
 
 import { tokens } from '@/constants/theme';
-
-// Mapbox runtime access token. Public token (pk.*) is safe in the client bundle —
-// secret tokens (sk.*) are never exposed. Set once at module load, before any
-// MapView mounts; absence is a no-op (designer mode renders the SVG fallback).
-const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
-if (MAPBOX_TOKEN) {
-  Mapbox.setAccessToken(MAPBOX_TOKEN);
-}
 
 // Hold the splash until fonts have loaded — prevents a flash of system-fallback
 // type that would betray the case-file aesthetic.

@@ -19,13 +19,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Path, Polygon } from 'react-native-svg';
 
 import { AmberCTA } from '@/components/cf/cta-button';
-import { isMapboxAvailable } from '@/components/cf/mapbox-view';
+import { isNativeMapAvailable } from '@/components/cf/maps-view';
 import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import {
-  WatchZoneMapbox,
+  WatchZoneMap,
   type InsidePin,
   type PolygonVertex,
-} from '@/components/cf/watch-zone-mapbox';
+} from '@/components/cf/watch-zone-map';
 import { tokens } from '@/constants/theme';
 
 // A Ventura-area polygon roughly matching the prototype's outline. Six vertices.
@@ -47,7 +47,7 @@ const SAMPLE_INSIDE_PINS: InsidePin[] = [
   { id: 'wz-5', lat: 34.24, lng: -119.05, kind: 'homicide' },
 ];
 
-const useMapbox = isMapboxAvailable();
+const useNativeMap = isNativeMapAvailable();
 
 export default function WatchZoneScreen() {
   const insets = useSafeAreaInsets();
@@ -103,7 +103,7 @@ export default function WatchZoneScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        {useMapbox ? <ZoneMapboxPreview /> : <ZoneMapPreview />}
+        {useNativeMap ? <ZoneMapNativePreview /> : <ZoneMapPreview />}
 
         <SectionLabel>ZONE NAME</SectionLabel>
         <View style={{ paddingHorizontal: 16 }}>
@@ -174,7 +174,7 @@ export default function WatchZoneScreen() {
 
 /* ---------------- Mapbox preview ---------------- */
 
-function ZoneMapboxPreview() {
+function ZoneMapNativePreview() {
   return (
     <View
       style={{
@@ -189,7 +189,7 @@ function ZoneMapboxPreview() {
         position: 'relative',
       }}
     >
-      <WatchZoneMapbox
+      <WatchZoneMap
         vertices={SAMPLE_VERTICES}
         insidePins={SAMPLE_INSIDE_PINS}
       />

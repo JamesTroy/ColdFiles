@@ -21,10 +21,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MapCanvas, type MapMarker } from '@/components/cf/map-canvas';
 import {
-  MapboxView,
-  type MapboxMarker,
-  isMapboxAvailable,
-} from '@/components/cf/mapbox-view';
+  MapsView,
+  type MapsMarker,
+  isNativeMapAvailable,
+} from '@/components/cf/maps-view';
 import { PeekSheet } from '@/components/cf/peek-sheet';
 import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SerifTitle } from '@/components/cf/text';
@@ -43,7 +43,7 @@ const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   unidentified: ['unidentified', 'unclaimed'],
 };
 
-const useMapbox = isMapboxAvailable();
+const useNativeMap = isNativeMapAvailable();
 
 /** SVG-fallback hashed position when no real lat/lng. Removed once Mapbox is the only path. */
 function hashedPosition(slug: string): { x: number; y: number } {
@@ -144,10 +144,10 @@ export default function MapScreen() {
         />
       </ScrollView>
 
-      {/* Map canvas — Mapbox if configured, SVG fallback otherwise */}
+      {/* Map canvas — native map if configured, SVG fallback otherwise */}
       <View style={{ flex: 1 }}>
-        {useMapbox ? (
-          <MapboxRenderer
+        {useNativeMap ? (
+          <NativeRenderer
             cases={cases}
             selectedSlug={selectedSlug}
             onMarkerPress={setSelectedSlug}
@@ -175,7 +175,7 @@ export default function MapScreen() {
 
 /* ---------------- renderers ---------------- */
 
-function MapboxRenderer({
+function NativeRenderer({
   cases,
   selectedSlug,
   onMarkerPress,
@@ -184,7 +184,7 @@ function MapboxRenderer({
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
 }) {
-  const markers: MapboxMarker[] = useMemo(() => {
+  const markers: MapsMarker[] = useMemo(() => {
     return cases
       .filter((c) => c.lat != null && c.lng != null)
       .map((c) => ({
@@ -201,9 +201,13 @@ function MapboxRenderer({
   }, [cases, selectedSlug]);
 
   return (
-    <MapboxView
-      center={{ lat: tokens.map.defaultCenter.lat, lng: tokens.map.defaultCenter.lng }}
-      zoom={tokens.map.defaultCenter.zoomLevel}
+    <MapsView
+      center={{
+        lat: tokens.map.defaultCenter.lat,
+        lng: tokens.map.defaultCenter.lng,
+        latitudeDelta: tokens.map.defaultCenter.latitudeDelta,
+        longitudeDelta: tokens.map.defaultCenter.longitudeDelta,
+      }}
       markers={markers}
       here={{ lat: tokens.map.defaultCenter.lat, lng: tokens.map.defaultCenter.lng }}
       onMarkerPress={onMarkerPress}

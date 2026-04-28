@@ -1,6 +1,6 @@
 # The Cold File — mobile (Expo)
 
-The Play Store / App Store client. Expo + React Native + Supabase JS + (eventually) Mapbox native + Expo Notifications.
+The Play Store / App Store client. Expo + React Native + Supabase JS + react-native-maps (Google on Android, Apple on iOS) + Expo Notifications.
 
 The web property at `coldfile.app` is a separate Next.js codebase. **Two thin frontends, one Supabase backend.** All read paths in this app go through a bare `@supabase/supabase-js` client — Postgres functions or RLS-gated table reads, never a Next.js route handler. See `docs/00_DECISIONS.md` for the architecture rule.
 
@@ -8,15 +8,36 @@ The web property at `coldfile.app` is a separate Next.js codebase. **Two thin fr
 
 ```bash
 cd mobile
-npm install                         # one time
-cp .env.example .env                # configure Mapbox + Supabase tokens (see below)
+npm install                          # one time
+cp .env.example .env                 # configure Google Maps key + Supabase (see below)
 ```
 
-This app now ships with `@rnmapbox/maps` — **Expo Go does not work**. You need a custom dev client built once via `expo run:android` or EAS Build, then iterate against that.
+This app ships with `react-native-maps` — **Expo Go does not work**. You need a custom dev client built once via `expo run:android` or EAS Build, then iterate against that.
+
+### Google Maps API key (Android — required for the map to render)
+
+The Android map renders blank gray without a Google Maps API key.
+
+1. Open https://console.cloud.google.com/google/maps-apis
+2. Create a new project (or pick an existing one)
+3. Enable **Maps SDK for Android** under "APIs & Services → Library"
+4. Create an API key under "APIs & Services → Credentials"
+5. **Restrict the key**: Application restrictions → Android apps → add the package `com.matteblackdev.coldfile`. API restrictions → only "Maps SDK for Android"
+6. Paste the key into `mobile/.env`:
+   ```
+   EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID=AIza...
+   ```
+7. Re-run `npx expo prebuild --clean -p android` so the key lands in `AndroidManifest.xml`
+
+iOS uses Apple Maps by default — no key required there.
+
+Free tier covers early-stage launches comfortably (~$200/month of map services).
 
 ### First build (one time)
 
 ```bash
+npx expo prebuild --clean -p android   # regenerate android/ with the env-driven key
+echo "sdk.dir=$HOME/Library/Android/sdk" > android/local.properties
 npx expo run:android
 ```
 
@@ -25,14 +46,14 @@ Requires Android Studio installed locally with at least one configured AVD, **or
 ### Day-to-day after the first build
 
 ```bash
-npx expo start                      # press a to open in your dev client / running emulator
+npx expo start                       # press a to open in your dev client / running emulator
 ```
 
 The dev client is named "The Cold File" and the app icon shows on the device after the first run.
 
-### Designer mode (no Mapbox / no Supabase)
+### Designer mode (no Google Maps key / no Supabase)
 
-The hooks gracefully fall back to sample data when env vars are missing. To run without Mapbox configured (the map renders the SVG placeholder instead), leave `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` blank in `.env`. The Map and Watch Zone screens detect the missing token and route to the SVG renderer. Useful for iterating on UI on a machine that hasn't built the dev client yet.
+The hooks fall back to sample data when env vars are missing. The Map and Watch Zone screens detect the missing Google Maps key on Android and route to the SVG renderer. Useful for iterating UI on a machine without a Google Cloud project set up. iOS always renders via Apple Maps without a key.
 
 ### Designer mode (no backend)
 
