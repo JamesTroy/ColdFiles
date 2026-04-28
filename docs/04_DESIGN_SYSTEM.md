@@ -596,6 +596,14 @@ export const tokens = {
     zoomThreshold: { default: 11, 'la-county': 11, 'nv-rural': 14 },
     expandStaggerMs: 200,
   },
+  map: {
+    /** Custom Mapbox Studio style. Stripped: water + primary roads + county lines only. */
+    styleUrl: 'mapbox://styles/mapbox/dark-v11',
+    /** Debounce between viewport pan/zoom and the cases_in_bbox refetch. */
+    viewportDebounceMs: 200,
+    /** First-launch camera before location permission. */
+    defaultCenter: { lat: 34.275, lng: -119.229, zoomLevel: 10 },
+  },
   caseDetail: {
     /** Cold-pill computation. Returns the rendered string or null (don't render). */
     coldPill: (

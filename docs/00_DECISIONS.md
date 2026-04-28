@@ -4,6 +4,21 @@ A short, dated record of architecture and product calls that shaped the build. N
 
 ---
 
+## 2026-04-28 — Reanimated babel plugin is required, not optional
+
+**Decision:** `mobile/babel.config.js` is part of the foundation, not a setup-doc step. The plugin entry — `react-native-worklets/plugin` — must remain the last plugin in the array.
+
+**Why:**
+- Reanimated 4 split worklets out to `react-native-worklets`. Without the plugin registered, every call into Reanimated (`useSharedValue`, `useAnimatedStyle`, `withTiming`) crashes at runtime — both our `SuccessFlash` component and Expo Router's screen-transition internals fail. The app simply doesn't launch.
+- The default Expo SDK 54 template ships **without** a `babel.config.js`. A future contributor who clones the repo and runs `npx expo start` will hit this exactly once — usually during their first EAS build, which is also the first time anyone other than the original author compiles the project. Half a day lost to "why does the splash screen never dismiss."
+
+**How to apply:**
+- The plugin entry stays load-bearing in `mobile/babel.config.js`. **Do not move it to a setup README or onboarding doc.** Setup docs go unread; broken builds get debugged.
+- If the plugin name changes in a future Reanimated/worklets release, update the file and add a follow-up entry here.
+- Same logic applies to any future native-binding plugin (Mapbox config plugin, push-notification plugin) — they belong in `app.json`'s `plugins` array, codified in the repo, never as instructions someone has to remember.
+
+---
+
 ## 2026-04-27 — Mobile path: Expo (not Capacitor, not TWA)
 
 **Decision:** The Play Store / App Store client is **Expo (React Native)**. The web property at `coldfile.app` is **Next.js App Router**. Two thin frontends, one Supabase backend.

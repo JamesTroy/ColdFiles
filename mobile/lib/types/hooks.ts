@@ -42,3 +42,25 @@ export interface WriteHookShape<Input, Output> {
   lastResult: Output | null;
   error: Error | null;
 }
+
+/**
+ * NOTE — future primitive, not yet extracted.
+ *
+ * useSubmitTip already broadcasts to useMeCounts after a successful handoff
+ * (notifyMeCountsChanged) and the saved-cases store does the same. The pattern
+ * "writes that affect counts/state on other screens emit, reads on those
+ * screens subscribe" is the second write-hook insight — first was the
+ * read-vs-write contract distinction here.
+ *
+ * When a third write hook lands (likely useCreateWatchZone, which will
+ * affect the Me-tab counter AND the Map's freshness signal), extract the
+ * pattern as a third primitive:
+ *
+ *     interface BroadcastingWrite<Input, Output, BroadcastKey extends string>
+ *       extends WriteHookShape<Input, Output> { ... }
+ *
+ * Premature abstraction is more expensive than the duplication. Wait for the
+ * pattern to be undeniable across three callers before formalizing it. This
+ * comment is the bookmark — when you find yourself writing the third
+ * notify*Changed() call, that's the moment.
+ */
