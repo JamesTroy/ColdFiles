@@ -114,6 +114,10 @@ export function MapboxView({
     >
       {size ? (
       <MapView
+        // Re-mount the SDK whenever the measured dimensions change. @rnmapbox/maps
+        // v10 caches its initial size on the GL surface and won't pick up later
+        // size prop changes — re-keying forces a fresh native view.
+        key={`mb-${Math.round(size.width)}x${Math.round(size.height)}`}
         ref={mapRef}
         style={{ width: size.width, height: size.height }}
         styleURL={tokens.map.styleUrl}
