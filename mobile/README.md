@@ -9,15 +9,30 @@ The web property at `coldfile.app` is a separate Next.js codebase. **Two thin fr
 ```bash
 cd mobile
 npm install                         # one time
-cp .env.example .env                # configure Supabase access (optional — see below)
-npx expo start                      # interactive runner — press i for iOS sim, a for Android emulator
+cp .env.example .env                # configure Mapbox + Supabase tokens (see below)
 ```
 
-Native runs require:
-- iOS: Xcode + a configured iOS simulator. macOS only.
-- Android: Android Studio + an AVD, or a physical device with USB debugging.
+This app now ships with `@rnmapbox/maps` — **Expo Go does not work**. You need a custom dev client built once via `expo run:android` or EAS Build, then iterate against that.
 
-For early UI iteration, **Expo Go** on a physical device is fastest — no native build required. The map's SVG-canvas placeholder works in Expo Go; the real Mapbox native integration (Week 5b) will need a custom dev client.
+### First build (one time)
+
+```bash
+npx expo run:android
+```
+
+Requires Android Studio installed locally with at least one configured AVD, **or** a physical device with USB debugging enabled and connected. The first build takes 5–10 minutes; subsequent JS-only changes hot-reload normally.
+
+### Day-to-day after the first build
+
+```bash
+npx expo start                      # press a to open in your dev client / running emulator
+```
+
+The dev client is named "The Cold File" and the app icon shows on the device after the first run.
+
+### Designer mode (no Mapbox / no Supabase)
+
+The hooks gracefully fall back to sample data when env vars are missing. To run without Mapbox configured (the map renders the SVG placeholder instead), leave `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` blank in `.env`. The Map and Watch Zone screens detect the missing token and route to the SVG renderer. Useful for iterating on UI on a machine that hasn't built the dev client yet.
 
 ### Designer mode (no backend)
 

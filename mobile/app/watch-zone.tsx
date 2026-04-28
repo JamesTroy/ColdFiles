@@ -19,8 +19,35 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Path, Polygon } from 'react-native-svg';
 
 import { AmberCTA } from '@/components/cf/cta-button';
+import { isMapboxAvailable } from '@/components/cf/mapbox-view';
 import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
+import {
+  WatchZoneMapbox,
+  type InsidePin,
+  type PolygonVertex,
+} from '@/components/cf/watch-zone-mapbox';
 import { tokens } from '@/constants/theme';
+
+// A Ventura-area polygon roughly matching the prototype's outline. Six vertices.
+const SAMPLE_VERTICES: PolygonVertex[] = [
+  { lat: 34.42, lng: -119.4 },
+  { lat: 34.45, lng: -118.95 },
+  { lat: 34.32, lng: -118.78 },
+  { lat: 34.18, lng: -118.85 },
+  { lat: 34.12, lng: -119.18 },
+  { lat: 34.25, lng: -119.42 },
+];
+
+// Five sample pins inside the zone — same kinds as the prototype.
+const SAMPLE_INSIDE_PINS: InsidePin[] = [
+  { id: 'wz-1', lat: 34.36, lng: -119.18, kind: 'homicide' },
+  { id: 'wz-2', lat: 34.28, lng: -118.95, kind: 'missing' },
+  { id: 'wz-3', lat: 34.21, lng: -119.22, kind: 'homicide' },
+  { id: 'wz-4', lat: 34.32, lng: -118.86, kind: 'unidentified' },
+  { id: 'wz-5', lat: 34.24, lng: -119.05, kind: 'homicide' },
+];
+
+const useMapbox = isMapboxAvailable();
 
 export default function WatchZoneScreen() {
   const insets = useSafeAreaInsets();
@@ -76,7 +103,7 @@ export default function WatchZoneScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        <ZoneMapPreview />
+        {useMapbox ? <ZoneMapboxPreview /> : <ZoneMapPreview />}
 
         <SectionLabel>ZONE NAME</SectionLabel>
         <View style={{ paddingHorizontal: 16 }}>
@@ -145,7 +172,56 @@ export default function WatchZoneScreen() {
   );
 }
 
-/* ---------------- preview map ---------------- */
+/* ---------------- Mapbox preview ---------------- */
+
+function ZoneMapboxPreview() {
+  return (
+    <View
+      style={{
+        height: 240,
+        marginHorizontal: 16,
+        marginTop: 4,
+        borderRadius: 6,
+        overflow: 'hidden',
+        backgroundColor: '#0e0e0e',
+        borderColor: tokens.color.border.strong,
+        borderWidth: 0.5,
+        position: 'relative',
+      }}
+    >
+      <WatchZoneMapbox
+        vertices={SAMPLE_VERTICES}
+        insidePins={SAMPLE_INSIDE_PINS}
+      />
+      {/* "42 cases inside" floating chip — driven by cases_in_polygon when wired */}
+      <View
+        style={{
+          position: 'absolute',
+          top: 12,
+          left: 12,
+          backgroundColor: tokens.color.bg.base,
+          borderColor: tokens.color.accent.amber,
+          borderWidth: 0.5,
+          borderRadius: 12,
+          paddingVertical: 5,
+          paddingHorizontal: 11,
+        }}
+      >
+        <Mono
+          size={tokens.size.monoChip}
+          style={{
+            color: tokens.color.accent.amber,
+            letterSpacing: tokens.size.monoChip * tokens.tracking.chip,
+          }}
+        >
+          42 cases inside
+        </Mono>
+      </View>
+    </View>
+  );
+}
+
+/* ---------------- SVG fallback preview ---------------- */
 
 function ZoneMapPreview() {
   return (

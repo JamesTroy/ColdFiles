@@ -1,16 +1,15 @@
 /**
  * Map tab — the home screen.
  *
- * Wired to useCasesNear() against the cases_within_radius() RPC. Marker xy
- * positions are driven by SAMPLE_MAP_COORDS in designer mode; in live mode
- * (Mapbox lands behind the same MapCanvas contract in Week 5b) real lat/lng
- * replaces this. Pin kind, selection state, and recently-updated rings are
- * all real from the data.
+ * Renders the real Mapbox basemap when EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN is set,
+ * falls back to the SVG MapCanvas placeholder when it isn't (designer mode
+ * with no Mapbox account). The pin grammar (Pin component) is shared between
+ * both renderers so the visual contract is identical.
  *
- * Layout per docs/04_DESIGN_SYSTEM.md "Map & clustering" + the prototype:
+ * Layout (matches prototype):
  *   - Header: app name (serif) + locality / radius mono-cap line + search btn
  *   - Filter chip row: All · {count}  Homicide  Missing  Doe
- *   - Map canvas — full-bleed, with case-kind shape encoding
+ *   - Map canvas — Mapbox or SVG
  *   - Peek sheet — slides up on pin tap
  */
 
@@ -21,6 +20,11 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MapCanvas, type MapMarker } from '@/components/cf/map-canvas';
+import {
+  MapboxView,
+  type MapboxMarker,
+  isMapboxAvailable,
+} from '@/components/cf/mapbox-view';
 import { PeekSheet } from '@/components/cf/peek-sheet';
 import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SerifTitle } from '@/components/cf/text';
@@ -32,10 +36,6 @@ import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
 type Filter = 'all' | 'homicide' | 'missing' | 'unidentified';
 
-// Default map center — Ventura, CA. Will become user location when permission UX lands.
-const DEFAULT_LAT = 34.275;
-const DEFAULT_LNG = -119.229;
-
 const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   all: null,
   homicide: ['homicide', 'suspicious_death'],
@@ -43,10 +43,9 @@ const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   unidentified: ['unidentified', 'unclaimed'],
 };
 
-/**
- * Deterministic [0..1] x/y from a slug — used in live mode where we don't yet
- * have real lat/lng to project. Removed when Mapbox markers replace it.
- */
+const useMapbox = isMapboxAvailable();
+
+/** SVG-fallback hashed position when no real lat/lng. Removed once Mapbox is the only path. */
 function hashedPosition(slug: string): { x: number; y: number } {
   let hash = 0;
   for (let i = 0; i < slug.length; i++) {
@@ -57,16 +56,11 @@ function hashedPosition(slug: string): { x: number; y: number } {
   return { x, y };
 }
 
-/**
- * Reverse-map the server-side stepwise alpha back to a representative day
- * count for the Pin renderer (which still takes days). This loses fidelity
- * but reproduces the same ring opacity. When the Pin renderer is updated to
- * accept alpha directly, this helper goes away.
- */
+/** SVG fallback only: stepwise alpha → representative day count for the Pin renderer. */
 function alphaToDays(alpha: number): number | null {
-  if (alpha >= 0.99) return 1; // any value in 0–3-day band
-  if (alpha >= 0.49) return 7; // any value in 4–10-day band
-  return null; // 0 → no ring
+  if (alpha >= 0.99) return 1;
+  if (alpha >= 0.49) return 7;
+  return null;
 }
 
 export default function MapScreen() {
@@ -79,37 +73,14 @@ export default function MapScreen() {
     loading,
     source,
   } = useCasesNear({
-    lat: DEFAULT_LAT,
-    lng: DEFAULT_LNG,
+    lat: tokens.map.defaultCenter.lat,
+    lng: tokens.map.defaultCenter.lng,
     radiusMiles: 25,
     kinds: KIND_FILTER_TO_RPC[filter],
     limit: 100,
   });
 
   const allCount = cases.length;
-
-  const markers: MapMarker[] = useMemo(() => {
-    return cases.map((c) => {
-      const sampleCoord = SAMPLE_MAP_COORDS[c.slug];
-      const pos = sampleCoord ?? hashedPosition(c.slug);
-      // Prefer the server-computed recency_alpha (live RPC). Fall back to the
-      // sample-data side-channel for designer mode + table-read paths where
-      // the column wasn't populated.
-      const recentDays =
-        c.recency_alpha != null
-          ? alphaToDays(c.recency_alpha)
-          : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null);
-      return {
-        id: c.slug,
-        x: pos.x,
-        y: pos.y,
-        kind: c.kind,
-        selected: c.slug === selectedSlug,
-        recentDays,
-      };
-    });
-  }, [cases, selectedSlug]);
-
   const selectedCase = cases.find((c) => c.slug === selectedSlug) ?? null;
 
   return (
@@ -173,14 +144,21 @@ export default function MapScreen() {
         />
       </ScrollView>
 
-      {/* Map canvas */}
+      {/* Map canvas — Mapbox if configured, SVG fallback otherwise */}
       <View style={{ flex: 1 }}>
-        <MapCanvas
-          height={420}
-          markers={markers}
-          here={{ x: 0.5, y: 0.52 }}
-          onMarkerPress={(id) => setSelectedSlug(id)}
-        />
+        {useMapbox ? (
+          <MapboxRenderer
+            cases={cases}
+            selectedSlug={selectedSlug}
+            onMarkerPress={setSelectedSlug}
+          />
+        ) : (
+          <SvgRenderer
+            cases={cases}
+            selectedSlug={selectedSlug}
+            onMarkerPress={setSelectedSlug}
+          />
+        )}
       </View>
 
       {selectedCase ? (
@@ -194,6 +172,84 @@ export default function MapScreen() {
     </View>
   );
 }
+
+/* ---------------- renderers ---------------- */
+
+function MapboxRenderer({
+  cases,
+  selectedSlug,
+  onMarkerPress,
+}: {
+  cases: CaseRowMapNear[];
+  selectedSlug: string | null;
+  onMarkerPress: (id: string) => void;
+}) {
+  const markers: MapboxMarker[] = useMemo(() => {
+    return cases
+      .filter((c) => c.lat != null && c.lng != null)
+      .map((c) => ({
+        id: c.slug,
+        lat: c.lat as number,
+        lng: c.lng as number,
+        kind: c.kind,
+        selected: c.slug === selectedSlug,
+        recentDays:
+          c.recency_alpha != null
+            ? alphaToDays(c.recency_alpha)
+            : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null),
+      }));
+  }, [cases, selectedSlug]);
+
+  return (
+    <MapboxView
+      center={{ lat: tokens.map.defaultCenter.lat, lng: tokens.map.defaultCenter.lng }}
+      zoom={tokens.map.defaultCenter.zoomLevel}
+      markers={markers}
+      here={{ lat: tokens.map.defaultCenter.lat, lng: tokens.map.defaultCenter.lng }}
+      onMarkerPress={onMarkerPress}
+    />
+  );
+}
+
+function SvgRenderer({
+  cases,
+  selectedSlug,
+  onMarkerPress,
+}: {
+  cases: CaseRowMapNear[];
+  selectedSlug: string | null;
+  onMarkerPress: (id: string) => void;
+}) {
+  const markers: MapMarker[] = useMemo(() => {
+    return cases.map((c) => {
+      const sampleCoord = SAMPLE_MAP_COORDS[c.slug];
+      const pos = sampleCoord ?? hashedPosition(c.slug);
+      const recentDays =
+        c.recency_alpha != null
+          ? alphaToDays(c.recency_alpha)
+          : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null);
+      return {
+        id: c.slug,
+        x: pos.x,
+        y: pos.y,
+        kind: c.kind,
+        selected: c.slug === selectedSlug,
+        recentDays,
+      };
+    });
+  }, [cases, selectedSlug]);
+
+  return (
+    <MapCanvas
+      height={420}
+      markers={markers}
+      here={{ x: 0.5, y: 0.52 }}
+      onMarkerPress={onMarkerPress}
+    />
+  );
+}
+
+/* ---------------- header bits ---------------- */
 
 function SearchButton() {
   return (
