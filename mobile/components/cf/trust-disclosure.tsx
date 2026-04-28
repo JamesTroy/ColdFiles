@@ -27,7 +27,7 @@ export function TrustDisclosureCallout({ agencyName }: TrustDisclosureCalloutPro
   return (
     <View
       style={{
-        backgroundColor: tokens.color.bg.base,
+        backgroundColor: tokens.color.bg.infoTint,
         borderLeftWidth: 2,
         borderLeftColor: tokens.color.you.here,
         paddingVertical: 10,

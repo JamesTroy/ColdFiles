@@ -2,22 +2,22 @@
  * Map tab — the home screen.
  *
  * Wired to useCasesNear() against the cases_within_radius() RPC. Marker xy
- * positions are deterministic hashes of the case slug while we wait on the
- * real Mapbox native integration (Week 5b) — pin kind, selection state, and
- * recently-updated rings are all real from the data; only the spatial layout
- * is a placeholder. When Mapbox lands, MapCanvas swaps to real coordinates
- * behind the same component contract.
+ * positions are driven by SAMPLE_MAP_COORDS in designer mode; in live mode
+ * (Mapbox lands behind the same MapCanvas contract in Week 5b) real lat/lng
+ * replaces this. Pin kind, selection state, and recently-updated rings are
+ * all real from the data.
  *
- * Layout per docs/04_DESIGN_SYSTEM.md "Map & clustering":
- *   - Header: app name (serif) + locality / radius mono-cap line
+ * Layout per docs/04_DESIGN_SYSTEM.md "Map & clustering" + the prototype:
+ *   - Header: app name (serif) + locality / radius mono-cap line + search btn
  *   - Filter chip row: All · {count}  Homicide  Missing  Doe
  *   - Map canvas — full-bleed, with case-kind shape encoding
  *   - Peek sheet — slides up on pin tap
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MapCanvas, type MapMarker } from '@/components/cf/map-canvas';
@@ -27,6 +27,7 @@ import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
 import { useCasesNear } from '@/lib/hooks/use-cases-near';
+import { SAMPLE_LAST_CHANGED_DAYS, SAMPLE_MAP_COORDS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
 type Filter = 'all' | 'homicide' | 'missing' | 'unidentified';
@@ -35,27 +36,26 @@ type Filter = 'all' | 'homicide' | 'missing' | 'unidentified';
 const DEFAULT_LAT = 34.275;
 const DEFAULT_LNG = -119.229;
 
-/**
- * Deterministic [0..1] x/y from a slug. Stable across renders; visually
- * scattered. Removed the moment Mapbox markers replace this.
- */
-function placeholderPosition(slug: string): { x: number; y: number } {
-  let hash = 0;
-  for (let i = 0; i < slug.length; i++) {
-    hash = (hash * 31 + slug.charCodeAt(i)) | 0;
-  }
-  // Two independent dimensions out of one hash, biased away from screen edges.
-  const x = 0.1 + ((Math.abs(hash) % 1000) / 1000) * 0.8;
-  const y = 0.15 + ((Math.abs(hash >> 7) % 1000) / 1000) * 0.65;
-  return { x, y };
-}
-
 const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   all: null,
   homicide: ['homicide', 'suspicious_death'],
   missing: ['missing'],
   unidentified: ['unidentified', 'unclaimed'],
 };
+
+/**
+ * Deterministic [0..1] x/y from a slug — used in live mode where we don't yet
+ * have real lat/lng to project. Removed when Mapbox markers replace it.
+ */
+function hashedPosition(slug: string): { x: number; y: number } {
+  let hash = 0;
+  for (let i = 0; i < slug.length; i++) {
+    hash = (hash * 31 + slug.charCodeAt(i)) | 0;
+  }
+  const x = 0.1 + ((Math.abs(hash) % 1000) / 1000) * 0.8;
+  const y = 0.15 + ((Math.abs(hash >> 7) % 1000) / 1000) * 0.65;
+  return { x, y };
+}
 
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
@@ -78,15 +78,16 @@ export default function MapScreen() {
 
   const markers: MapMarker[] = useMemo(() => {
     return cases.map((c) => {
-      const pos = placeholderPosition(c.slug);
+      const sampleCoord = SAMPLE_MAP_COORDS[c.slug];
+      const pos = sampleCoord ?? hashedPosition(c.slug);
+      const recentDays = SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null;
       return {
         id: c.slug,
         x: pos.x,
         y: pos.y,
-        kind: pinKindFor(c.kind),
+        kind: c.kind,
         selected: c.slug === selectedSlug,
-        // recentDays: derive from last_changed_at when the RPC carries it (it doesn't yet).
-        recentDays: null,
+        recentDays,
       };
     });
   }, [cases, selectedSlug]);
@@ -96,22 +97,32 @@ export default function MapScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
       {/* Header */}
-      <View style={{ paddingTop: insets.top + 6, paddingBottom: 12, paddingHorizontal: 16 }}>
+      <View
+        style={{ paddingTop: insets.top + 6, paddingBottom: 12, paddingHorizontal: 16 }}
+      >
         <View
           style={{
             flexDirection: 'row',
             justifyContent: 'space-between',
-            alignItems: 'center',
+            alignItems: 'flex-end',
           }}
         >
-          <View>
-            <SerifTitle size="h2" style={{ fontSize: 19 }}>
-              The Cold File
-            </SerifTitle>
-            <MonoLabel size={tokens.size.monoLabel} style={{ marginTop: 2 }}>
-              {`VENTURA · 25mi RADIUS${source === 'sample' ? ' · SAMPLE DATA' : ''}`}
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <SerifTitle size="h2" style={{ fontSize: 22 }}>
+                The Cold File
+              </SerifTitle>
+              {source === 'sample' ? <SampleTag /> : null}
+            </View>
+            <MonoLabel
+              size={tokens.size.monoLabel}
+              color={tokens.color.evidence.chrome}
+              style={{ marginTop: 4 }}
+            >
+              VENTURA · 25mi RADIUS
             </MonoLabel>
           </View>
+          <SearchButton />
         </View>
       </View>
 
@@ -149,7 +160,7 @@ export default function MapScreen() {
         <MapCanvas
           height={420}
           markers={markers}
-          here={{ x: 0.59, y: 0.78 }}
+          here={{ x: 0.5, y: 0.52 }}
           onMarkerPress={(id) => setSelectedSlug(id)}
         />
       </View>
@@ -166,11 +177,46 @@ export default function MapScreen() {
   );
 }
 
-function pinKindFor(kind: CaseRowMapNear['kind']): MapMarker['kind'] {
-  // PinKind happens to match CaseKind one-to-one. Keep this mapping explicit
-  // in case they diverge (e.g. a future "ambient nearby" category that doesn't
-  // get a kind in the schema).
-  return kind;
+function SearchButton() {
+  return (
+    <Pressable
+      onPress={() => {}}
+      style={({ pressed }) => [
+        {
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          backgroundColor: tokens.color.bg.elev1,
+          borderWidth: 0.5,
+          borderColor: tokens.color.border.strong,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Ionicons name="search" size={16} color={tokens.color.text.primary} />
+    </Pressable>
+  );
+}
+
+function SampleTag() {
+  return (
+    <View
+      style={{
+        marginLeft: 8,
+        paddingVertical: 2,
+        paddingHorizontal: 6,
+        borderRadius: 3,
+        borderWidth: 0.5,
+        borderColor: tokens.color.evidence.chrome,
+      }}
+    >
+      <MonoLabel size={9} tracking={0.12} color={tokens.color.evidence.chrome}>
+        SAMPLE
+      </MonoLabel>
+    </View>
+  );
 }
 
 function peekDisplayName(c: CaseRowMapNear): string {

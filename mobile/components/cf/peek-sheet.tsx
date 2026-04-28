@@ -4,14 +4,14 @@
  * Map state is preserved underneath. Users tap pin → peek → close → next pin
  * in rapid sequence; any transition that loses map context breaks that flow.
  *
- * Layout:
+ * Layout (matches prototype):
  *   - 36×3 grab handle
  *   - SELECTED · {distance} away          Open →
- *   - HOMICIDE / 1985 / CLAREMONT, CA     (mono-cap, evidence.chrome)
- *   - {Victim Name}                       (serif 20px — arrival begins here)
+ *   - {Victim Name}                        (serif 18px — arrival begins here)
+ *   - HOMICIDE · 1985 · CLAREMONT, CA      (mono cap, evidence.chrome, BELOW name)
  *
- * The kind/year/place line goes above the name, matching list-row treatment.
- * Pills only appear on the case detail screen, never here.
+ * Pills only appear on the case-detail screen, never here. The kind/year/place
+ * line is the meta affordance for surfaces without a key-facts table.
  */
 
 import { Pressable, View } from 'react-native';
@@ -23,7 +23,7 @@ import { MonoLabel, SerifTitle } from './text';
 interface PeekSheetProps {
   /** Distance in miles, e.g. "1.4". */
   distanceMiles: number;
-  /** "HOMICIDE / 1985 / CLAREMONT, CA". Full mono-cap line including separators. */
+  /** "HOMICIDE · 1985 · CLAREMONT, CA". Full mono-cap line including separators. */
   kindLine: string;
   /** Victim name; for unidentifieds, "Unidentified Female, est. 18–25". */
   victimName: string;
@@ -42,11 +42,13 @@ export function PeekSheet({
       onPress={onOpen}
       style={{
         backgroundColor: tokens.color.bg.elev1,
-        paddingHorizontal: 16,
-        paddingTop: 12,
+        paddingHorizontal: 18,
+        paddingTop: 8,
         paddingBottom: 16,
         borderTopWidth: 0.5,
-        borderTopColor: tokens.color.border.subtle,
+        borderTopColor: tokens.color.border.strong,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
       }}
     >
       {/* Grab handle */}
@@ -67,32 +69,38 @@ export function PeekSheet({
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'baseline',
-          marginBottom: 6,
+          marginBottom: 4,
         }}
       >
-        <MonoLabel size={tokens.size.monoLabel}>
+        <MonoLabel
+          size={tokens.size.monoLabel}
+          tracking={tokens.tracking.label}
+          color={tokens.color.evidence.chrome}
+        >
           {`SELECTED · ${distanceMiles.toFixed(1)} mi away`}
         </MonoLabel>
         <MonoLabel
-          size={tokens.size.monoLabel}
+          size={tokens.size.monoChip}
           color={tokens.color.accent.amber}
         >
-          OPEN →
+          Open →
         </MonoLabel>
       </View>
 
-      {/* Kind / year / place — above the name. evidence.chrome color. */}
+      {/* Victim name — serif (the arrival signal) */}
+      <SerifTitle size="h2" style={{ fontSize: 18 }}>
+        {victimName}
+      </SerifTitle>
+
+      {/* Kind line — mono caps below the name */}
       <MonoLabel
         size={tokens.size.monoChip}
-        tracking={tokens.tracking.label}
-        color={tokens.color.evidence.chrome}
-        style={{ marginBottom: 4 }}
+        tracking={tokens.tracking.chip}
+        color={tokens.color.text.secondary}
+        style={{ marginTop: 4 }}
       >
         {kindLine}
       </MonoLabel>
-
-      {/* Victim name — serif. Arrival begins here. */}
-      <SerifTitle size="h2">{victimName}</SerifTitle>
     </Pressable>
   );
 }

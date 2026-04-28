@@ -1,109 +1,155 @@
 /**
- * Me tab — profile, notification settings, premium tier, FAQ.
+ * Me tab — profile, subscription, counts, source credits, about.
  *
- * Surfaces the trust-disclosure callout (full version) under "How does
- * The Cold File handle tips?" — same promise, repeated. Per the design
- * system: redundancy is the point.
+ * Layout (matches prototype):
+ *   - Three cards stacked
+ *     1. Subscription · Premium upgrade row → Watch Zone screen
+ *     2. Tips submitted · Cases saved (real counts from useMeCounts)
+ *     3. Source credits · Takedown · About
+ *   - Footer: app version + LLC line in mono evidence-chrome
+ *
+ * The Premium row routes to /watch-zone (the new screen below).
  */
 
-import { ScrollView, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TrustDisclosureCallout } from '@/components/cf/trust-disclosure';
-import { MonoLabel, SansBody, SansMedium, SerifTitle } from '@/components/cf/text';
+import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
+import { useMeCounts } from '@/lib/hooks/use-me-counts';
+
+interface RowProps {
+  label: string;
+  value: string;
+  valueColor?: string;
+  valueMono?: boolean;
+  onPress?: () => void;
+}
 
 export default function MeScreen() {
   const insets = useSafeAreaInsets();
+  const counts = useMeCounts();
+
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      <ScrollView
-        contentContainerStyle={{
-          paddingTop: insets.top + 8,
-          paddingBottom: 32,
-        }}
-      >
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 32 }}>
         <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-          <SerifTitle size="h2" style={{ fontSize: 19 }}>
+          <SerifTitle size="h2" style={{ fontSize: 22 }}>
             Me
           </SerifTitle>
-          <MonoLabel size={tokens.size.monoLabel} style={{ marginTop: 2 }}>
-            FREE TIER
+          <MonoLabel
+            size={tokens.size.monoLabel}
+            color={tokens.color.evidence.chrome}
+            style={{ marginTop: 4 }}
+          >
+            ACCOUNT · SUBSCRIPTION · PRIVACY
           </MonoLabel>
         </View>
 
-        {/* Settings rows — placeholders */}
-        <Section label="ALERTS">
-          <Row label="Watch zones" value="0 zones" />
-          <Row label="Push notifications" value="Off" />
-        </Section>
+        {/* Card 1 — Subscription */}
+        <Card>
+          <Row label="Subscription" value="FREE" valueMono />
+          <Row
+            label="Premium · watch zones"
+            value="UPGRADE →"
+            valueColor={tokens.color.accent.amber}
+            valueMono
+            onPress={() => router.push('/watch-zone')}
+          />
+        </Card>
 
-        <Section label="ACCOUNT">
-          <Row label="Sign in" value="—" />
-          <Row label="Premium" value="Upgrade" valueColor={tokens.color.accent.amber} />
-        </Section>
+        {/* Card 2 — User counts */}
+        <Card>
+          <Row
+            label="Tips submitted"
+            value={String(counts.submittedTips)}
+            valueMono
+          />
+          <Row
+            label="Cases saved"
+            value={String(counts.savedCases)}
+            valueMono
+          />
+        </Card>
 
-        <Section label="HOW IT WORKS">
-          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <SansBody
-              style={{
-                color: tokens.color.text.secondary,
-                lineHeight: tokens.size.body * 1.6,
-                marginBottom: 12,
-              }}
-            >
-              The Cold File is a directory of public unsolved-case data —
-              missing persons, unidentified decedents, and unsolved homicides —
-              aggregated from public sources and routed back to the
-              investigating agency.
-            </SansBody>
-            <SansMedium size={tokens.size.body} style={{ marginBottom: 8 }}>
-              How does The Cold File handle tips?
-            </SansMedium>
-            <TrustDisclosureCallout agencyName="the investigating agency" />
-          </View>
-        </Section>
+        {/* Card 3 — Sources / takedown / about */}
+        <Card>
+          <Row label="Source credits" value="5 sources" />
+          <Row label="Takedown request" value="→" />
+          <Row label="About · mission" value="→" />
+        </Card>
+
+        {/* Footer */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+          <MonoLabel
+            size={tokens.size.monoLabel}
+            color={tokens.color.evidence.chrome}
+            style={{ lineHeight: 18 }}
+          >
+            THE COLD FILE · v0.1.0 (prototype){'\n'}MATTE BLACK DEV LLC · VENTURA, CA
+          </MonoLabel>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Card({ children }: { children: React.ReactNode }) {
   return (
-    <View style={{ marginTop: 18 }}>
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <MonoLabel size={tokens.size.monoLabel}>{label}</MonoLabel>
-      </View>
+    <View
+      style={{
+        marginHorizontal: 16,
+        marginBottom: 12,
+        backgroundColor: tokens.color.bg.elev1,
+        borderColor: tokens.color.border.subtle,
+        borderWidth: 0.5,
+        borderRadius: 6,
+        overflow: 'hidden',
+      }}
+    >
       {children}
     </View>
   );
 }
 
-function Row({
-  label,
-  value,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-}) {
-  return (
+function Row({ label, value, valueColor, valueMono, onPress }: RowProps) {
+  const content = (
     <View
       style={{
-        paddingHorizontal: 16,
-        paddingVertical: 14,
+        paddingHorizontal: 13,
+        paddingVertical: 13,
         borderTopWidth: 0.5,
-        borderBottomWidth: 0.5,
-        borderColor: tokens.color.border.subtle,
+        borderTopColor: tokens.color.border.subtle,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: tokens.color.bg.elev1,
       }}
     >
-      <SansBody>{label}</SansBody>
-      <SansBody style={{ color: valueColor ?? tokens.color.text.secondary }}>{value}</SansBody>
+      <SansBody style={{ fontSize: 13.5 }}>{label}</SansBody>
+      {valueMono ? (
+        <Mono
+          size={13}
+          style={{ color: valueColor ?? tokens.color.text.secondary }}
+        >
+          {value}
+        </Mono>
+      ) : (
+        <SansBody
+          style={{ color: valueColor ?? tokens.color.text.secondary, fontSize: 13 }}
+        >
+          {value}
+        </SansBody>
+      )}
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+        {content}
+      </Pressable>
+    );
+  }
+  return content;
 }

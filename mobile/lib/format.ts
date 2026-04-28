@@ -32,7 +32,7 @@ export function kindLine(c: Pick<
   const city = c.location_city ? c.location_city.toUpperCase() : null;
   const state = c.location_state ? c.location_state.toUpperCase() : null;
   const place = [city, state].filter(Boolean).join(', ');
-  return [kind, year, place].filter(Boolean).join(' / ');
+  return [kind, year, place].filter(Boolean).join(' · ');
 }
 
 /**

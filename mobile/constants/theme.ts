@@ -20,6 +20,10 @@ export const tokens = {
       amberTintCard: '#161208',
       /** Small amber affordances (UNSOLVED pill, active filter chip) — bg carries the affordance alone. */
       amberTintPill: '#2a2520',
+      /** Trust-disclosure callout background — barely-blue tint behind the you.here left edge. */
+      infoTint: '#0e1418',
+      /** Recently-resolved pill background. */
+      resolvedTint: '#1a201b',
     },
     border: { subtle: '#1f1f1f', strong: '#2a2a2a' },
     text: {

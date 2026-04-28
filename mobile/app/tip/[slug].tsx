@@ -23,8 +23,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -45,59 +45,50 @@ import {
 } from '@/components/cf/text';
 import { TrustDisclosureCallout } from '@/components/cf/trust-disclosure';
 import { tokens } from '@/constants/theme';
+import { useCaseDetail } from '@/lib/hooks/use-case-detail';
 import { useSubmitTip, type SubmitTipResult } from '@/lib/hooks/use-submit-tip';
-
-interface Route {
-  id: string;
-  agency: { name: string; short_name?: string };
-  meta: string;
-  recommended: boolean;
-}
-
-// Static sample for the LA-county v1 case — backend wiring lands when
-// agencies + cases are queryable. Mirrors what tip-route-submit will return.
-const SAMPLE_ROUTES: Route[] = [
-  {
-    id: 'la-crime-stoppers',
-    agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
-    meta: 'Anonymous · routes to LASD detective on this case · reward eligible',
-    recommended: true,
-  },
-  {
-    id: 'lasd-direct',
-    agency: { name: 'LASD Homicide Bureau', short_name: 'LASD Homicide' },
-    meta: '323-890-5500 · direct line',
-    recommended: false,
-  },
-  {
-    id: 'fbi-tip',
-    agency: { name: 'FBI Tip Line', short_name: 'FBI' },
-    meta: 'Federal jurisdiction or interstate',
-    recommended: false,
-  },
-];
+import {
+  SAMPLE_TIP_ROUTES_BY_SLUG,
+  type SampleTipRoute,
+} from '@/lib/sample-data';
 
 type ModalPhase = 'idle' | 'anticipating' | 'fallback';
 
+const FALLBACK_ROUTE: SampleTipRoute = {
+  id: 'la-crime-stoppers',
+  agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
+  meta: 'Anonymous · reward eligible',
+  recommended: true,
+};
+
 export default function TipModalScreen() {
   const insets = useSafeAreaInsets();
+  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { data } = useCaseDetail(slug);
+
+  const routes: SampleTipRoute[] = useMemo(() => {
+    if (slug && SAMPLE_TIP_ROUTES_BY_SLUG[slug]) {
+      return SAMPLE_TIP_ROUTES_BY_SLUG[slug];
+    }
+    return [FALLBACK_ROUTE];
+  }, [slug]);
+
   const [selectedId, setSelectedId] = useState(
-    SAMPLE_ROUTES.find((r) => r.recommended)?.id ?? SAMPLE_ROUTES[0].id,
+    routes.find((r) => r.recommended)?.id ?? routes[0].id,
   );
   const [tipBody, setTipBody] = useState('');
   const [phase, setPhase] = useState<ModalPhase>('idle');
   const [fallbackResult, setFallbackResult] = useState<SubmitTipResult | null>(null);
 
-  const selected = SAMPLE_ROUTES.find((r) => r.id === selectedId)!;
+  const selected = routes.find((r) => r.id === selectedId) ?? routes[0];
   const ctaLabel = tokens.tipFlow.ctaCopy(selected.agency);
 
   const { submit, submitting } = useSubmitTip();
 
-  // The actual case_id from the route param. For sample data we use the slug
-  // both as id and as slug (the hook's caseSlug field) — the Edge Function
-  // resolves on caseId, the receipt store on caseSlug.
-  const caseId = selected.id; // TODO: pull from route params + the case query
-  const caseSlug = 'evans-1985';
+  const caseId = data.case?.id ?? slug ?? '';
+  const caseSlug = slug ?? '';
+  const victimName = data.case?.victim_name ?? null;
+  const incidentDate = data.case?.incident_date ?? null;
 
   const handleSubmit = async () => {
     if (phase !== 'idle' && phase !== 'fallback') return;
@@ -182,7 +173,7 @@ export default function TipModalScreen() {
                 fontSize: tokens.size.meta,
               }}
             >
-              re: David R. Evans · Oct 1985
+              {`re: ${victimName ?? 'Unidentified person'}${incidentDate ? ` · ${formatMonthYear(incidentDate)}` : ''}`}
             </SansBody>
           </View>
           <Pressable
@@ -214,7 +205,7 @@ export default function TipModalScreen() {
             ROUTE TO
           </MonoLabel>
           <View style={{ gap: 8 }}>
-            {SAMPLE_ROUTES.map((route) => (
+            {routes.map((route) => (
               <RadioCard
                 key={route.id}
                 title={route.agency.name}
@@ -399,4 +390,12 @@ function FallbackBar({
       </View>
     </View>
   );
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatMonthYear(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }

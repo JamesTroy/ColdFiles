@@ -12,7 +12,6 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,11 +29,12 @@ import {
   SansMedium,
   SerifTitle,
 } from '@/components/cf/text';
-import { TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
+import { TrustDisclosureCallout, TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
 import { tokens } from '@/constants/theme';
 import { displayName, formatDateMonthDay, formatPlace } from '@/lib/format';
 import { useCaseDetail } from '@/lib/hooks/use-case-detail';
 import { useFreshReceiptCount } from '@/lib/hooks/use-fresh-receipt';
+import { useIsSaved } from '@/lib/hooks/use-saved-cases';
 import { useSubmittedTip } from '@/lib/hooks/use-submitted-tips';
 import type { CaseMediaRow, CaseRowFull, CaseSourceRow } from '@/lib/types/database';
 
@@ -49,10 +49,10 @@ const KIND_DISPLAY: Record<CaseRowFull['kind'], string> = {
 export default function CaseDetailScreen() {
   const insets = useSafeAreaInsets();
   const { slug } = useLocalSearchParams<{ slug: string }>();
-  const [saved, setSaved] = useState(false);
 
   const { data, loading, error } = useCaseDetail(slug);
   const { receipt } = useSubmittedTip(slug);
+  const { isSaved, toggle: toggleSave } = useIsSaved(slug);
   const flashKey = useFreshReceiptCount(slug);
   const c = data.case;
 
@@ -130,11 +130,11 @@ export default function CaseDetailScreen() {
 
         <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
           <SerifTitle size="h1">{heroName}</SerifTitle>
-          {c.victim_age != null ? (
+          {subtitleFor(c) ? (
             <SansBody
               style={{ color: tokens.color.text.secondary, fontSize: tokens.size.meta, marginTop: 4 }}
             >
-              {`Age ${c.victim_age}${c.victim_race ? ` · ${c.victim_race}` : ''}`}
+              {subtitleFor(c)}
             </SansBody>
           ) : null}
 
@@ -144,16 +144,29 @@ export default function CaseDetailScreen() {
           </View>
         </View>
 
+        {receipt ? (
+          <ReceiptBlock
+            agencyName={receipt.agencyName}
+            submittedAt={receipt.submittedAt}
+            flashKey={flashKey}
+          />
+        ) : null}
+
         <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
           <KeyFactsTable facts={facts} />
         </View>
 
         {c.narrative ? (
-          <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
-            <MonoLabel size={tokens.size.monoChip} tracking={tokens.tracking.chip} style={{ marginBottom: 8 }}>
+          <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+            <MonoLabel
+              size={tokens.size.monoChip}
+              tracking={tokens.tracking.chip}
+              color={tokens.color.evidence.chrome}
+              style={{ marginBottom: 8 }}
+            >
               CASE FILE
             </MonoLabel>
-            <NarrativeText>{c.narrative}</NarrativeText>
+            <NarrativeText>{truncateNarrative(c.narrative)}</NarrativeText>
             <Pressable onPress={() => {}}>
               <Mono size={tokens.size.meta} style={{ color: tokens.color.accent.amber, marginTop: 10 }}>
                 Read full file →
@@ -163,11 +176,27 @@ export default function CaseDetailScreen() {
         ) : null}
 
         {data.sources.length > 0 ? (
-          <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
-            <MonoLabel size={tokens.size.monoChip} tracking={tokens.tracking.chip} style={{ marginBottom: 8 }}>
+          <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+            <MonoLabel
+              size={tokens.size.monoChip}
+              tracking={tokens.tracking.chip}
+              color={tokens.color.evidence.chrome}
+              style={{ marginBottom: 8 }}
+            >
               {`SOURCES · ${data.sources.length}`}
             </MonoLabel>
             <SourceChipRow chips={sourceChipsFor(data.sources)} />
+          </View>
+        ) : null}
+
+        {/* Body-position trust callout — same promise as the sticky-bar caption,
+            longer prose. Only shown when there's no receipt; once they've tipped,
+            the receipt block above already establishes the trust contract. */}
+        {!receipt ? (
+          <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+            <TrustDisclosureCallout
+              agencyName={c.primary_agency?.name ?? 'the investigating agency'}
+            />
           </View>
         ) : null}
       </ScrollView>
@@ -183,14 +212,6 @@ export default function CaseDetailScreen() {
           paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 28,
         }}
       >
-        {receipt ? (
-          <ReceiptCaption
-            agencyName={receipt.agencyName}
-            submittedAt={receipt.submittedAt}
-            flashKey={flashKey}
-          />
-        ) : null}
-
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {receipt ? (
             <ReceiptCTA onPress={() => router.push(`/tip/${c.slug}`)} />
@@ -200,11 +221,11 @@ export default function CaseDetailScreen() {
               onPress={() => router.push(`/tip/${c.slug}`)}
             />
           )}
-          <SecondaryCTA active={saved} onPress={() => setSaved((s) => !s)}>
+          <SecondaryCTA active={isSaved} onPress={() => { void toggleSave(); }}>
             <Ionicons
-              name={saved ? 'star' : 'star-outline'}
+              name={isSaved ? 'star' : 'star-outline'}
               size={18}
-              color={saved ? tokens.color.accent.amber : tokens.color.text.primary}
+              color={isSaved ? tokens.color.accent.amber : tokens.color.text.primary}
             />
           </SecondaryCTA>
         </View>
@@ -215,15 +236,36 @@ export default function CaseDetailScreen() {
 }
 
 /**
- * Receipt caption: ✓ ROUTED TO {AGENCY} · {relative date}.
- * Mono caps in evidence.chrome — receipt register, not active.
- *
- * The {AGENCY} segment fires the SuccessFlash whenever flashKey changes (and
- * is > 0). flashKey comes from useFreshReceiptCount, which is set by
- * useSubmitTip on a successful handoff — driven by an event flag, not a
- * wall-clock window. See lib/hooks/use-fresh-receipt.ts for the rationale.
+ * Subtitle under the serif name. Composes from age + race/role for known
+ * victims, or the demographic estimate for Doe cases.
  */
-function ReceiptCaption({
+function subtitleFor(c: CaseRowFull): string | null {
+  if (c.victim_age != null) {
+    return `Age ${c.victim_age}${c.victim_race ? ` · ${c.victim_race}` : ''}`;
+  }
+  if (c.victim_race) return c.victim_race;
+  return null;
+}
+
+/** Truncate the narrative to ~40 words for the entry screen. */
+function truncateNarrative(text: string): string {
+  const words = text.split(/\s+/);
+  if (words.length <= 42) return text;
+  return words.slice(0, 40).join(' ') + '…';
+}
+
+/**
+ * Receipt block — the post-tip "✓ ROUTED" card on case detail.
+ *
+ * Layout (matches prototype): tinted amber-card bg, 2px tip.success red left
+ * edge, "TIP ROUTED" mono label up top (which fires the SuccessFlash on the
+ * agency name when flashKey changes), agency-receipt body, mono time-ago.
+ *
+ * The flash event is driven by useFreshReceiptCount, set by useSubmitTip on a
+ * successful handoff — a transient event flag, not a wall-clock window. See
+ * lib/hooks/use-fresh-receipt.ts for the rationale.
+ */
+function ReceiptBlock({
   agencyName,
   submittedAt,
   flashKey,
@@ -232,40 +274,43 @@ function ReceiptCaption({
   submittedAt: string;
   flashKey: number;
 }) {
-  const label = relativeReceiptLabel(submittedAt);
+  const time = relativeReceiptLabel(submittedAt);
   return (
     <View
       style={{
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginBottom: 8,
-        alignItems: 'baseline',
+        marginHorizontal: 16,
+        marginTop: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        backgroundColor: tokens.color.bg.amberTintCard,
+        borderColor: tokens.color.evidence.chrome,
+        borderWidth: 0.5,
+        borderLeftColor: tokens.color.tip.success,
+        borderLeftWidth: 2,
+        borderRadius: 4,
+        gap: 4,
       }}
     >
-      <MonoLabel
-        size={tokens.size.monoLabel}
-        tracking={tokens.tracking.chip}
-        color={tokens.color.evidence.chrome}
-      >
-        {'✓ ROUTED TO '}
-      </MonoLabel>
       <SuccessFlash
         flashKey={flashKey}
         baseColor={tokens.color.evidence.chrome}
         style={{
           fontFamily: tokens.font.mono,
           fontSize: tokens.size.monoLabel,
-          letterSpacing: tokens.size.monoLabel * tokens.tracking.chip,
+          letterSpacing: tokens.size.monoLabel * tokens.tracking.label,
         }}
       >
-        {agencyName.toUpperCase()}
+        TIP ROUTED
       </SuccessFlash>
+      <SansBody style={{ color: tokens.color.text.primary, fontSize: tokens.size.narrative }}>
+        {`${agencyName} received your tip.`}
+      </SansBody>
       <MonoLabel
         size={tokens.size.monoLabel}
-        tracking={tokens.tracking.chip}
-        color={tokens.color.evidence.chrome}
+        tracking={0}
+        color={tokens.color.text.disabled}
       >
-        {` · ${label}`}
+        {time}
       </MonoLabel>
     </View>
   );
@@ -304,16 +349,15 @@ function ReceiptCTA({ onPress }: { onPress: () => void }) {
 function relativeReceiptLabel(iso: string): string {
   const submitted = new Date(iso);
   const now = new Date();
-  const sameDay =
-    submitted.getFullYear() === now.getFullYear() &&
-    submitted.getMonth() === now.getMonth() &&
-    submitted.getDate() === now.getDate();
-  if (sameDay) return 'TODAY';
+  const elapsedSec = Math.max(0, Math.floor((now.getTime() - submitted.getTime()) / 1000));
+  if (elapsedSec < 60) return `${elapsedSec}s ago`;
+  if (elapsedSec < 3600) return `${Math.floor(elapsedSec / 60)}m ago`;
+  if (elapsedSec < 86400) return `${Math.floor(elapsedSec / 3600)}h ago`;
 
-  const sameYear = submitted.getFullYear() === now.getFullYear();
   const month = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][
     submitted.getMonth()
   ];
+  const sameYear = submitted.getFullYear() === now.getFullYear();
   if (sameYear) return `${month} ${submitted.getDate()}`;
   return `${month} ${submitted.getFullYear()}`;
 }
