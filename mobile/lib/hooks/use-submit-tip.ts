@@ -37,6 +37,7 @@ import { getSupabase, isSupabaseConfigured } from '../supabase';
 import type { WriteHookShape } from '../types/hooks';
 
 import { markReceiptFresh } from './use-fresh-receipt';
+import { notifyMeCountsChanged } from './use-me-counts';
 import { markCaseTipped } from './use-submitted-tips';
 
 export interface SubmitTipInput {
@@ -112,6 +113,9 @@ export function useSubmitTip(): UseSubmitTipShape {
       // consume it on its next render — naturally one-shot, survives the
       // user's 90-second detour on the agency form, no wall-clock window.
       markReceiptFresh(input.caseSlug);
+
+      // Bump the Me-tab counters so a user navigating there sees the new total.
+      notifyMeCountsChanged().catch(() => {});
 
       setLastResult(result);
       return result;

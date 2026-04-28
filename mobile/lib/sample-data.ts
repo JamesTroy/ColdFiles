@@ -1,11 +1,10 @@
 /**
  * Sample fallback data for when EXPO_PUBLIC_SUPABASE_URL is unset.
  *
- * Lets designers iterate on UI without needing a backend wired up. Every hook
- * checks isSupabaseConfigured() and returns this data shape immediately when
- * the env vars are missing. When the env vars ARE set, the hooks run real
- * queries against the cases_within_radius / cases_in_bbox RPCs and slug-keyed
- * selects from the `cases` table.
+ * Six cases pulled from the prototype, with rich metadata so every screen has
+ * something to render — list, map, case detail, sources, routes. Designers
+ * iterate on UI without needing a backend wired up. When env vars are set,
+ * every hook switches to live queries automatically.
  */
 
 import type {
@@ -15,25 +14,77 @@ import type {
   CaseSourceRow,
 } from './types/database';
 
-const SAMPLE_AGENCY_LASD: AgencyRow = {
-  id: 'sample-agency-lasd',
-  slug: 'lasd',
-  name: 'Los Angeles County Sheriff\'s Department',
-  short_name: 'LASD',
-  agency_type: 'county_sheriff',
-  state: 'CA',
-  county: 'Los Angeles',
-  city: null,
-  phone_tip: null,
-  tip_url: null,
-  tip_route_kind: null,
-  cold_case_url: null,
+// ────────────────────────────────────────────────────────────────────────────
+// Agencies (one per case in the launch metro)
+// ────────────────────────────────────────────────────────────────────────────
+
+const AGENCIES: Record<string, AgencyRow> = {
+  lasd: {
+    id: 'sample-agency-lasd',
+    slug: 'lasd',
+    name: "Los Angeles County Sheriff's Department · Homicide Bureau",
+    short_name: 'LASD',
+    agency_type: 'county_sheriff',
+    state: 'CA',
+    county: 'Los Angeles',
+    city: null,
+    phone_tip: null,
+    tip_url: null,
+    tip_route_kind: null,
+    cold_case_url: null,
+  },
+  oxnard_pd: {
+    id: 'sample-agency-oxnard',
+    slug: 'oxnard-pd',
+    name: 'Oxnard Police Department',
+    short_name: 'Oxnard PD',
+    agency_type: 'city_pd',
+    state: 'CA',
+    county: 'Ventura',
+    city: 'Oxnard',
+    phone_tip: null,
+    tip_url: null,
+    tip_route_kind: null,
+    cold_case_url: null,
+  },
+  vcso: {
+    id: 'sample-agency-vcso',
+    slug: 'vcso',
+    name: "Ventura County Sheriff's Office",
+    short_name: 'VCSO',
+    agency_type: 'county_sheriff',
+    state: 'CA',
+    county: 'Ventura',
+    city: null,
+    phone_tip: null,
+    tip_url: null,
+    tip_route_kind: null,
+    cold_case_url: null,
+  },
+  topd: {
+    id: 'sample-agency-topd',
+    slug: 'topd',
+    name: 'Thousand Oaks Police',
+    short_name: 'TOPD',
+    agency_type: 'city_pd',
+    state: 'CA',
+    county: 'Ventura',
+    city: 'Thousand Oaks',
+    phone_tip: null,
+    tip_url: null,
+    tip_route_kind: null,
+    cold_case_url: null,
+  },
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// CaseRowMapNear — used by useCasesNear / useCaseList
+// ────────────────────────────────────────────────────────────────────────────
 
 export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
   {
-    id: 'evans-1985',
-    slug: 'evans-1985',
+    id: 'evans',
+    slug: 'david-evans-1985-claremont-ca',
     kind: 'homicide',
     status: 'open',
     victim_name: 'David R. Evans',
@@ -42,71 +93,137 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     location_text: 'Claremont, CA',
     location_city: 'Claremont',
     location_state: 'CA',
-    narrative_short:
-      'Mr. Evans was found beaten to death inside his Claremont residence.',
-    has_photo: false,
-    primary_agency_name: 'LASD Homicide Bureau',
+    narrative_short: 'Mr. Evans was found beaten to death inside his Claremont residence.',
+    has_photo: true,
+    primary_agency_name: AGENCIES.lasd.name,
     primary_photo_url: null,
     distance_miles: 1.4,
   },
   {
-    id: 'aarlie-2011',
-    slug: 'aarlie-2011',
+    id: 'thompson',
+    slug: 'maria-thompson-2018-oxnard-ca',
     kind: 'missing',
     status: 'open',
-    victim_name: 'John Andrew Aarlie',
-    victim_age: 52,
-    incident_date: '2011-07-16',
-    location_text: 'Yakima, WA',
-    location_city: 'Yakima',
-    location_state: 'WA',
-    narrative_short: 'Last heard from on July 16, 2011 by his sister.',
+    victim_name: 'Maria Thompson',
+    victim_age: 23,
+    incident_date: '2018-06-04',
+    location_text: 'Oxnard, CA',
+    location_city: 'Oxnard',
+    location_state: 'CA',
+    narrative_short: 'Last seen leaving the Oxnard Walmart parking lot.',
     has_photo: true,
-    primary_agency_name: 'Quincy Police Department',
+    primary_agency_name: AGENCIES.oxnard_pd.name,
     primary_photo_url: null,
-    distance_miles: 1042.7,
+    distance_miles: 4.7,
   },
   {
-    id: 'doe-1985',
-    slug: 'doe-1985',
+    id: 'doe-2003',
+    slug: 'doe-2003-ventura-ca',
     kind: 'unidentified',
     status: 'open',
     victim_name: null,
     victim_age: null,
-    incident_date: '1985-04-04',
-    location_text: 'Los Angeles, CA',
-    location_city: 'Los Angeles',
+    incident_date: '2003-08-22',
+    location_text: 'Ventura, CA',
+    location_city: 'Ventura',
+    location_state: 'CA',
+    narrative_short:
+      'Remains recovered along a hiking trail. Forensic facial reconstruction completed.',
+    has_photo: false,
+    primary_agency_name: AGENCIES.vcso.name,
+    primary_photo_url: null,
+    distance_miles: 0.6,
+  },
+  {
+    id: 'hernandez',
+    slug: 'hernandez-1992-camarillo-ca',
+    kind: 'homicide',
+    status: 'open',
+    victim_name: 'Roberto Hernandez',
+    victim_age: 34,
+    incident_date: '1992-03-17',
+    location_text: 'Camarillo, CA',
+    location_city: 'Camarillo',
     location_state: 'CA',
     narrative_short: null,
     has_photo: false,
-    primary_agency_name: 'LASD Homicide Bureau',
+    primary_agency_name: AGENCIES.vcso.name,
     primary_photo_url: null,
-    distance_miles: 18.2,
+    distance_miles: 7.2,
   },
   {
-    id: 'talmon-1974',
-    slug: 'talmon-1974',
+    id: 'doe-1994',
+    slug: 'doe-1994-ojai-ca',
+    kind: 'unidentified',
+    status: 'open',
+    victim_name: null,
+    victim_age: null,
+    incident_date: '1994-11-08',
+    location_text: 'Ojai, CA',
+    location_city: 'Ojai',
+    location_state: 'CA',
+    narrative_short: null,
+    has_photo: false,
+    primary_agency_name: AGENCIES.vcso.name,
+    primary_photo_url: null,
+    distance_miles: 9.1,
+  },
+  {
+    id: 'wallace',
+    slug: 'wallace-2001-thousand-oaks-ca',
     kind: 'missing',
     status: 'open',
-    victim_name: 'Duane Robert Talmon',
-    victim_age: 16,
-    incident_date: '1974-10-30',
-    location_text: 'Buffalo, NY',
-    location_city: 'Buffalo',
-    location_state: 'NY',
-    narrative_short:
-      'Last seen leaving Williamsville North High School on October 30, 1974.',
-    has_photo: true,
-    primary_agency_name: 'Quincy Police Department',
+    victim_name: 'James Wallace',
+    victim_age: 41,
+    incident_date: '2001-07-22',
+    location_text: 'Thousand Oaks, CA',
+    location_city: 'Thousand Oaks',
+    location_state: 'CA',
+    narrative_short: null,
+    has_photo: false,
+    primary_agency_name: AGENCIES.topd.name,
     primary_photo_url: null,
-    distance_miles: 2451.0,
+    distance_miles: 12.8,
   },
 ];
 
+/**
+ * Days since each case last changed — used by the list-row recency dot, the
+ * map-pin recency ring, and the "RECENTLY UPDATED" section header. Same shape
+ * cases_in_bbox will eventually surface as `recency_alpha` (server-side per
+ * the design doc), but for designer mode the raw days-since count is fine.
+ */
+export const SAMPLE_LAST_CHANGED_DAYS: Record<string, number> = {
+  'david-evans-1985-claremont-ca': 5,
+  'maria-thompson-2018-oxnard-ca': 1,
+  'doe-2003-ventura-ca': 18,
+  'hernandez-1992-camarillo-ca': 60,
+  'doe-1994-ojai-ca': 90,
+  'wallace-2001-thousand-oaks-ca': 14,
+};
+
+/**
+ * Map-canvas placeholder coordinates (normalized 0..1). Same six cases as
+ * SAMPLE_CASES_MAP. When Mapbox lands these go away — real markers render
+ * from real lat/lng.
+ */
+export const SAMPLE_MAP_COORDS: Record<string, { x: number; y: number }> = {
+  'david-evans-1985-claremont-ca': { x: 0.35, y: 0.31 },
+  'maria-thompson-2018-oxnard-ca': { x: 0.66, y: 0.19 },
+  'doe-2003-ventura-ca': { x: 0.49, y: 0.5 },
+  'hernandez-1992-camarillo-ca': { x: 0.74, y: 0.28 },
+  'doe-1994-ojai-ca': { x: 0.27, y: 0.43 },
+  'wallace-2001-thousand-oaks-ca': { x: 0.83, y: 0.41 },
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// CaseRowFull — used by useCaseDetail
+// ────────────────────────────────────────────────────────────────────────────
+
 export const SAMPLE_CASE_FULL_BY_SLUG: Record<string, CaseRowFull> = {
-  'evans-1985': {
-    id: 'evans-1985',
-    slug: 'evans-1985',
+  'david-evans-1985-claremont-ca': {
+    id: 'evans',
+    slug: 'david-evans-1985-claremont-ca',
     kind: 'homicide',
     status: 'open',
     victim_name: 'David R. Evans',
@@ -114,7 +231,7 @@ export const SAMPLE_CASE_FULL_BY_SLUG: Record<string, CaseRowFull> = {
     victim_age_min: null,
     victim_age_max: null,
     victim_sex: 'male',
-    victim_race: 'White',
+    victim_race: 'VP, Pomona First Federal',
     incident_date: '1985-10-13',
     incident_date_quality: 'exact',
     incident_date_text: null,
@@ -122,56 +239,308 @@ export const SAMPLE_CASE_FULL_BY_SLUG: Record<string, CaseRowFull> = {
     location_city: 'Claremont',
     location_state: 'CA',
     narrative:
-      'Mr. Evans was found beaten to death inside his Claremont residence on a Sunday evening. His body was discovered by Claremont Police Officers responding to a possible burglary call from neighbors. At the time, the investigation had…',
-    narrative_short:
-      'Mr. Evans was found beaten to death inside his Claremont residence.',
+      'Mr. Evans was found beaten to death inside his Claremont residence on a Sunday evening. His body was discovered by Claremont Police Officers responding to a possible burglary call from neighbors. At the time, the investigation had several persons of interest associated with banking irregularities at PFF Bank, where Mr. Evans served as Vice President.',
+    narrative_short: 'Mr. Evans was found beaten to death inside his Claremont residence.',
     case_number_primary: 'CASE-LASD-1985-0413',
+    reward_text: null,
+    has_photo: true,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.lasd.id,
+    primary_agency: AGENCIES.lasd,
+  },
+  'maria-thompson-2018-oxnard-ca': {
+    id: 'thompson',
+    slug: 'maria-thompson-2018-oxnard-ca',
+    kind: 'missing',
+    status: 'open',
+    victim_name: 'Maria Thompson',
+    victim_age: 23,
+    victim_age_min: null,
+    victim_age_max: null,
+    victim_sex: 'female',
+    victim_race: 'Last seen leaving work',
+    incident_date: '2018-06-04',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: 'Oxnard, CA',
+    location_city: 'Oxnard',
+    location_state: 'CA',
+    narrative:
+      'Maria was last seen leaving the Oxnard Walmart parking lot on the evening of June 4, 2018. Her vehicle, a 2012 silver Honda Civic, was found abandoned the following morning at a Ventura beach access road approximately 14 miles from her workplace. Her phone went offline at 9:47 PM that same evening.',
+    narrative_short: 'Last seen leaving the Oxnard Walmart parking lot.',
+    case_number_primary: 'NAMUS-MP-87412',
+    reward_text: null,
+    has_photo: true,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 1 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.oxnard_pd.id,
+    primary_agency: AGENCIES.oxnard_pd,
+  },
+  'doe-2003-ventura-ca': {
+    id: 'doe-2003',
+    slug: 'doe-2003-ventura-ca',
+    kind: 'unidentified',
+    status: 'open',
+    victim_name: null,
+    victim_age: null,
+    victim_age_min: 30,
+    victim_age_max: 45,
+    victim_sex: 'female',
+    victim_race: 'Estimated age 30–45 · female',
+    incident_date: '2003-08-22',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: 'Ventura, CA',
+    location_city: 'Ventura',
+    location_state: 'CA',
+    narrative:
+      'Remains were recovered along a hiking trail in the foothills above Ventura on August 22, 2003. Forensic analysis estimated the decedent to be a female aged 30–45 of mixed heritage. A forensic facial reconstruction was completed in 2008 and updated using current methods in 2019. DNA is on file with NamUs.',
+    narrative_short:
+      'Remains recovered along a hiking trail. Forensic facial reconstruction completed.',
+    case_number_primary: 'NAMUS-UP-19288',
+    reward_text: null,
+    has_photo: false,
+    has_sketch: true,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 18 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.vcso.id,
+    primary_agency: AGENCIES.vcso,
+  },
+  'hernandez-1992-camarillo-ca': {
+    id: 'hernandez',
+    slug: 'hernandez-1992-camarillo-ca',
+    kind: 'homicide',
+    status: 'open',
+    victim_name: 'Roberto Hernandez',
+    victim_age: 34,
+    victim_age_min: null,
+    victim_age_max: null,
+    victim_sex: 'male',
+    victim_race: 'Construction foreman',
+    incident_date: '1992-03-17',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: 'Camarillo, CA',
+    location_city: 'Camarillo',
+    location_state: 'CA',
+    narrative: null,
+    narrative_short: null,
+    case_number_primary: null,
     reward_text: null,
     has_photo: false,
     has_sketch: false,
     is_featured: false,
-    last_changed_at: new Date().toISOString(),
-    primary_agency_id: SAMPLE_AGENCY_LASD.id,
-    primary_agency: SAMPLE_AGENCY_LASD,
+    last_changed_at: new Date(Date.now() - 60 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.vcso.id,
+    primary_agency: AGENCIES.vcso,
+  },
+  'doe-1994-ojai-ca': {
+    id: 'doe-1994',
+    slug: 'doe-1994-ojai-ca',
+    kind: 'unidentified',
+    status: 'open',
+    victim_name: null,
+    victim_age: null,
+    victim_age_min: 16,
+    victim_age_max: 22,
+    victim_sex: 'male',
+    victim_race: 'Estimated age 16–22 · male',
+    incident_date: '1994-11-08',
+    incident_date_quality: 'year_only',
+    incident_date_text: '1994',
+    location_text: 'Ojai, CA',
+    location_city: 'Ojai',
+    location_state: 'CA',
+    narrative: null,
+    narrative_short: null,
+    case_number_primary: null,
+    reward_text: null,
+    has_photo: false,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 90 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.vcso.id,
+    primary_agency: AGENCIES.vcso,
+  },
+  'wallace-2001-thousand-oaks-ca': {
+    id: 'wallace',
+    slug: 'wallace-2001-thousand-oaks-ca',
+    kind: 'missing',
+    status: 'open',
+    victim_name: 'James Wallace',
+    victim_age: 41,
+    victim_age_min: null,
+    victim_age_max: null,
+    victim_sex: 'male',
+    victim_race: 'Last seen at home',
+    incident_date: '2001-07-22',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: 'Thousand Oaks, CA',
+    location_city: 'Thousand Oaks',
+    location_state: 'CA',
+    narrative: null,
+    narrative_short: null,
+    case_number_primary: null,
+    reward_text: null,
+    has_photo: false,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 14 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.topd.id,
+    primary_agency: AGENCIES.topd,
   },
 };
 
+// ────────────────────────────────────────────────────────────────────────────
+// Sources (per-case, with trust + last_ingested_at for the chip ordering)
+// ────────────────────────────────────────────────────────────────────────────
+
+function makeSource(
+  caseId: string,
+  source_id: string,
+  slug: string,
+  name: string,
+  trust: number,
+  daysAgo: number,
+): CaseSourceRow {
+  return {
+    id: `${caseId}-${slug}`,
+    case_id: caseId,
+    source_id,
+    source_external_id: caseId,
+    source_url: `https://${slug.replace('_', '')}.example/case/${caseId}`,
+    trust_weight: trust,
+    last_ingested_at: new Date(Date.now() - daysAgo * 86400000).toISOString(),
+    source: {
+      id: source_id,
+      slug,
+      name,
+      kind: trust >= 90 ? 'agency' : trust >= 70 ? 'aggregator' : 'nonprofit',
+      base_url: `https://${slug.replace('_', '')}.example`,
+      attribution_html: `Source: <a href="https://${slug.replace('_', '')}.example">${name}</a>`,
+    },
+  };
+}
+
 export const SAMPLE_CASE_SOURCES_BY_CASE_ID: Record<string, CaseSourceRow[]> = {
-  'evans-1985': [
+  evans: [
+    makeSource('evans', 'src-lasd', 'lasd_homicide', 'LASD Homicide Bureau', 95, 5),
+    makeSource('evans', 'src-pcc', 'project_cold_case', 'Project: Cold Case', 50, 48),
+  ],
+  thompson: [
+    makeSource('thompson', 'src-namus', 'namus', 'NamUs', 90, 2),
+    makeSource('thompson', 'src-charley', 'charley_project', 'The Charley Project', 75, 26),
+    makeSource('thompson', 'src-doe', 'doe_network', 'The Doe Network', 70, 46),
+  ],
+  'doe-2003': [
+    makeSource('doe-2003', 'src-namus', 'namus', 'NamUs', 90, 12),
+    makeSource('doe-2003', 'src-doe', 'doe_network', 'The Doe Network', 70, 64),
+  ],
+  hernandez: [
+    makeSource('hernandez', 'src-pcc', 'project_cold_case', 'Project: Cold Case', 50, 26),
+  ],
+  'doe-1994': [
+    makeSource('doe-1994', 'src-doe', 'doe_network', 'The Doe Network', 70, 105),
+  ],
+  wallace: [
+    makeSource('wallace', 'src-charley', 'charley_project', 'The Charley Project', 75, 15),
+    makeSource('wallace', 'src-namus', 'namus', 'NamUs', 90, 7),
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Tip routes (per-case) — used by the submit-tip modal in designer mode.
+// Three cards each, with one carrying the RECOMMENDED badge.
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface SampleTipRoute {
+  id: string;
+  agency: { name: string; short_name?: string };
+  meta: string;
+  recommended: boolean;
+}
+
+export const SAMPLE_TIP_ROUTES_BY_SLUG: Record<string, SampleTipRoute[]> = {
+  'david-evans-1985-claremont-ca': [
     {
-      id: 'src-1',
-      case_id: 'evans-1985',
-      source_id: 'src-lasd',
-      source_external_id: 'evans-1985',
-      source_url: 'https://lasd.org/cold-cases/evans-1985',
-      trust_weight: 95,
-      last_ingested_at: new Date().toISOString(),
-      source: {
-        id: 'src-lasd',
-        slug: 'lasd_homicide',
-        name: 'LASD Homicide Bureau',
-        kind: 'agency',
-        base_url: 'https://lasd.org',
-        attribution_html: 'Source: <a href="https://lasd.org">LASD</a>',
-      },
+      id: 'la-crime-stoppers',
+      agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
+      meta: 'Anonymous · routes to LASD detective on this case · reward eligible',
+      recommended: true,
     },
     {
-      id: 'src-2',
-      case_id: 'evans-1985',
-      source_id: 'src-pcc',
-      source_external_id: 'evans-1985',
-      source_url: 'https://projectcoldcase.org/cases/evans-1985',
-      trust_weight: 50,
-      last_ingested_at: new Date().toISOString(),
-      source: {
-        id: 'src-pcc',
-        slug: 'project_cold_case',
-        name: 'Project: Cold Case',
-        kind: 'nonprofit',
-        base_url: 'https://projectcoldcase.org',
-        attribution_html:
-          'Source: <a href="https://projectcoldcase.org">Project: Cold Case</a>',
-      },
+      id: 'lasd-direct',
+      agency: { name: 'LASD Homicide Bureau', short_name: 'LASD Homicide' },
+      meta: '323-890-5500 · direct line',
+      recommended: false,
+    },
+    {
+      id: 'fbi-tip',
+      agency: { name: 'FBI Tip Line', short_name: 'FBI' },
+      meta: 'Federal jurisdiction or interstate',
+      recommended: false,
+    },
+  ],
+  'maria-thompson-2018-oxnard-ca': [
+    {
+      id: 'ventura-cs',
+      agency: { name: 'Ventura County Crime Stoppers', short_name: 'Ventura CS' },
+      meta: 'Anonymous · routes to Oxnard PD detective · reward eligible',
+      recommended: true,
+    },
+    {
+      id: 'oxnard-pd',
+      agency: { name: 'Oxnard Police Department', short_name: 'Oxnard PD' },
+      meta: '805-385-7600 · main',
+      recommended: false,
+    },
+    {
+      id: 'fbi-tip',
+      agency: { name: 'FBI Tip Line', short_name: 'FBI' },
+      meta: 'Federal jurisdiction or interstate',
+      recommended: false,
+    },
+  ],
+  'doe-2003-ventura-ca': [
+    {
+      id: 'ventura-cs',
+      agency: { name: 'Ventura County Crime Stoppers', short_name: 'Ventura CS' },
+      meta: 'Anonymous · routes to VCSO detective · reward eligible',
+      recommended: true,
+    },
+    {
+      id: 'namus-form',
+      agency: { name: 'NamUs Tipline', short_name: 'NamUs' },
+      meta: 'Specialized for unidentified persons',
+      recommended: false,
+    },
+  ],
+  'hernandez-1992-camarillo-ca': [
+    {
+      id: 'ventura-cs',
+      agency: { name: 'Ventura County Crime Stoppers', short_name: 'Ventura CS' },
+      meta: 'Anonymous · routes to VCSO · reward eligible',
+      recommended: true,
+    },
+  ],
+  'doe-1994-ojai-ca': [
+    {
+      id: 'namus-form',
+      agency: { name: 'NamUs Tipline', short_name: 'NamUs' },
+      meta: 'Specialized for unidentified persons',
+      recommended: true,
+    },
+  ],
+  'wallace-2001-thousand-oaks-ca': [
+    {
+      id: 'ventura-cs',
+      agency: { name: 'Ventura County Crime Stoppers', short_name: 'Ventura CS' },
+      meta: 'Anonymous · routes to TOPD · reward eligible',
+      recommended: true,
     },
   ],
 };
