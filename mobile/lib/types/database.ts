@@ -62,6 +62,10 @@ export interface CaseRowMapNear {
    * don't carry it (table reads on the List tab, etc.).
    */
   recency_alpha: number | null;
+  /** WGS84 latitude. Returned by cases_within_radius + cases_in_bbox; null on table reads. */
+  lat: number | null;
+  /** WGS84 longitude. Returned by cases_within_radius + cases_in_bbox; null on table reads. */
+  lng: number | null;
 }
 
 /** Fuller case row used by the case-detail screen. */

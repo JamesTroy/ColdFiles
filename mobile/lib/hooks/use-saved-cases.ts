@@ -170,7 +170,12 @@ export function useSavedCases(): {
               (r as { slug: string }).slug,
               r as Omit<
                 CaseRowMapNear,
-                'primary_agency_name' | 'primary_photo_url' | 'distance_miles' | 'recency_alpha'
+                | 'primary_agency_name'
+                | 'primary_photo_url'
+                | 'distance_miles'
+                | 'recency_alpha'
+                | 'lat'
+                | 'lng'
               >,
             ]),
           );
@@ -183,6 +188,8 @@ export function useSavedCases(): {
               primary_photo_url: null,
               distance_miles: null,
               recency_alpha: null,
+              lat: null,
+              lng: null,
             })) as CaseRowMapNear[];
           setRows(ordered);
           setLoading(false);

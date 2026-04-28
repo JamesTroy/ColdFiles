@@ -108,7 +108,11 @@ returns table (
   primary_agency_name text,
   primary_photo_url text,
   distance_miles numeric,
-  recency_alpha numeric
+  recency_alpha numeric,
+  /** WGS84 latitude — exposed for Mapbox marker placement. */
+  lat double precision,
+  /** WGS84 longitude — exposed for Mapbox marker placement. */
+  lng double precision
 )
 language sql
 stable
@@ -145,7 +149,9 @@ as $$
       when extract(epoch from (now() - c.last_changed_at)) / 86400.0 <= 3 then 1.0
       when extract(epoch from (now() - c.last_changed_at)) / 86400.0 <= 10 then 0.5
       else 0
-    end::numeric as recency_alpha
+    end::numeric as recency_alpha,
+    st_y(c.location_point::geometry) as lat,
+    st_x(c.location_point::geometry) as lng
   from cases c
   left join agencies a on a.id = c.primary_agency_id
   where
@@ -159,5 +165,60 @@ as $$
       radius_miles * 1609.34
     )
   order by c.location_point <-> st_setsrid(st_makepoint(search_lng, search_lat), 4326)::geography
+  limit result_limit;
+$$;
+
+-- ============================================================================
+-- cases_in_polygon — Watch Zone counter and "what's inside this perimeter?"
+-- query. Same shape as cases_in_bbox but takes a polygon WKT as the spatial
+-- predicate. Used by the Watch Zone screen to compute "42 cases inside" on
+-- every polygon-edit gesture.
+-- ============================================================================
+
+create or replace function cases_in_polygon(
+  polygon_wkt text,
+  filter_kinds case_kind[] default null,
+  filter_status case_status[] default array['open']::case_status[],
+  result_limit integer default 500
+)
+returns table (
+  id uuid,
+  slug text,
+  kind case_kind,
+  status case_status,
+  lat double precision,
+  lng double precision,
+  victim_name text,
+  has_photo boolean,
+  recency_alpha numeric
+)
+language sql
+stable
+as $$
+  select
+    c.id,
+    c.slug,
+    c.kind,
+    c.status,
+    st_y(c.location_point::geometry) as lat,
+    st_x(c.location_point::geometry) as lng,
+    c.victim_name,
+    c.has_photo,
+    case
+      when c.last_changed_at is null then 0
+      when extract(epoch from (now() - c.last_changed_at)) / 86400.0 <= 3 then 1.0
+      when extract(epoch from (now() - c.last_changed_at)) / 86400.0 <= 10 then 0.5
+      else 0
+    end::numeric as recency_alpha
+  from cases c
+  where
+    c.deleted_at is null
+    and c.location_point is not null
+    and (filter_kinds is null or c.kind = any(filter_kinds))
+    and (filter_status is null or c.status = any(filter_status))
+    and st_within(
+      c.location_point::geometry,
+      st_setsrid(st_geomfromtext(polygon_wkt), 4326)
+    )
   limit result_limit;
 $$;

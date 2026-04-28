@@ -71,17 +71,23 @@ export function useCaseList({
         setData([]);
       } else {
         // Backfill fields cases_within_radius would compute but a direct table
-        // read doesn't (primary_agency_name, primary_photo_url, distance_miles,
-        // recency_alpha).
+        // read doesn't.
         const enriched: CaseRowMapNear[] = (rows ?? []).map((r) => ({
           ...(r as Omit<
             CaseRowMapNear,
-            'primary_agency_name' | 'primary_photo_url' | 'distance_miles' | 'recency_alpha'
+            | 'primary_agency_name'
+            | 'primary_photo_url'
+            | 'distance_miles'
+            | 'recency_alpha'
+            | 'lat'
+            | 'lng'
           >),
           primary_agency_name: null,
           primary_photo_url: null,
           distance_miles: null,
           recency_alpha: null,
+          lat: null,
+          lng: null,
         }));
         setData(enriched);
       }

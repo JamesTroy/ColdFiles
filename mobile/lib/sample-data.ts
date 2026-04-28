@@ -109,6 +109,8 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_photo_url: null,
     distance_miles: 1.4,
     recency_alpha: recencyAlpha(5),
+    lat: 34.0967,
+    lng: -117.7196,
   },
   {
     id: 'thompson',
@@ -127,6 +129,8 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_photo_url: null,
     distance_miles: 4.7,
     recency_alpha: recencyAlpha(1),
+    lat: 34.1975,
+    lng: -119.1771,
   },
   {
     id: 'doe-2003',
@@ -146,6 +150,8 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_photo_url: null,
     distance_miles: 0.6,
     recency_alpha: recencyAlpha(18),
+    lat: 34.2746,
+    lng: -119.229,
   },
   {
     id: 'hernandez',
@@ -164,6 +170,8 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_photo_url: null,
     distance_miles: 7.2,
     recency_alpha: recencyAlpha(60),
+    lat: 34.2164,
+    lng: -119.0376,
   },
   {
     id: 'doe-1994',
@@ -182,6 +190,8 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_photo_url: null,
     distance_miles: 9.1,
     recency_alpha: recencyAlpha(90),
+    lat: 34.448,
+    lng: -119.2429,
   },
   {
     id: 'wallace',
@@ -200,6 +210,8 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_photo_url: null,
     distance_miles: 12.8,
     recency_alpha: recencyAlpha(14),
+    lat: 34.1706,
+    lng: -118.8376,
   },
 ];
 
