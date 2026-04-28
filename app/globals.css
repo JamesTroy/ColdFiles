@@ -1,0 +1,87 @@
+/*
+ * Global styles for coldfile.app.
+ *
+ * Mirrors the mobile app's design tokens — same case-file palette, same
+ * typography, same dark voice. Tokens live as CSS variables on :root so the
+ * legal pages and any future marketing pages use the same source of truth.
+ */
+
+:root {
+  --bg-base: #0a0a0a;
+  --bg-elev1: #161616;
+  --bg-elev2: #2a2a2a;
+
+  --border-subtle: #1f1f1f;
+  --border-strong: #2a2a2a;
+
+  --text-primary: #f5f1ea;
+  /* WCAG AA-compliant against bg-base (≥4.5:1) — mirrors the mobile token bump. */
+  --text-secondary: #a09b95;
+  --text-disabled: #5a5550;
+
+  --accent-amber: #c5a572;
+  --accent-amber-hot: #e3c485;
+
+  --evidence-chrome: #5a5550;
+  --body-reading: #d5cdbe;
+
+  /* Typography — matches mobile font stack via next/font */
+  --font-serif: var(--font-newsreader, Georgia, serif);
+  --font-sans: var(--font-inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  --font-mono: var(--font-jetbrains, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: var(--accent-amber);
+  text-decoration: none;
+  border-bottom: 0.5px solid var(--border-strong);
+  transition: border-color 120ms ease;
+}
+
+a:hover {
+  border-bottom-color: var(--accent-amber);
+}
+
+::selection {
+  background: var(--accent-amber);
+  color: var(--bg-base);
+}
+
+/* Reusable utility classes — keep CSS bundle tight */
+
+.serif { font-family: var(--font-serif); font-weight: 500; letter-spacing: -0.01em; }
+.mono  { font-family: var(--font-mono); }
+.mono-cap {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--evidence-chrome);
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+@media (min-width: 768px) {
+  .container { padding: 64px 32px; }
+}
