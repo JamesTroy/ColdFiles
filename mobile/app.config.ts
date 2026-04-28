@@ -46,16 +46,6 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
-    config: {
-      googleMaps: {
-        // Required for the MapView to render on Android. Without it the
-        // basemap is blank gray. Get one at:
-        //   https://console.cloud.google.com/google/maps-apis
-        // Enable "Maps SDK for Android", restrict the key to the
-        // com.matteblackdev.coldfile package, copy to mobile/.env.
-        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID ?? '',
-      },
-    },
   },
   web: {
     output: 'static',
@@ -72,6 +62,9 @@ const config: ExpoConfig = {
         backgroundColor: '#0a0a0a',
       },
     ],
+    // MapLibre GL Native — open-source map SDK. No API key, no signup, no
+    // Google Cloud. Tiles served by openfreemap.org (community-funded OSM).
+    '@maplibre/maplibre-react-native',
   ],
   experiments: {
     typedRoutes: true,

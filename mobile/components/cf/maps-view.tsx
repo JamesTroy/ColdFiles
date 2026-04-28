@@ -1,31 +1,27 @@
 /**
- * MapsView — react-native-maps wrapper for the home tab.
+ * MapsView — MapLibre GL Native + OpenFreeMap public tiles.
  *
- * Replaces the previous @rnmapbox/maps integration. Same external props/API
- * so the Map screen didn't need rewriting. The pin grammar is preserved by
- * construction: each <Marker> renders the existing <Pin /> SVG component as
- * its child via the `<Marker.Children>` slot, so filled-circle / ring-plus-
+ * Replaces the previous react-native-maps integration. No API key, no signup,
+ * no Google Cloud — OpenFreeMap is community-funded OSM-derived tile hosting.
+ * The dark style URL lives in tokens.map.styleUrl.
+ *
+ * The pin grammar is preserved by construction: each <Marker> renders the
+ * existing <Pin /> SVG component as its child, so filled-circle / ring-plus-
  * dot / open-ring shape encoding, the selection halo, and the recency ring
  * decay all work unchanged.
  *
- * Provider:
- *   Android → Google Maps (PROVIDER_GOOGLE) — needs an API key in app.config.ts
- *   iOS     → Apple Maps  (default) — no key required
- *
- * The dark Google Maps style is in tokens.map.customMapStyle and is applied
- * via the `customMapStyle` prop. Apple Maps doesn't honor that prop; iOS
- * users get the system Apple Maps theme (which already follows dark mode).
+ * MapLibre RN v11 supports the New Architecture (Fabric) cleanly — no GL
+ * surface measurement bugs like @rnmapbox/maps v10.
  */
 
-import { useRef } from 'react';
-import { Platform, Pressable, View } from 'react-native';
-import MapView, {
-  type MapStyleElement,
+import {
+  Camera,
+  Map as MapLibreMap,
   Marker,
-  PROVIDER_DEFAULT,
-  PROVIDER_GOOGLE,
-  type Region,
-} from 'react-native-maps';
+  type ViewStateChangeEvent,
+} from '@maplibre/maplibre-react-native';
+import { useRef } from 'react';
+import { type NativeSyntheticEvent, Pressable, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
@@ -38,25 +34,26 @@ export interface MapsMarker {
   lng: number;
   kind: PinKind;
   selected?: boolean;
-  /** Days since last_changed_at (or null). Drives the recency ring on the Pin. */
+  /** Days since last_changed_at (or null). Drives the recency ring. */
   recentDays?: number | null;
 }
 
 interface MapsViewProps {
-  /** Initial region center. */
-  center: { lat: number; lng: number; latitudeDelta?: number; longitudeDelta?: number };
+  center: { lat: number; lng: number; zoomLevel?: number };
   markers: MapsMarker[];
-  /** "You are here" — rendered as a separate blue dot via a Marker child. */
   here?: { lat: number; lng: number } | null;
   onMarkerPress?: (id: string) => void;
   /**
    * Fires when the visible region settles after pan/zoom. Drives a debounced
    * cases_in_bbox refetch upstream (tokens.map.viewportDebounceMs).
    */
-  onRegionChange?: (region: Region) => void;
+  onRegionChange?: (bounds: {
+    minLng: number;
+    minLat: number;
+    maxLng: number;
+    maxLat: number;
+  }) => void;
 }
-
-const PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 
 export function MapsView({
   center,
@@ -65,42 +62,47 @@ export function MapsView({
   onMarkerPress,
   onRegionChange,
 }: MapsViewProps) {
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<unknown>(null);
+
+  const handleRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+    if (!onRegionChange) return;
+    const b = e.nativeEvent.bounds;
+    if (!b) return;
+    // LngLatBounds is the flat GeoJSON ordering [west, south, east, north].
+    onRegionChange({
+      minLng: b[0],
+      minLat: b[1],
+      maxLng: b[2],
+      maxLat: b[3],
+    });
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER}
+      <MapLibreMap
+        ref={mapRef as never}
         style={{ flex: 1 }}
-        customMapStyle={
-          /* Apple Maps ignores this; Google Maps consumes it. Both are happy. */
-          tokens.map.customMapStyle as unknown as MapStyleElement[]
-        }
-        initialRegion={{
-          latitude: center.lat,
-          longitude: center.lng,
-          latitudeDelta: center.latitudeDelta ?? tokens.map.defaultCenter.latitudeDelta,
-          longitudeDelta: center.longitudeDelta ?? tokens.map.defaultCenter.longitudeDelta,
-        }}
-        onRegionChangeComplete={onRegionChange}
-        showsCompass={false}
-        showsScale={false}
-        showsMyLocationButton={false}
-        showsUserLocation={false}
-        toolbarEnabled={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
+        mapStyle={tokens.map.styleUrl}
+        attribution
+        attributionPosition={{ bottom: 8, right: 8 }}
+        logo={false}
+        compass={false}
+        scaleBar={false}
+        onRegionDidChange={handleRegionDidChange}
       >
+        <Camera
+          center={[center.lng, center.lat]}
+          zoom={center.zoomLevel ?? tokens.map.defaultCenter.zoomLevel}
+        />
+
         {markers.map((m) => (
           <Marker
             key={m.id}
-            coordinate={{ latitude: m.lat, longitude: m.lng }}
-            onPress={() => onMarkerPress?.(m.id)}
-            anchor={{ x: 0.5, y: 0.5 }}
-            tracksViewChanges={false}
+            lngLat={[m.lng, m.lat]}
+            anchor="center"
           >
             <Pressable
+              onPress={() => onMarkerPress?.(m.id)}
               hitSlop={8}
               style={{ alignItems: 'center', justifyContent: 'center' }}
             >
@@ -115,15 +117,11 @@ export function MapsView({
         ))}
 
         {here ? (
-          <Marker
-            coordinate={{ latitude: here.lat, longitude: here.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}
-            tracksViewChanges={false}
-          >
+          <Marker lngLat={[here.lng, here.lat]} anchor="center">
             <YouAreHereDot />
           </Marker>
         ) : null}
-      </MapView>
+      </MapLibreMap>
     </View>
   );
 }
@@ -151,13 +149,11 @@ function YouAreHereDot() {
 }
 
 /**
- * Returns true when the map should render via the native provider (always
- * true now — react-native-maps' Apple Maps fallback works without keys, and
- * Android works once the Google Maps API key lands in app.config.ts). The
- * SVG-canvas fallback path stays available for designer-mode use cases that
+ * MapLibre + OpenFreeMap doesn't require any environment configuration —
+ * the basemap is always available. Returns true unconditionally; the SVG
+ * fallback path is preserved upstream for designer-mode use cases that
  * intentionally avoid native maps.
  */
 export function isNativeMapAvailable(): boolean {
-  if (Platform.OS === 'ios') return true;
-  return Boolean(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID);
+  return true;
 }

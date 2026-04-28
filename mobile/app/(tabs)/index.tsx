@@ -205,8 +205,7 @@ function NativeRenderer({
       center={{
         lat: tokens.map.defaultCenter.lat,
         lng: tokens.map.defaultCenter.lng,
-        latitudeDelta: tokens.map.defaultCenter.latitudeDelta,
-        longitudeDelta: tokens.map.defaultCenter.longitudeDelta,
+        zoomLevel: tokens.map.defaultCenter.zoomLevel,
       }}
       markers={markers}
       here={{ lat: tokens.map.defaultCenter.lat, lng: tokens.map.defaultCenter.lng }}

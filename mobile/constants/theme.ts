@@ -122,10 +122,26 @@ export const tokens = {
   },
 
   /**
-   * Map runtime tokens. Consumed by components/cf/maps-view.tsx
-   * (react-native-maps + Google Maps on Android, Apple Maps on iOS).
+   * Map runtime tokens. Consumed by components/cf/maps-view.tsx (MapLibre GL
+   * Native + OpenFreeMap public tiles — no API key, no signup, no Google
+   * Cloud account).
    */
   map: {
+    /**
+     * MapLibre style URL. OpenFreeMap is community-funded OSM-derived tile
+     * hosting; their `dark` style is a clean Carto-derived dark basemap
+     * that fits the case-file aesthetic out of the box.
+     *
+     * Other free options on the same host: liberty, positron, bright, 3d.
+     * To go fully custom, host a MapLibre style JSON anywhere (S3, GitHub
+     * Pages, Supabase Storage) and swap this URL.
+     *
+     * Tile usage: OpenFreeMap doesn't enforce per-key quotas — it's a
+     * public service. MapLibre handles tile caching client-side
+     * automatically.
+     */
+    styleUrl: 'https://tiles.openfreemap.org/styles/dark',
+
     /**
      * Debounce window between viewport pan/zoom events and the cases_in_bbox
      * refetch. 200ms balances liveness against thrashing the RPC; tune on a
@@ -137,46 +153,7 @@ export const tokens = {
      * Default starting camera. First-launch users see the launch metro
      * centered before they grant location permission.
      */
-    defaultCenter: { lat: 34.275, lng: -119.229, latitudeDelta: 0.6, longitudeDelta: 0.6 },
-
-    /**
-     * Custom Google Maps style — quiet dark basemap matching the case-file
-     * aesthetic. Water + primary roads + county lines stay; POIs, business
-     * labels, transit, and minor-road labels are stripped. Delivered as the
-     * `customMapStyle` prop on <MapView>.
-     *
-     * Generated to match docs/04_DESIGN_SYSTEM.md: surfaces are bg.base
-     * (#0a0a0a) tinted, primary roads in evidence.chrome (#5a5550), water in
-     * map.water (#070b10).
-     */
-    customMapStyle: [
-      // Base land
-      { elementType: 'geometry', stylers: [{ color: '#0e0e0e' }] },
-      { elementType: 'labels.text.fill', stylers: [{ color: '#5a5550' }] },
-      { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0a0a' }] },
-      // Hide POI clutter
-      { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-      { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
-      { featureType: 'poi.attraction', stylers: [{ visibility: 'off' }] },
-      // Roads
-      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#252015' }] },
-      { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3a3325' }] },
-      { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-      { featureType: 'road.arterial', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-      { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#8a8580' }] },
-      // Administrative (county / state lines stay subtle)
-      { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#1f1f1f' }] },
-      { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#2a2a2a' }] },
-      { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#5a5550' }] },
-      { featureType: 'administrative.neighborhood', stylers: [{ visibility: 'off' }] },
-      // Water
-      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#070b10' }] },
-      { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#1a2530' }] },
-      // Landscape
-      { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0e0e0e' }] },
-      { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#0d100a' }] },
-    ],
+    defaultCenter: { lat: 34.275, lng: -119.229, zoomLevel: 9 },
   },
 
   caseDetail: {
