@@ -1,26 +1,21 @@
 /**
- * WatchZoneMap — MapLibre polygon-edit preview.
+ * WatchZoneMap — disabled native MapLibre polygon renderer (kept as a stub).
  *
- * Polygon perimeter via <GeoJSONSource> + a fill <Layer> + a line <Layer>.
- * Vertex handles are <Marker> circles in accent.amber. Inside-pins use the
- * production <Pin /> SVG.
+ * Same gating reason as maps-view.tsx: top-level imports from
+ * `@maplibre/maplibre-react-native` trigger the MLRNCameraModule TurboModule
+ * lookup at module-load time, which throws if the dev client APK doesn't
+ * have MapLibre linked. Since the watch-zone screen uses
+ * `LeafletWatchZoneMap` whenever `isNativeMapAvailable()` returns false
+ * (always true in V1), the MapLibre version is never rendered — but its
+ * imports must not run.
  *
- * Vertex drag gestures aren't wired yet (matches earlier scope); the polygon
- * is static-positioned for v1.
+ * Restore by re-adding the runtime imports + body once the upstream
+ * MapLibre Native Fabric fix lands and `isNativeMapAvailable()` flips.
  */
 
-import {
-  Camera,
-  GeoJSONSource,
-  Layer,
-  Map as MapLibreMap,
-  Marker,
-} from '@maplibre/maplibre-react-native';
-import { View } from 'react-native';
+import type { ReactElement } from 'react';
 
-import { tokens } from '@/constants/theme';
-
-import { Pin, type PinKind } from './pin';
+import type { PinKind } from './pin';
 
 export interface PolygonVertex {
   lat: number;
@@ -41,101 +36,8 @@ interface WatchZoneMapProps {
   zoomLevel?: number;
 }
 
-export function WatchZoneMap({
-  vertices,
-  insidePins = [],
-  center,
-  zoomLevel = 9,
-}: WatchZoneMapProps) {
-  if (vertices.length < 3) {
-    return <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }} />;
-  }
-
-  const cameraCenter = center ?? centroid(vertices);
-
-  // GeoJSON ring closes by repeating the first vertex.
-  const ring: [number, number][] = [
-    ...vertices.map((v) => [v.lng, v.lat] as [number, number]),
-    [vertices[0].lng, vertices[0].lat],
-  ];
-
-  const polygonShape = {
-    type: 'Feature' as const,
-    geometry: {
-      type: 'Polygon' as const,
-      coordinates: [ring],
-    },
-    properties: {},
-  };
-
-  return (
-    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      <MapLibreMap
-        style={{ flex: 1 }}
-        mapStyle={tokens.map.styleUrl}
-        attribution
-        attributionPosition={{ bottom: 8, right: 8 }}
-        logo={false}
-        compass={false}
-        scaleBar={false}
-      >
-        <Camera center={[cameraCenter.lng, cameraCenter.lat]} zoom={zoomLevel} />
-
-        <GeoJSONSource id="zone-polygon" data={polygonShape}>
-          <Layer
-            id="zone-fill"
-            type="fill"
-            source="zone-polygon"
-            style={{
-              fillColor: tokens.color.accent.amber,
-              fillOpacity: 0.08,
-            }}
-          />
-          <Layer
-            id="zone-stroke"
-            type="line"
-            source="zone-polygon"
-            style={{
-              lineColor: tokens.color.accent.amber,
-              lineWidth: 1.5,
-              lineDasharray: [4, 3],
-            }}
-          />
-        </GeoJSONSource>
-
-        {/* Vertex handles */}
-        {vertices.map((v, i) => (
-          <Marker key={`vertex-${i}`} lngLat={[v.lng, v.lat]} anchor="center">
-            <View
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: 6,
-                backgroundColor: tokens.color.accent.amber,
-                borderWidth: 1.5,
-                borderColor: tokens.color.bg.base,
-              }}
-            />
-          </Marker>
-        ))}
-
-        {/* Inside pins */}
-        {insidePins.map((p) => (
-          <Marker key={p.id} lngLat={[p.lng, p.lat]} anchor="center">
-            <Pin kind={p.kind} diameter={10} />
-          </Marker>
-        ))}
-      </MapLibreMap>
-    </View>
+export function WatchZoneMap(_props: WatchZoneMapProps): ReactElement {
+  throw new Error(
+    'WatchZoneMap is disabled while native MapLibre is gated off. Use LeafletWatchZoneMap.',
   );
-}
-
-function centroid(vertices: PolygonVertex[]): { lat: number; lng: number } {
-  let lat = 0;
-  let lng = 0;
-  for (const v of vertices) {
-    lat += v.lat;
-    lng += v.lng;
-  }
-  return { lat: lat / vertices.length, lng: lng / vertices.length };
 }

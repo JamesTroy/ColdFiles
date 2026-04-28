@@ -16,16 +16,16 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Path, Polygon } from 'react-native-svg';
 
 import { AmberCTA } from '@/components/cf/cta-button';
-import { isNativeMapAvailable } from '@/components/cf/maps-view';
-import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import {
-  WatchZoneMap,
+  LeafletWatchZoneMap,
   type InsidePin,
   type PolygonVertex,
-} from '@/components/cf/watch-zone-map';
+} from '@/components/cf/leaflet-watch-zone';
+import { isNativeMapAvailable } from '@/components/cf/maps-view';
+import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
+import { WatchZoneMap } from '@/components/cf/watch-zone-map';
 import { tokens } from '@/constants/theme';
 
 // A Ventura-area polygon roughly matching the prototype's outline. Six vertices.
@@ -46,8 +46,6 @@ const SAMPLE_INSIDE_PINS: InsidePin[] = [
   { id: 'wz-4', lat: 34.32, lng: -118.86, kind: 'unidentified' },
   { id: 'wz-5', lat: 34.24, lng: -119.05, kind: 'homicide' },
 ];
-
-const useNativeMap = isNativeMapAvailable();
 
 export default function WatchZoneScreen() {
   const insets = useSafeAreaInsets();
@@ -103,7 +101,7 @@ export default function WatchZoneScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        {useNativeMap ? <ZoneMapNativePreview /> : <ZoneMapPreview />}
+        {isNativeMapAvailable() ? <ZoneMapNativePreview /> : <ZoneMapLeafletPreview />}
 
         <SectionLabel>ZONE NAME</SectionLabel>
         <View style={{ paddingHorizontal: 16 }}>
@@ -221,9 +219,9 @@ function ZoneMapNativePreview() {
   );
 }
 
-/* ---------------- SVG fallback preview ---------------- */
+/* ---------------- WebView Leaflet preview ---------------- */
 
-function ZoneMapPreview() {
+function ZoneMapLeafletPreview() {
   return (
     <View
       style={{
@@ -238,60 +236,11 @@ function ZoneMapPreview() {
         position: 'relative',
       }}
     >
-      <Svg viewBox="0 0 380 240" width="100%" height="100%">
-        {/* land + faint water hint */}
-        <Path d="M 0 180 Q 60 160 130 175 Q 200 195 270 175 Q 330 160 380 170 L 380 240 L 0 240 Z" fill="#070b10" />
-        <Line x1="0" y1="60" x2="380" y2="72" stroke="#161616" strokeWidth={0.5} />
-        <Line x1="0" y1="130" x2="380" y2="138" stroke="#161616" strokeWidth={0.5} />
-        <Line x1="100" y1="0" x2="115" y2="240" stroke="#161616" strokeWidth={0.5} />
-        <Line x1="240" y1="0" x2="255" y2="240" stroke="#161616" strokeWidth={0.5} />
-
-        {/* The polygon — amber dashed perimeter, faint amber fill */}
-        <Polygon
-          points="70,40 290,30 340,130 270,180 90,170 50,90"
-          fill={tokens.color.accent.amber}
-          fillOpacity={0.08}
-          stroke={tokens.color.accent.amber}
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-        />
-
-        {/* Vertex handles */}
-        {[
-          [70, 40],
-          [290, 30],
-          [340, 130],
-          [270, 180],
-          [90, 170],
-          [50, 90],
-        ].map(([x, y], i) => (
-          <Circle
-            key={i}
-            cx={x}
-            cy={y}
-            r={5}
-            fill={tokens.color.accent.amber}
-            stroke={tokens.color.bg.base}
-            strokeWidth={1.5}
-          />
-        ))}
-
-        {/* Pins inside the zone — to give the user a sense of density */}
-        <Circle cx={140} cy={80} r={3.5} fill={tokens.color.pin.homicide} />
-        <Circle cx={220} cy={120} r={3.5} fill={tokens.color.pin.missing} />
-        <Circle cx={120} cy={150} r={3.5} fill={tokens.color.pin.homicide} />
-        <Circle
-          cx={260}
-          cy={100}
-          r={3.5}
-          fill="none"
-          stroke={tokens.color.pin.doe}
-          strokeWidth={1.5}
-        />
-        <Circle cx={180} cy={160} r={3.5} fill={tokens.color.pin.homicide} />
-      </Svg>
-
-      {/* "42 cases inside" floating chip */}
+      <LeafletWatchZoneMap
+        vertices={SAMPLE_VERTICES}
+        insidePins={SAMPLE_INSIDE_PINS}
+      />
+      {/* "42 cases inside" floating chip — driven by cases_in_polygon when wired */}
       <View
         style={{
           position: 'absolute',
@@ -303,6 +252,7 @@ function ZoneMapPreview() {
           borderRadius: 12,
           paddingVertical: 5,
           paddingHorizontal: 11,
+          zIndex: 2,
         }}
       >
         <Mono

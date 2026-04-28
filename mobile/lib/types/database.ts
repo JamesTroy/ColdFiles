@@ -149,11 +149,35 @@ export interface CaseMediaRow {
     | 'photo_location'
     | 'sketch_poi'
     | 'document';
+  /** Canonical photo URL — usually the source agency / aggregator's CDN. */
   url: string;
+  /**
+   * Cached copy in Supabase Storage. Populated by the lazy-mirror pipeline,
+   * or eagerly on day-one for sources whose bandwidth is donation-funded
+   * (Charley Project, Doe Network) or that serve over plain HTTP.
+   * Client picks `mirror_url ?? url` so the canonical URL still wins when
+   * the mirror hasn't been built yet.
+   */
+  mirror_url: string | null;
   source_url: string | null;
   caption: string | null;
   is_primary: boolean;
   display_warning: 'graphic' | 'sensitive' | null;
+  /**
+   * Per-photo attribution label rendered in the PhotoFrame caption strip.
+   * Required, not optional — a single case can carry photos from multiple
+   * sources (NamUs portrait, Doe reconstruction, Charley family photo) and
+   * each needs its own attribution. NOT redundant with case_sources.
+   */
+  source_attribution: string;
+  /**
+   * Orthogonal to display_warning. A forensic reconstruction or sketch
+   * always renders a "FORENSIC RECONSTRUCTION" label so users tapping a
+   * Doe pin don't mistake an artist's rendering for a real photo. Set true
+   * for kind in {reconstruction, sketch_victim, sketch_poi, age_progression}
+   * AND any case where the imagery is artist-rendered regardless of kind.
+   */
+  is_reconstruction: boolean;
   source_id: string | null;
 }
 

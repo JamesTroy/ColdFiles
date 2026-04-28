@@ -91,8 +91,8 @@ export default function CaseDetailScreen() {
   );
 
   const facts = buildKeyFacts(c);
-  const photoUri = primaryPhotoUri(data.media);
-  const photoCaption = buildPhotoCaption(c, data.media[0] ?? null);
+  const primaryMedia = primaryMediaRow(data.media);
+  const photoCaption = buildPhotoCaption(c, primaryMedia);
   const heroName = displayName(c);
 
   return (
@@ -126,7 +126,13 @@ export default function CaseDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
-        <PhotoFrame uri={photoUri} caption={photoCaption} />
+        <PhotoFrame
+          uri={primaryMedia?.url ?? null}
+          mirrorUri={primaryMedia?.mirror_url ?? null}
+          caption={photoCaption}
+          isReconstruction={primaryMedia?.is_reconstruction ?? false}
+          displayWarning={primaryMedia?.display_warning ?? null}
+        />
 
         <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
           <SerifTitle size="h1">{heroName}</SerifTitle>
@@ -387,20 +393,34 @@ function buildKeyFacts(c: CaseRowFull): KeyFact[] {
   return out;
 }
 
-function primaryPhotoUri(media: CaseMediaRow[]): string | null {
+/**
+ * The primary media row to render in the hero PhotoFrame. Prefers the
+ * `is_primary` victim photo; falls back to any photo or reconstruction
+ * (an unidentified case may only have a forensic reconstruction).
+ */
+function primaryMediaRow(media: CaseMediaRow[]): CaseMediaRow | null {
   const primary = media.find((m) => m.is_primary && m.kind === 'photo_victim');
-  if (primary?.url) return primary.url;
+  if (primary) return primary;
   const anyPhoto = media.find((m) => m.kind.startsWith('photo'));
-  return anyPhoto?.url ?? null;
+  if (anyPhoto) return anyPhoto;
+  // Last resort: a Doe with only a reconstruction available.
+  return media.find((m) => m.kind === 'reconstruction' || m.kind === 'sketch_victim') ?? null;
 }
 
+/**
+ * Caption: "PHOTO 01 · {SOURCE_ATTRIBUTION} · {YEAR}".
+ * Per-photo attribution comes from the media row, not the case agency —
+ * the photo's provenance can differ from the investigating agency
+ * (NamUs portrait vs LASD bulletin).
+ */
 function buildPhotoCaption(c: CaseRowFull, primary: CaseMediaRow | null): string {
-  const sourceLabel = primary?.source_id
-    ? 'PHOTO 01' // sources name lookup happens in a future enrichment pass
-    : 'PHOTO 01';
-  const agencyName = c.primary_agency?.name?.toUpperCase() ?? 'CASE FILE';
+  const sourceLabel = 'PHOTO 01'; // numbering when we surface a gallery
+  const attribution =
+    primary?.source_attribution?.toUpperCase() ??
+    c.primary_agency?.name?.toUpperCase() ??
+    'CASE FILE';
   const year = c.incident_date ? c.incident_date.slice(0, 4) : '—';
-  return `${sourceLabel} · ${agencyName} · ${year}`;
+  return `${sourceLabel} · ${attribution} · ${year}`;
 }
 
 function sourceChipsFor(sources: CaseSourceRow[]): { slug: string; url: string }[] {

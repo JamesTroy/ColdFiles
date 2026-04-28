@@ -6,29 +6,67 @@
  * centered serif em-dash — never a generic silhouette (which would feel
  * disrespectful for a victim).
  *
+ * Three orthogonal states layer on top of the photo:
+ *   - is_reconstruction → "FORENSIC RECONSTRUCTION" pill in the top-left so
+ *     users tapping a Doe pin don't mistake artist's rendering for a real
+ *     photo. Always visible, even without a warning.
+ *   - display_warning → tap-to-reveal gate. The photo renders blurred + dark
+ *     until the user taps "View image"; lets us carry sensitive material
+ *     without ambushing anyone with it on first scroll.
+ *   - mirror_url → preferred over `url` when set (canonical CDN may rate-
+ *     limit or 404 over time; mirror is the durable copy).
+ *
  * See docs/04_DESIGN_SYSTEM.md "Hero photo frame".
  */
 
-import { Image } from 'expo-image';
 import type { ReactElement } from 'react';
-import { View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
 
-import { MonoLabel, SerifTitle } from './text';
+import { Mono, MonoLabel, SansBody, SerifTitle } from './text';
 
 interface PhotoFrameProps {
-  /** Image source URI. When null, the em-dash placeholder renders inside the frame. */
+  /** Canonical photo URL. When null, the em-dash placeholder renders. */
   uri: string | null;
+  /**
+   * Cached copy in our own storage. Preferred over `uri` when set, so
+   * canonical-source rate limits or takedowns don't break the case page.
+   */
+  mirrorUri?: string | null;
   /** Caption format: "PHOTO {NN} · {SOURCE_NAME} · {YEAR}". */
   caption: string;
+  /**
+   * True when the imagery is artist-rendered (forensic reconstruction, age
+   * progression, sketch). Renders a "FORENSIC RECONSTRUCTION" pill so users
+   * don't read the rendering as a real photo.
+   */
+  isReconstruction?: boolean;
+  /**
+   * Gate the photo behind a tap-to-reveal when set. 'sensitive' for cases
+   * that may include post-mortem material; 'graphic' for explicit content.
+   * The gate disappears once the user taps once per mount.
+   */
+  displayWarning?: 'graphic' | 'sensitive' | null;
   height?: number;
 }
 
 const BRACKET_ARM = 14;
 
-export function PhotoFrame({ uri, caption, height = 200 }: PhotoFrameProps): ReactElement {
+export function PhotoFrame({
+  uri,
+  mirrorUri,
+  caption,
+  isReconstruction = false,
+  displayWarning = null,
+  height = 200,
+}: PhotoFrameProps): ReactElement {
+  const [revealed, setRevealed] = useState(false);
+  const effectiveUri = mirrorUri ?? uri;
+  const gateActive = !!displayWarning && !revealed && !!effectiveUri;
+
   return (
     <View
       style={{
@@ -41,11 +79,12 @@ export function PhotoFrame({ uri, caption, height = 200 }: PhotoFrameProps): Rea
         backgroundColor: tokens.color.bg.elev1,
       }}
     >
-      {uri ? (
+      {effectiveUri ? (
         <Image
-          source={{ uri }}
+          source={{ uri: effectiveUri }}
           style={{ width: '100%', height: '100%' }}
-          contentFit="cover"
+          resizeMode="cover"
+          blurRadius={gateActive ? 28 : 0}
           accessibilityIgnoresInvertColors
         />
       ) : (
@@ -66,8 +105,96 @@ export function PhotoFrame({ uri, caption, height = 200 }: PhotoFrameProps): Rea
       )}
 
       <CornerBrackets />
+      {isReconstruction ? <ReconstructionPill /> : null}
+      {gateActive ? (
+        <WarningGate
+          warning={displayWarning!}
+          onReveal={() => setRevealed(true)}
+        />
+      ) : null}
       <CaptionStrip caption={caption} />
     </View>
+  );
+}
+
+function ReconstructionPill() {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        paddingVertical: 3,
+        paddingHorizontal: 7,
+        borderRadius: 3,
+        backgroundColor: 'rgba(10, 10, 10, 0.75)',
+        borderWidth: 0.5,
+        borderColor: tokens.color.evidence.chrome,
+      }}
+    >
+      <Mono
+        size={tokens.size.monoCaption}
+        style={{
+          color: tokens.color.evidence.chrome,
+          letterSpacing: tokens.size.monoCaption * tokens.tracking.chip,
+        }}
+      >
+        FORENSIC RECONSTRUCTION
+      </Mono>
+    </View>
+  );
+}
+
+function WarningGate({
+  warning,
+  onReveal,
+}: {
+  warning: 'graphic' | 'sensitive';
+  onReveal: () => void;
+}) {
+  const heading = warning === 'graphic' ? 'Graphic content' : 'Sensitive content';
+  const sub =
+    warning === 'graphic'
+      ? 'This image may include explicit material. Tap to view.'
+      : 'This image may be difficult to view. Tap to view.';
+  return (
+    <Pressable
+      onPress={onReveal}
+      style={({ pressed }) => [
+        {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 28, // sit above the caption strip
+          backgroundColor: 'rgba(10, 10, 10, 0.78)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 24,
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
+    >
+      <MonoLabel
+        size={tokens.size.monoChip}
+        tracking={tokens.tracking.chip}
+        color={tokens.color.accent.amber}
+        style={{ marginBottom: 6 }}
+      >
+        {heading.toUpperCase()}
+      </MonoLabel>
+      <SansBody
+        style={{
+          color: tokens.color.text.secondary,
+          fontSize: tokens.size.meta,
+          textAlign: 'center',
+          lineHeight: tokens.size.meta * 1.45,
+        }}
+      >
+        {sub}
+      </SansBody>
+    </Pressable>
   );
 }
 

@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 
 import {
   SAMPLE_CASE_FULL_BY_SLUG,
+  SAMPLE_CASE_MEDIA_BY_CASE_ID,
   SAMPLE_CASE_SOURCES_BY_CASE_ID,
 } from '../sample-data';
 import { getSupabase, isSupabaseConfigured } from '../supabase';
@@ -135,6 +136,6 @@ function sampleBundle(slug: string | undefined): CaseDetailBundle {
   return {
     case: caseRow,
     sources: SAMPLE_CASE_SOURCES_BY_CASE_ID[caseRow.id] ?? [],
-    media: [],
+    media: SAMPLE_CASE_MEDIA_BY_CASE_ID[caseRow.id] ?? [],
   };
 }

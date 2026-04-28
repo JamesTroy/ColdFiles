@@ -19,7 +19,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MapCanvas, type MapMarker } from '@/components/cf/map-canvas';
+import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
 import {
   MapsView,
   type MapsMarker,
@@ -31,7 +31,7 @@ import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
 import { useCasesNear } from '@/lib/hooks/use-cases-near';
-import { SAMPLE_LAST_CHANGED_DAYS, SAMPLE_MAP_COORDS } from '@/lib/sample-data';
+import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
 type Filter = 'all' | 'homicide' | 'missing' | 'unidentified';
@@ -43,20 +43,7 @@ const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   unidentified: ['unidentified', 'unclaimed'],
 };
 
-const useNativeMap = isNativeMapAvailable();
-
-/** SVG-fallback hashed position when no real lat/lng. Removed once Mapbox is the only path. */
-function hashedPosition(slug: string): { x: number; y: number } {
-  let hash = 0;
-  for (let i = 0; i < slug.length; i++) {
-    hash = (hash * 31 + slug.charCodeAt(i)) | 0;
-  }
-  const x = 0.1 + ((Math.abs(hash) % 1000) / 1000) * 0.8;
-  const y = 0.15 + ((Math.abs(hash >> 7) % 1000) / 1000) * 0.65;
-  return { x, y };
-}
-
-/** SVG fallback only: stepwise alpha → representative day count for the Pin renderer. */
+/** Stepwise recency_alpha → representative day count for the Pin renderer. */
 function alphaToDays(alpha: number): number | null {
   if (alpha >= 0.99) return 1;
   if (alpha >= 0.49) return 7;
@@ -115,10 +102,18 @@ export default function MapScreen() {
         </View>
       </View>
 
-      {/* Filter chip row */}
+      {/* Filter chip row.
+          flexGrow:0 + flexShrink:0 on the ScrollView itself is load-bearing —
+          a horizontal <ScrollView> in a column-flex parent on Android Fabric
+          will otherwise compete with the map View's flex:1 and steal roughly
+          half the remaining vertical space (the chip row "thinks" it's a row
+          axis to its content but a column-flex item to its parent). Forcing
+          flex:0 on both axes makes it size to content (~36px), exactly what
+          its visual contract requires. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0, flexShrink: 0 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }}
       >
         <FilterChip
@@ -144,16 +139,16 @@ export default function MapScreen() {
         />
       </ScrollView>
 
-      {/* Map canvas — native map if configured, SVG fallback otherwise */}
+      {/* Map canvas — native MapLibre if/when re-enabled, WebView+Leaflet otherwise */}
       <View style={{ flex: 1 }}>
-        {useNativeMap ? (
+        {isNativeMapAvailable() ? (
           <NativeRenderer
             cases={cases}
             selectedSlug={selectedSlug}
             onMarkerPress={setSelectedSlug}
           />
         ) : (
-          <SvgRenderer
+          <LeafletRenderer
             cases={cases}
             selectedSlug={selectedSlug}
             onMarkerPress={setSelectedSlug}
@@ -214,7 +209,7 @@ function NativeRenderer({
   );
 }
 
-function SvgRenderer({
+function LeafletRenderer({
   cases,
   selectedSlug,
   onMarkerPress,
@@ -223,30 +218,38 @@ function SvgRenderer({
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
 }) {
-  const markers: MapMarker[] = useMemo(() => {
-    return cases.map((c) => {
-      const sampleCoord = SAMPLE_MAP_COORDS[c.slug];
-      const pos = sampleCoord ?? hashedPosition(c.slug);
-      const recentDays =
-        c.recency_alpha != null
-          ? alphaToDays(c.recency_alpha)
-          : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null);
-      return {
+  const markers: LeafletMarker[] = useMemo(() => {
+    return cases
+      .filter((c) => c.lat != null && c.lng != null)
+      .map((c) => ({
         id: c.slug,
-        x: pos.x,
-        y: pos.y,
+        lat: c.lat as number,
+        lng: c.lng as number,
         kind: c.kind,
         selected: c.slug === selectedSlug,
-        recentDays,
-      };
-    });
+        recentDays:
+          c.recency_alpha != null
+            ? alphaToDays(c.recency_alpha)
+            : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null),
+      }));
   }, [cases, selectedSlug]);
 
   return (
-    <MapCanvas
-      height={420}
+    <LeafletMap
+      center={{
+        lat: tokens.map.defaultCenter.lat,
+        lng: tokens.map.defaultCenter.lng,
+        zoomLevel: tokens.map.defaultCenter.zoomLevel,
+      }}
       markers={markers}
-      here={{ x: 0.5, y: 0.52 }}
+      // Placeholder default-center until expo-location is wired. fresh:false so
+      // the static dot doesn't lie about live tracking. Flip to fresh:true (and
+      // set up a 30s freshness timer) once a real GPS fix is available.
+      here={{
+        lat: tokens.map.defaultCenter.lat,
+        lng: tokens.map.defaultCenter.lng,
+        fresh: false,
+      }}
       onMarkerPress={onMarkerPress}
     />
   );

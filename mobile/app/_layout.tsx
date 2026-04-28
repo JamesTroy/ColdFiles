@@ -24,6 +24,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { tokens } from '@/constants/theme';
 
@@ -75,36 +76,38 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={navTheme}>
-      <Stack
-        screenOptions={{
-          contentStyle: { backgroundColor: tokens.color.bg.base },
-          headerShown: false,
-          animation: 'fade',
-        }}
-      >
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="case/[slug]"
-          options={{
-            animation: 'slide_from_right',
+    <SafeAreaProvider>
+      <ThemeProvider value={navTheme}>
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor: tokens.color.bg.base },
+            headerShown: false,
+            animation: 'fade',
           }}
-        />
-        <Stack.Screen
-          name="tip/[slug]"
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
-        />
-        <Stack.Screen
-          name="watch-zone"
-          options={{
-            animation: 'slide_from_right',
-          }}
-        />
-      </Stack>
-      <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
-    </ThemeProvider>
+        >
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="case/[slug]"
+            options={{
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="tip/[slug]"
+            options={{
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+            }}
+          />
+          <Stack.Screen
+            name="watch-zone"
+            options={{
+              animation: 'slide_from_right',
+            }}
+          />
+        </Stack>
+        <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

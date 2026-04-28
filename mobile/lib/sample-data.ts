@@ -9,6 +9,7 @@
 
 import type {
   AgencyRow,
+  CaseMediaRow,
   CaseRowFull,
   CaseRowMapNear,
   CaseSourceRow,
@@ -70,6 +71,34 @@ const AGENCIES: Record<string, AgencyRow> = {
     state: 'CA',
     county: 'Ventura',
     city: 'Thousand Oaks',
+    phone_tip: null,
+    tip_url: null,
+    tip_route_kind: null,
+    cold_case_url: null,
+  },
+  lapd: {
+    id: 'sample-agency-lapd',
+    slug: 'lapd',
+    name: 'Los Angeles Police Department',
+    short_name: 'LAPD',
+    agency_type: 'city_pd',
+    state: 'CA',
+    county: 'Los Angeles',
+    city: 'Los Angeles',
+    phone_tip: null,
+    tip_url: null,
+    tip_route_kind: null,
+    cold_case_url: null,
+  },
+  fbi: {
+    id: 'sample-agency-fbi',
+    slug: 'fbi-la',
+    name: 'FBI Los Angeles Field Office',
+    short_name: 'FBI',
+    agency_type: 'federal',
+    state: 'CA',
+    county: null,
+    city: 'Los Angeles',
     phone_tip: null,
     tip_url: null,
     tip_route_kind: null,
@@ -145,7 +174,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     location_state: 'CA',
     narrative_short:
       'Remains recovered along a hiking trail. Forensic facial reconstruction completed.',
-    has_photo: false,
+    has_photo: true,
     primary_agency_name: AGENCIES.vcso.name,
     primary_photo_url: null,
     distance_miles: 0.6,
@@ -165,7 +194,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     location_city: 'Camarillo',
     location_state: 'CA',
     narrative_short: null,
-    has_photo: false,
+    has_photo: true,
     primary_agency_name: AGENCIES.vcso.name,
     primary_photo_url: null,
     distance_miles: 7.2,
@@ -185,7 +214,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     location_city: 'Ojai',
     location_state: 'CA',
     narrative_short: null,
-    has_photo: false,
+    has_photo: true,
     primary_agency_name: AGENCIES.vcso.name,
     primary_photo_url: null,
     distance_miles: 9.1,
@@ -205,13 +234,123 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     location_city: 'Thousand Oaks',
     location_state: 'CA',
     narrative_short: null,
-    has_photo: false,
+    has_photo: true,
     primary_agency_name: AGENCIES.topd.name,
     primary_photo_url: null,
     distance_miles: 12.8,
     recency_alpha: recencyAlpha(14),
     lat: 34.1706,
     lng: -118.8376,
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Real LA County cases — manually seeded for designer mode validation.
+  // Photo URLs are TODO — open source_url, copy image URL, paste into the
+  // SAMPLE_CASE_MEDIA_BY_CASE_ID entry for the matching case_id below.
+  // ──────────────────────────────────────────────────────────────────────────
+  {
+    id: 'aujay-1998',
+    slug: 'jonathan-aujay-1998-devils-punchbowl-ca',
+    kind: 'missing',
+    status: 'open',
+    victim_name: 'Jonathan Aujay',
+    victim_age: 32,
+    incident_date: '1998-03-07',
+    location_text: "Devil's Punchbowl, Angeles National Forest",
+    location_city: null,
+    location_state: 'CA',
+    narrative_short:
+      'LASD deputy who disappeared while hiking in the Angeles National Forest. No trace recovered despite extensive search.',
+    has_photo: true,
+    primary_agency_name: AGENCIES.lasd.name,
+    primary_photo_url: null,
+    distance_miles: 32.4,
+    recency_alpha: recencyAlpha(45),
+    lat: 34.4192,
+    lng: -117.8642,
+  },
+  {
+    id: 'armstead-2024',
+    slug: 'zaryn-armstead-2024-los-angeles-ca',
+    kind: 'missing',
+    status: 'open',
+    victim_name: 'Zaryn Armstead',
+    victim_age: null,
+    incident_date: '2024-10-17',
+    location_text: 'Los Angeles, CA',
+    location_city: 'Los Angeles',
+    location_state: 'CA',
+    narrative_short: 'Missing from Los Angeles since October 17, 2024.',
+    has_photo: true,
+    primary_agency_name: AGENCIES.lapd.name,
+    primary_photo_url: null,
+    distance_miles: 8.2,
+    recency_alpha: recencyAlpha(2),
+    lat: 34.0522,
+    lng: -118.2437,
+  },
+  {
+    id: 'up125280-2024',
+    slug: 'doe-up125280-2024-los-angeles-county-ca',
+    kind: 'unidentified',
+    status: 'open',
+    victim_name: null,
+    victim_age: null,
+    incident_date: '2024-06-29',
+    location_text: 'Los Angeles County, CA',
+    location_city: null,
+    location_state: 'CA',
+    narrative_short:
+      'Unidentified person found in Los Angeles County, June 29, 2024. NamUs case UP125280.',
+    has_photo: true,
+    primary_agency_name: AGENCIES.lasd.name,
+    primary_photo_url: null,
+    distance_miles: 11.0,
+    recency_alpha: recencyAlpha(12),
+    lat: 34.05,
+    lng: -118.25,
+  },
+  {
+    id: 'abdelkader-2024',
+    slug: 'robert-abdelkader-iii-2024-compton-ca',
+    kind: 'homicide',
+    status: 'open',
+    victim_name: 'Robert Abdelkader III',
+    victim_age: 28,
+    incident_date: '2024-06-07',
+    location_text: 'Compton, CA',
+    location_city: 'Compton',
+    location_state: 'CA',
+    narrative_short:
+      'Shot at a Compton pool party June 7, 2024. Joint FBI / LASD investigation; $20,000 reward.',
+    has_photo: true,
+    primary_agency_name: AGENCIES.fbi.name,
+    primary_photo_url: null,
+    distance_miles: 14.3,
+    recency_alpha: recencyAlpha(3),
+    lat: 33.8958,
+    lng: -118.2201,
+  },
+  {
+    id: 'alvarez-diaz-2022',
+    slug: 'carlos-alvarez-diaz-2022-hawaiian-gardens-ca',
+    kind: 'homicide',
+    status: 'open',
+    victim_name: 'Carlos Alvarez-Diaz',
+    victim_age: null,
+    incident_date: '2022-10-08',
+    location_text: 'Hawaiian Gardens, CA',
+    location_city: 'Hawaiian Gardens',
+    location_state: 'CA',
+    narrative_short:
+      'Innocent victim of a drive-by shooting in Hawaiian Gardens, October 8, 2022. $30,000 reward announced May 2023.',
+    has_photo: true,
+    primary_agency_name: AGENCIES.lasd.name,
+    primary_photo_url: null,
+    distance_miles: 18.6,
+    recency_alpha: recencyAlpha(7),
+    lat: 33.8311,
+    lng: -118.0726,
   },
 ];
 
@@ -330,7 +469,7 @@ export const SAMPLE_CASE_FULL_BY_SLUG: Record<string, CaseRowFull> = {
       'Remains recovered along a hiking trail. Forensic facial reconstruction completed.',
     case_number_primary: 'NAMUS-UP-19288',
     reward_text: null,
-    has_photo: false,
+    has_photo: true,
     has_sketch: true,
     is_featured: false,
     last_changed_at: new Date(Date.now() - 18 * 86400000).toISOString(),
@@ -358,7 +497,7 @@ export const SAMPLE_CASE_FULL_BY_SLUG: Record<string, CaseRowFull> = {
     narrative_short: null,
     case_number_primary: null,
     reward_text: null,
-    has_photo: false,
+    has_photo: true,
     has_sketch: false,
     is_featured: false,
     last_changed_at: new Date(Date.now() - 60 * 86400000).toISOString(),
@@ -386,7 +525,7 @@ export const SAMPLE_CASE_FULL_BY_SLUG: Record<string, CaseRowFull> = {
     narrative_short: null,
     case_number_primary: null,
     reward_text: null,
-    has_photo: false,
+    has_photo: true,
     has_sketch: false,
     is_featured: false,
     last_changed_at: new Date(Date.now() - 90 * 86400000).toISOString(),
@@ -414,12 +553,165 @@ export const SAMPLE_CASE_FULL_BY_SLUG: Record<string, CaseRowFull> = {
     narrative_short: null,
     case_number_primary: null,
     reward_text: null,
-    has_photo: false,
+    has_photo: true,
     has_sketch: false,
     is_featured: false,
     last_changed_at: new Date(Date.now() - 14 * 86400000).toISOString(),
     primary_agency_id: AGENCIES.topd.id,
     primary_agency: AGENCIES.topd,
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Real LA County full-detail entries — matches the SAMPLE_CASES_MAP rows
+  // added above. Photo media lives in SAMPLE_CASE_MEDIA_BY_CASE_ID.
+  // ──────────────────────────────────────────────────────────────────────────
+  'jonathan-aujay-1998-devils-punchbowl-ca': {
+    id: 'aujay-1998',
+    slug: 'jonathan-aujay-1998-devils-punchbowl-ca',
+    kind: 'missing',
+    status: 'open',
+    victim_name: 'Jonathan Aujay',
+    victim_age: 32,
+    victim_age_min: null,
+    victim_age_max: null,
+    victim_sex: 'male',
+    victim_race: 'LASD deputy',
+    incident_date: '1998-03-07',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: "Devil's Punchbowl, Angeles National Forest",
+    location_city: null,
+    location_state: 'CA',
+    narrative:
+      'Jonathan Aujay, an LASD deputy, disappeared while hiking in the Angeles National Forest near Devil\'s Punchbowl on March 7, 1998. Despite an extensive ground and air search by SAR teams, no trace was ever recovered.',
+    narrative_short:
+      'LASD deputy who disappeared while hiking in the Angeles National Forest. No trace recovered despite extensive search.',
+    case_number_primary: null,
+    reward_text: null,
+    has_photo: true,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 45 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.lasd.id,
+    primary_agency: AGENCIES.lasd,
+  },
+  'zaryn-armstead-2024-los-angeles-ca': {
+    id: 'armstead-2024',
+    slug: 'zaryn-armstead-2024-los-angeles-ca',
+    kind: 'missing',
+    status: 'open',
+    victim_name: 'Zaryn Armstead',
+    victim_age: null,
+    victim_age_min: null,
+    victim_age_max: null,
+    victim_sex: null,
+    victim_race: null,
+    incident_date: '2024-10-17',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: 'Los Angeles, CA',
+    location_city: 'Los Angeles',
+    location_state: 'CA',
+    narrative: 'Missing from Los Angeles since October 17, 2024. NamUs case MP131995.',
+    narrative_short: 'Missing from Los Angeles since October 17, 2024.',
+    case_number_primary: 'NAMUS-MP-131995',
+    reward_text: null,
+    has_photo: true,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.lapd.id,
+    primary_agency: AGENCIES.lapd,
+  },
+  'doe-up125280-2024-los-angeles-county-ca': {
+    id: 'up125280-2024',
+    slug: 'doe-up125280-2024-los-angeles-county-ca',
+    kind: 'unidentified',
+    status: 'open',
+    victim_name: null,
+    victim_age: null,
+    victim_age_min: null,
+    victim_age_max: null,
+    victim_sex: null,
+    victim_race: null,
+    incident_date: '2024-06-29',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: 'Los Angeles County, CA',
+    location_city: null,
+    location_state: 'CA',
+    narrative:
+      'Unidentified person found in Los Angeles County on June 29, 2024. NamUs case UP125280. May include forensic reconstruction or post-mortem imagery — render media gated behind display_warning.',
+    narrative_short:
+      'Unidentified person found in Los Angeles County, June 29, 2024.',
+    case_number_primary: 'NAMUS-UP-125280',
+    reward_text: null,
+    has_photo: true,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 12 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.lasd.id,
+    primary_agency: AGENCIES.lasd,
+  },
+  'robert-abdelkader-iii-2024-compton-ca': {
+    id: 'abdelkader-2024',
+    slug: 'robert-abdelkader-iii-2024-compton-ca',
+    kind: 'homicide',
+    status: 'open',
+    victim_name: 'Robert Abdelkader III',
+    victim_age: 28,
+    victim_age_min: null,
+    victim_age_max: null,
+    victim_sex: 'male',
+    victim_race: null,
+    incident_date: '2024-06-07',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: 'Compton, CA',
+    location_city: 'Compton',
+    location_state: 'CA',
+    narrative:
+      'Robert Abdelkader III, 28, was shot at a Compton pool party on June 7, 2024. Joint FBI / LASD investigation. The FBI is offering a reward of up to $20,000 for information leading to the identification, arrest, and conviction of the persons responsible.',
+    narrative_short:
+      'Shot at a Compton pool party June 7, 2024. Joint FBI / LASD investigation.',
+    case_number_primary: null,
+    reward_text: 'Up to $20,000',
+    has_photo: true,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.fbi.id,
+    primary_agency: AGENCIES.fbi,
+  },
+  'carlos-alvarez-diaz-2022-hawaiian-gardens-ca': {
+    id: 'alvarez-diaz-2022',
+    slug: 'carlos-alvarez-diaz-2022-hawaiian-gardens-ca',
+    kind: 'homicide',
+    status: 'open',
+    victim_name: 'Carlos Alvarez-Diaz',
+    victim_age: null,
+    victim_age_min: null,
+    victim_age_max: null,
+    victim_sex: 'male',
+    victim_race: null,
+    incident_date: '2022-10-08',
+    incident_date_quality: 'exact',
+    incident_date_text: null,
+    location_text: 'Hawaiian Gardens, CA',
+    location_city: 'Hawaiian Gardens',
+    location_state: 'CA',
+    narrative:
+      'Carlos Alvarez-Diaz was an innocent victim of a drive-by shooting in Hawaiian Gardens on October 8, 2022. In May 2023 a $30,000 reward was announced by the family and LASD homicide bureau for information leading to an arrest.',
+    narrative_short:
+      'Innocent victim of a drive-by shooting in Hawaiian Gardens, October 8, 2022.',
+    case_number_primary: null,
+    reward_text: '$30,000',
+    has_photo: true,
+    has_sketch: false,
+    is_featured: false,
+    last_changed_at: new Date(Date.now() - 7 * 86400000).toISOString(),
+    primary_agency_id: AGENCIES.lasd.id,
+    primary_agency: AGENCIES.lasd,
   },
 };
 
@@ -477,6 +769,172 @@ export const SAMPLE_CASE_SOURCES_BY_CASE_ID: Record<string, CaseSourceRow[]> = {
   wallace: [
     makeSource('wallace', 'src-charley', 'charley_project', 'The Charley Project', 75, 15),
     makeSource('wallace', 'src-namus', 'namus', 'NamUs', 90, 7),
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Case media (per-case) — used by the case detail PhotoFrame in designer mode.
+//
+// Picsum returns deterministic CC-licensed photographs from a seed — same
+// slug always returns the same image. These are clearly placeholder material
+// (landscapes / objects from Unsplash, not faces or silhouettes), so they
+// don't violate the design rule about never using a generic stand-in where a
+// victim photo belongs. The corner-bracket frame and caption strip mark them
+// as case-file material rather than illustration. When Supabase is wired,
+// real media rows come from the case_media table and this map becomes
+// irrelevant.
+// ────────────────────────────────────────────────────────────────────────────
+
+function makePicsumPhoto(caseId: string, slug: string): CaseMediaRow {
+  // Designer-mode placeholder for the six fictional Ventura-area cases.
+  // Picsum returns deterministic Unsplash photographs by seed — landscapes
+  // and objects, never faces / silhouettes. The corner-bracket frame and
+  // caption strip mark these as case-file material, not illustration.
+  // source_attribution intentionally reads "Designer placeholder" so any
+  // QA glance at a screenshot can tell real material from filler.
+  return {
+    id: `media-${caseId}-photo`,
+    case_id: caseId,
+    kind: 'photo_victim',
+    url: `https://picsum.photos/seed/${slug}/600/400`,
+    mirror_url: null,
+    source_url: null,
+    caption: null,
+    is_primary: true,
+    display_warning: null,
+    source_attribution: 'Designer placeholder',
+    is_reconstruction: false,
+    source_id: null,
+  };
+}
+
+export const SAMPLE_CASE_MEDIA_BY_CASE_ID: Record<string, CaseMediaRow[]> = {
+  // ── Fictional Ventura-area cases (designer-mode placeholders) ──────────────
+  evans: [makePicsumPhoto('evans', 'david-evans-1985-claremont-ca')],
+  thompson: [makePicsumPhoto('thompson', 'maria-thompson-2018-oxnard-ca')],
+  'doe-2003': [makePicsumPhoto('doe-2003', 'doe-2003-ventura-ca')],
+  hernandez: [makePicsumPhoto('hernandez', 'hernandez-1992-camarillo-ca')],
+  'doe-1994': [makePicsumPhoto('doe-1994', 'doe-1994-ojai-ca')],
+  wallace: [makePicsumPhoto('wallace', 'wallace-2001-thousand-oaks-ca')],
+
+  // ── Real LA County cases — manual seed scaffolding ─────────────────────────
+  // For each entry: open `source_url` in a browser, right-click the photo →
+  // "Copy image URL", paste into `url`. Cannot be programmatically resolved
+  // (NamUs / FBI / LASD bot-block server-side fetches; NamUs is JS-rendered).
+  //
+  // Hot-link policy per source:
+  //   FBI / LASD / NamUs   → hot-link OK (federal / agency CDNs are stable)
+  //   Charley Project      → MIRROR to Supabase immediately (donation-funded)
+  //   Doe Network          → MIRROR (volunteer-funded)
+  //
+  // See feedback_photo_sourcing_policy.md in project memory.
+
+  // 1. Jonathan Aujay — LASD deputy missing since 1998. Mirror immediately:
+  //    Charley Project bandwidth is donation-funded, hot-linking is the wrong
+  //    move. Populate mirror_url from day one (upload the photo to Supabase
+  //    Storage and put the public URL there); leave url as the Charley page's
+  //    photo URL for provenance.
+  'aujay-1998': [
+    {
+      id: 'media-aujay-photo',
+      case_id: 'aujay-1998',
+      kind: 'photo_victim',
+      url: 'TODO_PHOTO_URL', // Charley Project photo URL (provenance only)
+      mirror_url: null, // TODO: upload to Supabase Storage, paste public URL
+      source_url: 'https://charleyproject.org/case/jonathan-aujay',
+      caption: 'Jonathan Aujay, last seen March 7, 1998',
+      is_primary: true,
+      display_warning: null,
+      source_attribution: 'Charley Project',
+      is_reconstruction: false,
+      source_id: null,
+    },
+  ],
+
+  // 2. Zaryn Armstead — recent NamUs missing person, casual family snapshot.
+  //    NamUs is JS-rendered; image URL only visible in DevTools Network panel.
+  'armstead-2024': [
+    {
+      id: 'media-armstead-photo',
+      case_id: 'armstead-2024',
+      kind: 'photo_victim',
+      url: 'TODO_PHOTO_URL', // grab CDN URL from NamUs DevTools
+      mirror_url: null,
+      source_url: 'https://namus.nij.ojp.gov/missing-person-namus-mp131995',
+      caption: 'Zaryn Armstead, missing from Los Angeles since October 17, 2024',
+      is_primary: true,
+      display_warning: null,
+      source_attribution: 'NamUs',
+      is_reconstruction: false,
+      source_id: null,
+    },
+  ],
+
+  // 3. UP125280 — unidentified, LA County, June 2024.
+  //    GATE BEHIND TAP. May include post-mortem photography or forensic
+  //    reconstruction. display_warning: 'sensitive' is pre-set; if the page
+  //    actually shows forensic art rather than a real photo, flip
+  //    is_reconstruction to true.
+  'up125280-2024': [
+    {
+      id: 'media-up125280-photo',
+      case_id: 'up125280-2024',
+      kind: 'reconstruction', // change to 'photo_victim' if the source isn't art
+      url: 'TODO_PHOTO_URL',
+      mirror_url: null,
+      source_url: 'https://namus.nij.ojp.gov/unidentified-person-namus-up125280',
+      caption: 'Unidentified person, found in Los Angeles County, June 29, 2024',
+      is_primary: true,
+      display_warning: 'sensitive',
+      source_attribution: 'NamUs',
+      is_reconstruction: true, // flip false if NamUs page shows a real photo
+      source_id: null,
+    },
+  ],
+
+  // 4. Robert Abdelkader III — FBI seeking-info poster.
+  //    Federal works, lowest legal risk. FBI page has a "View Poster" link
+  //    pointing to a PDF; the poster preview image on the page itself is the
+  //    JPG you want. Hot-link OK.
+  'abdelkader-2024': [
+    {
+      id: 'media-abdelkader-photo',
+      case_id: 'abdelkader-2024',
+      kind: 'photo_victim',
+      url: 'TODO_PHOTO_URL', // FBI poster preview JPG (not the PDF)
+      mirror_url: null,
+      source_url: 'https://www.fbi.gov/wanted/seeking-info/robert-abdelkader-iii',
+      caption: 'Robert Abdelkader III, homicide victim, Compton, June 7, 2024',
+      is_primary: true,
+      display_warning: null,
+      source_attribution: 'FBI',
+      is_reconstruction: false,
+      source_id: null,
+    },
+  ],
+
+  // 5. Carlos Alvarez-Diaz — LASD homicide bulletin, family snapshot.
+  //    LASD images at lasd.org/wp-content/uploads/YYYY/MM/<file>.jpg are
+  //    stable WordPress uploads — hot-link OK.
+  //    NOTE: source_url points to the homicide-bureau category page; the
+  //    specific May 17, 2023 bulletin slug couldn't be confirmed without a
+  //    successful fetch. Easiest fix: open the category page, scroll to the
+  //    May 17, 2023 entry, paste that bulletin's URL here.
+  'alvarez-diaz-2022': [
+    {
+      id: 'media-alvarez-diaz-photo',
+      case_id: 'alvarez-diaz-2022',
+      kind: 'photo_victim',
+      url: 'TODO_PHOTO_URL', // wp-content/uploads/2023/05/<file>.jpg
+      mirror_url: null,
+      source_url: 'https://lasd.org/category/homicide-bureau/',
+      caption: 'Carlos Alvarez-Diaz, killed in Hawaiian Gardens, October 8, 2022',
+      is_primary: true,
+      display_warning: null,
+      source_attribution: 'LASD',
+      is_reconstruction: false,
+      source_id: null,
+    },
   ],
 };
 
