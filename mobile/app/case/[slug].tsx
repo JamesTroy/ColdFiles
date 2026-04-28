@@ -12,10 +12,12 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA, SecondaryCTA } from '@/components/cf/cta-button';
+import { ErrorState } from '@/components/cf/error-state';
 import { KeyFactsTable, type KeyFact } from '@/components/cf/key-facts';
 import { PhotoFrame } from '@/components/cf/photo-frame';
 import { ColdPill, UnsolvedPill } from '@/components/cf/pill';
@@ -50,11 +52,37 @@ export default function CaseDetailScreen() {
   const insets = useSafeAreaInsets();
   const { slug } = useLocalSearchParams<{ slug: string }>();
 
-  const { data, loading, error } = useCaseDetail(slug);
+  const { data, loading, error, refetch } = useCaseDetail(slug);
   const { receipt } = useSubmittedTip(slug);
   const { isSaved, toggle: toggleSave } = useIsSaved(slug);
   const flashKey = useFreshReceiptCount(slug);
   const c = data.case;
+  const [narrativeExpanded, setNarrativeExpanded] = useState(false);
+
+  const handleShare = async () => {
+    if (!c) return;
+    const heroName = displayName(c);
+    const place = c.location_text ?? c.location_city ?? '';
+    const year = c.incident_date ? c.incident_date.slice(0, 4) : '';
+    const yearAndPlace = [year, place].filter(Boolean).join(' · ');
+    // Deep link back into the app for users who already have it; otherwise
+    // the URL falls through to the web property at coldfile.app/case/{slug}.
+    const url = `https://coldfile.app/case/${c.slug}`;
+    const message = [
+      `${heroName} — unsolved`,
+      yearAndPlace,
+      url,
+      '',
+      'Shared from The Cold File',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    try {
+      await Share.share({ message, url, title: heroName });
+    } catch {
+      // user dismissed, or no share sheet available — silent
+    }
+  };
 
   if (loading && !c) {
     return <FullPageState>{<ActivityIndicator color={tokens.color.accent.amber} />}</FullPageState>;
@@ -63,20 +91,18 @@ export default function CaseDetailScreen() {
   if (error || !c) {
     return (
       <FullPageState>
-        <SerifTitle size="h1" style={{ fontSize: 48, color: tokens.color.text.secondary, marginBottom: 16 }}>
-          —
-        </SerifTitle>
-        <SansBody
-          style={{
-            color: tokens.color.text.secondary,
-            textAlign: 'center',
-            lineHeight: tokens.size.body * 1.5,
-            paddingHorizontal: 32,
-          }}
+        <ErrorState
+          title={error ? "Couldn't load this case." : 'This case is no longer available.'}
+          detail={error?.message ?? null}
+          onRetry={error ? refetch : undefined}
+        />
+        <Pressable
+          onPress={() => router.back()}
+          style={{ marginTop: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          hitSlop={12}
         >
-          {error ? `Couldn't load case: ${error.message}` : 'This case is no longer available.'}
-        </SansBody>
-        <Pressable onPress={() => router.back()} style={{ marginTop: 24 }}>
           <Mono size={tokens.size.meta} style={{ color: tokens.color.accent.amber }}>
             ← Back
           </Mono>
@@ -108,7 +134,7 @@ export default function CaseDetailScreen() {
           justifyContent: 'space-between',
         }}
       >
-        <CircleButton onPress={() => router.back()}>
+        <CircleButton onPress={() => router.back()} accessibilityLabel="Back">
           <Ionicons name="chevron-back" size={18} color={tokens.color.text.primary} />
         </CircleButton>
         <Mono
@@ -120,7 +146,7 @@ export default function CaseDetailScreen() {
         >
           {c.case_number_primary ?? c.slug.toUpperCase()}
         </Mono>
-        <CircleButton onPress={() => {}}>
+        <CircleButton onPress={handleShare} accessibilityLabel="Share case">
           <Ionicons name="share-outline" size={16} color={tokens.color.text.primary} />
         </CircleButton>
       </View>
@@ -172,12 +198,26 @@ export default function CaseDetailScreen() {
             >
               CASE FILE
             </MonoLabel>
-            <NarrativeText>{truncateNarrative(c.narrative)}</NarrativeText>
-            <Pressable onPress={() => {}}>
-              <Mono size={tokens.size.meta} style={{ color: tokens.color.accent.amber, marginTop: 10 }}>
-                Read full file →
-              </Mono>
-            </Pressable>
+            <NarrativeText>
+              {narrativeExpanded ? c.narrative : truncateNarrative(c.narrative)}
+            </NarrativeText>
+            {needsTruncation(c.narrative) ? (
+              <Pressable
+                onPress={() => setNarrativeExpanded((prev) => !prev)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  narrativeExpanded ? 'Collapse case file' : 'Read full case file'
+                }
+                hitSlop={8}
+              >
+                <Mono
+                  size={tokens.size.meta}
+                  style={{ color: tokens.color.accent.amber, marginTop: 10 }}
+                >
+                  {narrativeExpanded ? 'Show less ←' : 'Read full file →'}
+                </Mono>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -227,7 +267,11 @@ export default function CaseDetailScreen() {
               onPress={() => router.push(`/tip/${c.slug}`)}
             />
           )}
-          <SecondaryCTA active={isSaved} onPress={() => { void toggleSave(); }}>
+          <SecondaryCTA
+            active={isSaved}
+            onPress={() => { void toggleSave(); }}
+            accessibilityLabel={isSaved ? 'Remove from saved cases' : 'Save case'}
+          >
             <Ionicons
               name={isSaved ? 'star' : 'star-outline'}
               size={18}
@@ -258,6 +302,11 @@ function truncateNarrative(text: string): string {
   const words = text.split(/\s+/);
   if (words.length <= 42) return text;
   return words.slice(0, 40).join(' ') + '…';
+}
+
+/** True when the narrative is long enough to warrant the Read-full-file toggle. */
+function needsTruncation(text: string): boolean {
+  return text.split(/\s+/).length > 42;
 }
 
 /**
@@ -435,18 +484,23 @@ function sourceChipsFor(sources: CaseSourceRow[]): { slug: string; url: string }
 function CircleButton({
   children,
   onPress,
+  accessibilityLabel,
 }: {
   children: React.ReactNode;
   onPress: () => void;
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      hitSlop={12}
       style={({ pressed }) => [
         {
-          width: 32,
-          height: 32,
-          borderRadius: 16,
+          width: 40,
+          height: 40,
+          borderRadius: 20,
           backgroundColor: tokens.color.bg.elev1,
           borderWidth: 0.5,
           borderColor: tokens.color.border.strong,

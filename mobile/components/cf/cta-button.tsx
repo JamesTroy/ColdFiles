@@ -59,12 +59,21 @@ interface SecondaryCTAProps {
   onPress?: () => void;
   /** When true, the glyph color goes amber (e.g. saved star). */
   active?: boolean;
+  accessibilityLabel?: string;
 }
 
-export function SecondaryCTA({ children, onPress, active = false }: SecondaryCTAProps) {
+export function SecondaryCTA({
+  children,
+  onPress,
+  active = false,
+  accessibilityLabel,
+}: SecondaryCTAProps) {
   return (
     <Pressable
       onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       style={({ pressed }) => [
         {
           width: 48,

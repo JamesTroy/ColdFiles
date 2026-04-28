@@ -178,11 +178,14 @@ export default function TipModalScreen() {
           </View>
           <Pressable
             onPress={() => router.back()}
+            accessibilityLabel="Close"
+            accessibilityRole="button"
+            hitSlop={12}
             style={({ pressed }) => [
               {
-                width: 28,
-                height: 28,
-                borderRadius: 14,
+                width: 36,
+                height: 36,
+                borderRadius: 18,
                 backgroundColor: tokens.color.bg.elev1,
                 borderWidth: 0.5,
                 borderColor: tokens.color.border.strong,
@@ -192,7 +195,7 @@ export default function TipModalScreen() {
               },
             ]}
           >
-            <Ionicons name="close" size={16} color={tokens.color.text.secondary} />
+            <Ionicons name="close" size={18} color={tokens.color.text.secondary} />
           </Pressable>
         </View>
 
@@ -242,7 +245,7 @@ export default function TipModalScreen() {
               multiline
               editable={phase === 'idle'}
               placeholder={'e.g. "I knew David through PFF Bank in 1983–85. There was a colleague who…"'}
-              placeholderTextColor="#4a4a4a"
+              placeholderTextColor={tokens.color.text.disabled}
               style={{
                 color: tokens.color.text.primary,
                 fontFamily: tokens.font.sans,

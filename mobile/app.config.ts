@@ -44,7 +44,11 @@ const config: ExpoConfig = {
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
     edgeToEdgeEnabled: true,
-    predictiveBackGestureEnabled: false,
+    // Android 14+ predictive back gesture. Recommended now, expected required
+    // for API 36 targets. Enable so the system can render the predictive
+    // animation; per-screen `gestureEnabled: false` still works on screens
+    // where we want to prevent accidental back-swipes (e.g. /onboarding).
+    predictiveBackGestureEnabled: true,
     permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
   },
   web: {

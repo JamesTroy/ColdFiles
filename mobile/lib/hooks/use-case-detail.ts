@@ -8,7 +8,7 @@
  * Falls back to sample data when Supabase is not configured.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   SAMPLE_CASE_FULL_BY_SLUG,
@@ -40,6 +40,8 @@ export function useCaseDetail(slug: string | undefined): QueryResult<CaseDetailB
     isSupabaseConfigured() && Boolean(slug),
   );
   const [error, setError] = useState<Error | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
     if (!slug) {
@@ -119,13 +121,14 @@ export function useCaseDetail(slug: string | undefined): QueryResult<CaseDetailB
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, refreshKey]);
 
   return {
     data,
     loading,
     error,
     source: isSupabaseConfigured() ? 'live' : 'sample',
+    refetch,
   };
 }
 

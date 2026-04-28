@@ -6,9 +6,9 @@
  * (cases_within_radius, cases_in_bbox) and RLS-gated table reads — never a
  * Next.js route handler.
  *
- * Auth is not wired yet (Week 5c). For now `persistSession: false` keeps the
- * client read-only. When auth lands, swap in @react-native-async-storage/async-storage
- * as the storage adapter and flip `persistSession: true`.
+ * Auth uses AsyncStorage for session persistence so users stay signed in
+ * across app launches. Email magic-link is the primary flow; OAuth (Apple /
+ * Google) is wired through the same client when available.
  *
  * Env vars (Expo's EXPO_PUBLIC_ prefix exposes them to the client bundle):
  *   EXPO_PUBLIC_SUPABASE_URL
@@ -19,6 +19,7 @@
  * who don't need a backend hooked up.
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -39,8 +40,9 @@ export function getSupabase(): SupabaseClient {
   if (!cached) {
     cached = createClient(url as string, anonKey as string, {
       auth: {
-        persistSession: false,
-        autoRefreshToken: false,
+        storage: AsyncStorage,
+        persistSession: true,
+        autoRefreshToken: true,
         // Mobile platforms (RN) don't have a window.location to anchor URL detection on.
         detectSessionInUrl: false,
       },

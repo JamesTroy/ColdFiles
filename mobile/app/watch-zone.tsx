@@ -24,9 +24,10 @@ import {
   type PolygonVertex,
 } from '@/components/cf/leaflet-watch-zone';
 import { isNativeMapAvailable } from '@/components/cf/maps-view';
-import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
+import { Mono, MonoLabel, NarrativeText, SansBody, SerifTitle } from '@/components/cf/text';
 import { WatchZoneMap } from '@/components/cf/watch-zone-map';
 import { tokens } from '@/constants/theme';
+import { useUser } from '@/lib/hooks/use-user';
 
 // A Ventura-area polygon roughly matching the prototype's outline. Six vertices.
 const SAMPLE_VERTICES: PolygonVertex[] = [
@@ -49,10 +50,17 @@ const SAMPLE_INSIDE_PINS: InsidePin[] = [
 
 export default function WatchZoneScreen() {
   const insets = useSafeAreaInsets();
+  const { user, authAvailable, loading: userLoading } = useUser();
   const [zoneName, setZoneName] = useState('Ventura County');
   const [notifyNew, setNotifyNew] = useState(true);
   const [notifyUpdated, setNotifyUpdated] = useState(true);
   const [notifyResolved, setNotifyResolved] = useState(false);
+
+  // Watch zones live on the server (the user can have them across devices and
+  // get push notifications); guest mode can't satisfy that contract.
+  if (authAvailable && !userLoading && !user) {
+    return <WatchZoneSignInGate />;
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
@@ -69,11 +77,14 @@ export default function WatchZoneScreen() {
       >
         <Pressable
           onPress={() => router.back()}
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          hitSlop={12}
           style={({ pressed }) => [
             {
-              width: 32,
-              height: 32,
-              borderRadius: 16,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
               backgroundColor: tokens.color.bg.elev1,
               borderWidth: 0.5,
               borderColor: tokens.color.border.strong,
@@ -170,6 +181,64 @@ export default function WatchZoneScreen() {
   );
 }
 
+/* ---------------- Sign-in gate ---------------- */
+
+function WatchZoneSignInGate() {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+      <View
+        style={{
+          paddingTop: insets.top + 6,
+          paddingHorizontal: 16,
+          paddingBottom: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <Pressable
+          onPress={() => router.back()}
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          hitSlop={12}
+          style={({ pressed }) => [
+            {
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: tokens.color.bg.elev1,
+              borderWidth: 0.5,
+              borderColor: tokens.color.border.strong,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Ionicons name="chevron-back" size={18} color={tokens.color.text.primary} />
+        </Pressable>
+        <SerifTitle size="h2" style={{ fontSize: 20, flex: 1 }}>
+          Watch zones
+        </SerifTitle>
+        <PremiumPill />
+      </View>
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 32 }}>
+        <NarrativeText style={{ marginBottom: 14 }}>
+          Watch zones notify you when a new case enters a perimeter you draw, or
+          when an existing case inside it is updated. They live on the server and
+          fire push notifications — that means we need an account to attach them
+          to.
+        </NarrativeText>
+        <NarrativeText style={{ color: tokens.color.text.secondary, marginBottom: 32 }}>
+          One-tap email sign-in. No password.
+        </NarrativeText>
+        <AmberCTA label="Sign in" onPress={() => router.push('/sign-in')} />
+      </View>
+    </View>
+  );
+}
+
 /* ---------------- Mapbox preview ---------------- */
 
 function ZoneMapNativePreview() {
@@ -181,7 +250,7 @@ function ZoneMapNativePreview() {
         marginTop: 4,
         borderRadius: 6,
         overflow: 'hidden',
-        backgroundColor: '#0e0e0e',
+        backgroundColor: tokens.color.photoFrame.bg,
         borderColor: tokens.color.border.strong,
         borderWidth: 0.5,
         position: 'relative',
@@ -230,7 +299,7 @@ function ZoneMapLeafletPreview() {
         marginTop: 4,
         borderRadius: 6,
         overflow: 'hidden',
-        backgroundColor: '#0e0e0e',
+        backgroundColor: tokens.color.photoFrame.bg,
         borderColor: tokens.color.border.strong,
         borderWidth: 0.5,
         position: 'relative',

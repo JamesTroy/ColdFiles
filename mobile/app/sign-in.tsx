@@ -1,0 +1,209 @@
+/**
+ * Sign-in — email magic-link.
+ *
+ * Cold File doesn't ask for a password. The user types their email, taps
+ * "Send sign-in link", and we hand off to Supabase's `signInWithOtp`. The
+ * email arrives with a `coldfile://auth-callback?...` deep link that
+ * re-opens the app and finalises the session.
+ *
+ * In designer mode (no Supabase env), the screen explains that auth needs
+ * backend configuration and offers a back action — no broken-state form.
+ */
+
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { AmberCTA } from '@/components/cf/cta-button';
+import {
+  Mono,
+  MonoLabel,
+  NarrativeText,
+  SansBody,
+  SerifTitle,
+} from '@/components/cf/text';
+import { tokens } from '@/constants/theme';
+import { signInWithEmail } from '@/lib/hooks/use-user';
+import { isSupabaseConfigured } from '@/lib/supabase';
+
+type Status = 'idle' | 'sending' | 'sent' | 'error';
+
+export default function SignInScreen() {
+  const insets = useSafeAreaInsets();
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<Status>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const authAvailable = isSupabaseConfigured();
+
+  const handleSubmit = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes('@')) {
+      setStatus('error');
+      setErrorMessage("That doesn't look like an email address.");
+      return;
+    }
+    setStatus('sending');
+    setErrorMessage(null);
+    const { error } = await signInWithEmail(trimmed);
+    if (error) {
+      setStatus('error');
+      setErrorMessage(error.message);
+      return;
+    }
+    setStatus('sent');
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+      <View
+        style={{
+          paddingTop: insets.top + 6,
+          paddingHorizontal: 16,
+          paddingBottom: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <Pressable
+          onPress={() => router.back()}
+          accessibilityLabel="Back"
+          accessibilityRole="button"
+          hitSlop={12}
+          style={({ pressed }) => [
+            {
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: tokens.color.bg.elev1,
+              borderWidth: 0.5,
+              borderColor: tokens.color.border.strong,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Ionicons name="chevron-back" size={18} color={tokens.color.text.primary} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <SerifTitle size="h2" style={{ fontSize: 20 }}>
+            Sign in
+          </SerifTitle>
+          <MonoLabel
+            size={tokens.size.monoLabel}
+            color={tokens.color.evidence.chrome}
+            style={{ marginTop: 2 }}
+          >
+            EMAIL · NO PASSWORD · MAGIC LINK
+          </MonoLabel>
+        </View>
+      </View>
+
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 24 }}>
+        {!authAvailable ? (
+          <NarrativeText style={{ color: tokens.color.text.secondary }}>
+            Sign-in requires backend configuration. The app is currently running in
+            designer mode — your saved cases live on this device only. Configure
+            Supabase in mobile/.env to enable accounts.
+          </NarrativeText>
+        ) : status === 'sent' ? (
+          <View>
+            <NarrativeText style={{ marginBottom: 12 }}>
+              Check your email. We sent a sign-in link to:
+            </NarrativeText>
+            <Mono
+              size={tokens.size.body}
+              style={{ color: tokens.color.accent.amber }}
+            >
+              {email.trim()}
+            </Mono>
+            <NarrativeText
+              style={{ marginTop: 16, color: tokens.color.text.secondary }}
+            >
+              Open the link on this device and the app will sign you in
+              automatically. No password to remember.
+            </NarrativeText>
+          </View>
+        ) : (
+          <>
+            <NarrativeText style={{ marginBottom: 18 }}>
+              Sign in with your email. We&apos;ll send a one-tap link — no password
+              to set or remember.
+            </NarrativeText>
+
+            <MonoLabel
+              size={tokens.size.monoChip}
+              tracking={tokens.tracking.chip}
+              color={tokens.color.evidence.chrome}
+              style={{ marginBottom: 8 }}
+            >
+              EMAIL
+            </MonoLabel>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              placeholderTextColor={tokens.color.text.disabled}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              keyboardType="email-address"
+              editable={status !== 'sending'}
+              style={{
+                backgroundColor: tokens.color.bg.elev1,
+                borderColor: tokens.color.border.strong,
+                borderWidth: 0.5,
+                borderRadius: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 14,
+                color: tokens.color.text.primary,
+                fontFamily: tokens.font.sans,
+                fontSize: tokens.size.rowName,
+              }}
+            />
+
+            {errorMessage ? (
+              <SansBody
+                style={{
+                  marginTop: 10,
+                  color: tokens.color.tip.success,
+                  fontSize: tokens.size.meta,
+                }}
+              >
+                {errorMessage}
+              </SansBody>
+            ) : null}
+
+            <View style={{ marginTop: 24 }}>
+              {status === 'sending' ? (
+                <ActivityIndicator color={tokens.color.accent.amber} />
+              ) : (
+                <AmberCTA label="Send sign-in link" onPress={handleSubmit} />
+              )}
+            </View>
+
+            <NarrativeText
+              style={{
+                marginTop: 24,
+                color: tokens.color.text.secondary,
+                fontSize: tokens.size.meta,
+              }}
+            >
+              By signing in you agree to our Terms of Service and Privacy Policy.
+              We use your email only for sign-in and account contact.
+            </NarrativeText>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}

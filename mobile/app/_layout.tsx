@@ -18,7 +18,7 @@ import {
 import { Newsreader_500Medium } from '@expo-google-fonts/newsreader';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -27,6 +27,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { tokens } from '@/constants/theme';
+import { useOnboarding } from '@/lib/hooks/use-onboarding';
 
 // Hold the splash until fonts have loaded — prevents a flash of system-fallback
 // type that would betray the case-file aesthetic.
@@ -78,6 +79,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={navTheme}>
+        <OnboardingGate />
         <Stack
           screenOptions={{
             contentStyle: { backgroundColor: tokens.color.bg.base },
@@ -86,6 +88,7 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
           <Stack.Screen
             name="case/[slug]"
             options={{
@@ -105,9 +108,34 @@ export default function RootLayout() {
               animation: 'slide_from_right',
             }}
           />
+          <Stack.Screen name="about" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="terms" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="takedown" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="sign-in" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+          <Stack.Screen name="search" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+          <Stack.Screen name="delete-account" options={{ animation: 'slide_from_right' }} />
         </Stack>
         <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
       </ThemeProvider>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * Redirects to /onboarding on first launch and back to / when complete.
+ * Renders nothing — purely a side-effect component so the redirect can use
+ * `router.replace` without unmounting the app on first paint.
+ */
+function OnboardingGate() {
+  const { state } = useOnboarding();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (state === 'pending' && pathname !== '/onboarding') {
+      router.replace('/onboarding');
+    }
+  }, [state, pathname]);
+
+  return null;
 }

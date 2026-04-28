@@ -16,7 +16,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
@@ -31,6 +31,7 @@ import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
 import { useCasesNear } from '@/lib/hooks/use-cases-near';
+import { useHere } from '@/lib/hooks/use-here';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
@@ -54,14 +55,15 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const { here, permissionStatus, requestAndAcquire } = useHere();
 
   const {
     data: cases,
     loading,
     source,
   } = useCasesNear({
-    lat: tokens.map.defaultCenter.lat,
-    lng: tokens.map.defaultCenter.lng,
+    lat: here.lat,
+    lng: here.lng,
     radiusMiles: 25,
     kinds: KIND_FILTER_TO_RPC[filter],
     limit: 100,
@@ -146,14 +148,46 @@ export default function MapScreen() {
             cases={cases}
             selectedSlug={selectedSlug}
             onMarkerPress={setSelectedSlug}
+            here={here}
           />
         ) : (
           <LeafletRenderer
             cases={cases}
             selectedSlug={selectedSlug}
             onMarkerPress={setSelectedSlug}
+            here={here}
           />
         )}
+        {permissionStatus !== 'granted' ? (
+          <LocationFAB onPress={() => void requestAndAcquire()} />
+        ) : null}
+        {loading && cases.length > 0 ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: 12,
+              alignSelf: 'center',
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 12,
+              backgroundColor: 'rgba(10, 10, 10, 0.85)',
+              borderWidth: 0.5,
+              borderColor: tokens.color.border.strong,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <ActivityIndicator size="small" color={tokens.color.accent.amber} />
+            <MonoLabel
+              size={tokens.size.monoCaption}
+              tracking={tokens.tracking.chip}
+              color={tokens.color.text.secondary}
+            >
+              UPDATING
+            </MonoLabel>
+          </View>
+        ) : null}
       </View>
 
       {selectedCase ? (
@@ -174,10 +208,12 @@ function NativeRenderer({
   cases,
   selectedSlug,
   onMarkerPress,
+  here,
 }: {
   cases: CaseRowMapNear[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
+  here: { lat: number; lng: number; fresh: boolean };
 }) {
   const markers: MapsMarker[] = useMemo(() => {
     return cases
@@ -198,12 +234,12 @@ function NativeRenderer({
   return (
     <MapsView
       center={{
-        lat: tokens.map.defaultCenter.lat,
-        lng: tokens.map.defaultCenter.lng,
+        lat: here.lat,
+        lng: here.lng,
         zoomLevel: tokens.map.defaultCenter.zoomLevel,
       }}
       markers={markers}
-      here={{ lat: tokens.map.defaultCenter.lat, lng: tokens.map.defaultCenter.lng }}
+      here={{ lat: here.lat, lng: here.lng }}
       onMarkerPress={onMarkerPress}
     />
   );
@@ -213,10 +249,12 @@ function LeafletRenderer({
   cases,
   selectedSlug,
   onMarkerPress,
+  here,
 }: {
   cases: CaseRowMapNear[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
+  here: { lat: number; lng: number; fresh: boolean };
 }) {
   const markers: LeafletMarker[] = useMemo(() => {
     return cases
@@ -237,21 +275,56 @@ function LeafletRenderer({
   return (
     <LeafletMap
       center={{
-        lat: tokens.map.defaultCenter.lat,
-        lng: tokens.map.defaultCenter.lng,
+        lat: here.lat,
+        lng: here.lng,
         zoomLevel: tokens.map.defaultCenter.zoomLevel,
       }}
       markers={markers}
-      // Placeholder default-center until expo-location is wired. fresh:false so
-      // the static dot doesn't lie about live tracking. Flip to fresh:true (and
-      // set up a 30s freshness timer) once a real GPS fix is available.
-      here={{
-        lat: tokens.map.defaultCenter.lat,
-        lng: tokens.map.defaultCenter.lng,
-        fresh: false,
-      }}
+      here={{ lat: here.lat, lng: here.lng, fresh: here.fresh }}
       onMarkerPress={onMarkerPress}
     />
+  );
+}
+
+/* ---------------- floating affordances ---------------- */
+
+/**
+ * "Use my location" floating button — appears when the user hasn't granted
+ * location yet. Tapping prompts the system permission dialog (with the
+ * usage description from app.config.ts as the rationale). On grant, the
+ * map recenters and the YouAreHere dot starts pulsing for 30s.
+ */
+function LocationFAB({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel="Use my location"
+      accessibilityRole="button"
+      hitSlop={8}
+      style={({ pressed }) => [
+        {
+          position: 'absolute',
+          right: 16,
+          bottom: 16,
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          backgroundColor: tokens.color.bg.elev1,
+          borderWidth: 0.5,
+          borderColor: tokens.color.border.strong,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: pressed ? 0.7 : 1,
+          shadowColor: '#000',
+          shadowOpacity: 0.4,
+          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 1 },
+          elevation: 4,
+        },
+      ]}
+    >
+      <Ionicons name="locate-outline" size={20} color={tokens.color.you.here} />
+    </Pressable>
   );
 }
 
@@ -260,12 +333,15 @@ function LeafletRenderer({
 function SearchButton() {
   return (
     <Pressable
-      onPress={() => {}}
+      onPress={() => router.push('/search')}
+      accessibilityLabel="Search cases"
+      accessibilityRole="button"
+      hitSlop={12}
       style={({ pressed }) => [
         {
-          width: 36,
-          height: 36,
-          borderRadius: 18,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
           backgroundColor: tokens.color.bg.elev1,
           borderWidth: 0.5,
           borderColor: tokens.color.border.strong,
@@ -275,7 +351,7 @@ function SearchButton() {
         },
       ]}
     >
-      <Ionicons name="search" size={16} color={tokens.color.text.primary} />
+      <Ionicons name="search" size={18} color={tokens.color.text.primary} />
     </Pressable>
   );
 }

@@ -28,7 +28,12 @@ export const tokens = {
     border: { subtle: '#1f1f1f', strong: '#2a2a2a' },
     text: {
       primary: '#f5f1ea',
-      secondary: '#8a8580',
+      // Bumped from #8a8580 → #a09b95 to clear WCAG AA 4.5:1 against bg.base
+      // (#0a0a0a). The old value was 3.8:1 and got flagged in the
+      // accessibility audit. Use this for body-weight secondary copy; for
+      // small labels (<14px) prefer text.primary or evidence.chrome on a
+      // dark elevated surface.
+      secondary: '#a09b95',
       disabled: '#5a5550',
       /**
        * Desaturated light blue for prose-length user-trust copy at 11–13px on near-black.
@@ -57,6 +62,13 @@ export const tokens = {
     evidence: { chrome: '#5a5550' },
     /** Reading off-white for the narrative body — sits between text.primary and text.secondary. */
     body: { reading: '#d5cdbe' },
+    /** List-thumbnail silhouette (placeholder when no photo URL). */
+    silhouette: {
+      bg: '#1f1a10',
+      figure: '#3a3325',
+    },
+    /** Photo frame interior bg — slightly cooler than bg.elev1 to read as "behind glass". */
+    photoFrame: { bg: '#0e0e0e' },
   },
 
   /**

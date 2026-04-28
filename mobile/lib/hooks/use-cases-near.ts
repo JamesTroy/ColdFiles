@@ -8,7 +8,7 @@
  * Falls back to sample data when Supabase is not configured (designer mode).
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { SAMPLE_CASES_MAP } from '../sample-data';
 import { getSupabase, isSupabaseConfigured } from '../supabase';
@@ -41,6 +41,8 @@ export function useCasesNear({
   );
   const [loading, setLoading] = useState<boolean>(isSupabaseConfigured());
   const [error, setError] = useState<Error | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -77,13 +79,14 @@ export function useCasesNear({
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, radiusMiles, JSON.stringify(kinds), JSON.stringify(status), limit]);
+  }, [lat, lng, radiusMiles, JSON.stringify(kinds), JSON.stringify(status), limit, refreshKey]);
 
   return {
     data,
     loading,
     error,
     source: isSupabaseConfigured() ? 'live' : 'sample',
+    refetch,
   };
 }
 

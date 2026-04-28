@@ -12,12 +12,13 @@
  */
 
 import { router } from 'expo-router';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { useMeCounts } from '@/lib/hooks/use-me-counts';
+import { signOut, useUser } from '@/lib/hooks/use-user';
 
 interface RowProps {
   label: string;
@@ -30,6 +31,24 @@ interface RowProps {
 export default function MeScreen() {
   const insets = useSafeAreaInsets();
   const counts = useMeCounts();
+  const { user, authAvailable } = useUser();
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign out?',
+      'Saved cases on this device stay where they are. Watch zones and synced data go away until you sign back in.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
@@ -46,6 +65,39 @@ export default function MeScreen() {
             ACCOUNT · SUBSCRIPTION · PRIVACY
           </MonoLabel>
         </View>
+
+        {/* Card 0 — Account */}
+        <Card>
+          {user ? (
+            <>
+              <Row
+                label="Signed in"
+                value={user.email ?? '—'}
+                valueColor={tokens.color.text.secondary}
+              />
+              <Row
+                label="Sign out"
+                value="→"
+                valueColor={tokens.color.tip.success}
+                onPress={handleSignOut}
+              />
+              <Row
+                label="Delete account"
+                value="→"
+                valueColor={tokens.color.tip.success}
+                onPress={() => router.push('/delete-account')}
+              />
+            </>
+          ) : (
+            <Row
+              label={authAvailable ? 'Sign in' : 'Sign in (designer mode)'}
+              value="→"
+              valueColor={tokens.color.accent.amber}
+              valueMono
+              onPress={() => router.push('/sign-in')}
+            />
+          )}
+        </Card>
 
         {/* Card 1 — Subscription */}
         <Card>
@@ -73,11 +125,28 @@ export default function MeScreen() {
           />
         </Card>
 
-        {/* Card 3 — Sources / takedown / about */}
+        {/* Card 3 — About / legal */}
         <Card>
-          <Row label="Source credits" value="5 sources" />
-          <Row label="Takedown request" value="→" />
-          <Row label="About · mission" value="→" />
+          <Row
+            label="About · mission"
+            value="→"
+            onPress={() => router.push('/about')}
+          />
+          <Row
+            label="Privacy policy"
+            value="→"
+            onPress={() => router.push('/privacy')}
+          />
+          <Row
+            label="Terms of service"
+            value="→"
+            onPress={() => router.push('/terms')}
+          />
+          <Row
+            label="Takedown request"
+            value="→"
+            onPress={() => router.push('/takedown')}
+          />
         </Card>
 
         {/* Footer */}

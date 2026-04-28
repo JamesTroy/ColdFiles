@@ -24,6 +24,12 @@ export interface QueryResult<T> {
   loading: boolean;
   error: Error | null;
   source: 'live' | 'sample';
+  /**
+   * Re-runs the underlying query. Called from error-state retry buttons
+   * and pull-to-refresh affordances. Always present (even on sample-data
+   * paths it's a no-op) so consumers don't have to null-check.
+   */
+  refetch: () => void;
 }
 
 /**

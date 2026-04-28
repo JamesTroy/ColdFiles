@@ -16,6 +16,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Ellipse, Rect } from 'react-native-svg';
 
+import { ErrorState } from '@/components/cf/error-state';
 import { MonoLabel, SansBody, SansMedium, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
@@ -27,7 +28,7 @@ const FRESH_DAY_LIMIT = 10;
 
 export default function ListScreen() {
   const insets = useSafeAreaInsets();
-  const { data: rows, loading, error, source } = useCaseList({ limit: 100 });
+  const { data: rows, loading, error, source, refetch } = useCaseList({ limit: 100 });
 
   const { recent, rest } = useMemo(() => {
     const enriched = rows.map((r) => ({
@@ -64,11 +65,11 @@ export default function ListScreen() {
           <ActivityIndicator color={tokens.color.accent.amber} />
         </View>
       ) : error ? (
-        <View style={{ paddingHorizontal: 16 }}>
-          <SansBody style={{ color: tokens.color.text.secondary }}>
-            Couldn't load cases: {error.message}
-          </SansBody>
-        </View>
+        <ErrorState
+          title="Couldn't load cases."
+          detail={error.message}
+          onRetry={refetch}
+        />
       ) : rows.length === 0 ? (
         <EmptyState />
       ) : (
@@ -190,9 +191,9 @@ function Thumbnail({ hasPhoto }: { hasPhoto: boolean }) {
     >
       {hasPhoto ? (
         <Svg width="56" height="56" viewBox="0 0 56 56">
-          <Rect width="56" height="56" fill="#1f1a10" />
-          <Ellipse cx="28" cy="22" rx="10" ry="12" fill="#3a3325" />
-          <Ellipse cx="28" cy="46" rx="14" ry="11" fill="#3a3325" />
+          <Rect width="56" height="56" fill={tokens.color.silhouette.bg} />
+          <Ellipse cx="28" cy="22" rx="10" ry="12" fill={tokens.color.silhouette.figure} />
+          <Ellipse cx="28" cy="46" rx="14" ry="11" fill={tokens.color.silhouette.figure} />
         </Svg>
       ) : (
         <SerifTitle
