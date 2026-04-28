@@ -22,8 +22,8 @@ import Mapbox, {
   MapView,
   MarkerView,
 } from '@rnmapbox/maps';
-import { useRef, useState } from 'react';
-import { type LayoutChangeEvent, Pressable, View } from 'react-native';
+import { useRef } from 'react';
+import { Pressable, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
@@ -71,29 +71,6 @@ export function MapboxView({
 }: MapboxViewProps) {
   const mapRef = useRef<MapView | null>(null);
 
-  /**
-   * Explicit dimension state.
-   *
-   * @rnmapbox/maps v10 + Fabric (newArchEnabled) has a known measurement issue
-   * where MapView's `flex: 1` doesn't propagate correctly through nested flex
-   * containers — the map renders at half-height (or worse) until something
-   * forces a remeasure. Pinning explicit width/height from onLayout sidesteps
-   * the issue: the parent View still flexes; we measure it once and hand the
-   * MapView fixed numbers.
-   */
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-
-  const handleLayout = (e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    if (
-      !size ||
-      Math.abs(size.width - width) > 0.5 ||
-      Math.abs(size.height - height) > 0.5
-    ) {
-      setSize({ width, height });
-    }
-  };
-
   const handleCameraChanged = (state: MapState) => {
     if (!onViewportChange) return;
     const b = state.properties.bounds;
@@ -107,19 +84,31 @@ export function MapboxView({
     });
   };
 
+  /**
+   * Layout strategy: position the MapView absolutely within its parent.
+   *
+   * @rnmapbox/maps v10 + Fabric (Reanimated 4 forces newArchEnabled) has a
+   * GL-surface measurement bug where the MapView's first measurement caches
+   * to half height when reached through a nested flex chain. Explicit
+   * width/height props don't help; re-keying on size doesn't help; only
+   * absolute positioning bypasses the flex measurement entirely.
+   *
+   * Parent flexes to its share of the column; the MapView fills the parent
+   * with absolute-fill (top:0 / left:0 / right:0 / bottom:0). The GL surface
+   * gets correctly measured because the View hierarchy is now layout-stable
+   * before the MapView mounts.
+   */
   return (
     <View
-      style={{ flex: 1, backgroundColor: tokens.color.bg.base }}
-      onLayout={handleLayout}
+      style={{
+        flex: 1,
+        backgroundColor: tokens.color.bg.base,
+        overflow: 'hidden',
+      }}
     >
-      {size ? (
       <MapView
-        // Re-mount the SDK whenever the measured dimensions change. @rnmapbox/maps
-        // v10 caches its initial size on the GL surface and won't pick up later
-        // size prop changes — re-keying forces a fresh native view.
-        key={`mb-${Math.round(size.width)}x${Math.round(size.height)}`}
         ref={mapRef}
-        style={{ width: size.width, height: size.height }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         styleURL={tokens.map.styleUrl}
         logoEnabled={false}
         attributionEnabled
@@ -166,7 +155,6 @@ export function MapboxView({
           </MarkerView>
         ) : null}
       </MapView>
-      ) : null}
     </View>
   );
 }
