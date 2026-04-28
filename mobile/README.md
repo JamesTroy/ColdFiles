@@ -14,11 +14,13 @@ cp .env.example .env                 # only Supabase config; map needs no key
 
 This app ships with `@maplibre/maplibre-react-native` — **Expo Go does not work**. You need a custom dev client built once via `expo run:android` or EAS Build, then iterate against that.
 
-### The map
+### The map (V1)
 
-MapLibre GL Native (open-source) renders OpenFreeMap public tiles — community-funded OSM-derived hosting. **No API key, no signup, no Google Cloud.** The basemap is always available; nothing to configure.
+V1 ships the SVG `MapCanvas` as the map renderer — pins at deterministic-hash positions, not real geography. The case-file design language is intact; only the spatial ground truth is a stub.
 
-If you want a custom basemap style later, host a MapLibre style JSON anywhere (S3, GitHub Pages, Supabase Storage) and swap `tokens.map.styleUrl` in `mobile/constants/theme.ts`.
+This is a deliberate, time-boxed choice — see `docs/00_DECISIONS.md` "V1 ships the SVG MapCanvas." MapLibre Native (and its Mapbox / @rnmapbox forks) have an upstream GL-surface measurement bug under Fabric that causes the basemap to half-render. The MapLibre integration is committed but gated off; re-enabling is a one-line flip in `components/cf/maps-view.tsx` once the upstream fix ships.
+
+To restore a real basemap before that fix lands, the cleanest path is a WebView-Leaflet wrapper that bypasses the native layout chain entirely. See the decision-log entry for context.
 
 ### First build (one time)
 

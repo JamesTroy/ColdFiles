@@ -4,6 +4,33 @@ A short, dated record of architecture and product calls that shaped the build. N
 
 ---
 
+## 2026-04-28 — V1 ships the SVG MapCanvas; real basemap deferred
+
+**Decision:** The home-tab map and the Watch Zone polygon both render against the SVG `MapCanvas` placeholder for V1. Real basemap (MapLibre / Mapbox / Google) is deferred to a follow-up.
+
+**Why:**
+
+- MapLibre Native and its forks (Mapbox GL Native, `@rnmapbox/maps`) all hit the same GL-surface measurement bug under Fabric: the GL viewport caches its first measurement during the React layout pass and renders at half-height permanently. The bug is upstream of all the RN bindings, in MapLibre Native itself.
+- Reanimated 4 requires Fabric (`newArchEnabled = true`), so we can't roll back to the legacy architecture as a workaround.
+- Workarounds attempted: explicit dimensions via `onLayout`, absolute positioning, deferred mount, force re-mount-after-300ms, three different SDK swaps (`@rnmapbox/maps` v10.3 → `react-native-maps` 1.20 → `@maplibre/maplibre-react-native` v11). All half-render the same way; none accept the layout fix.
+- Time spent: a session and a half. Rest of the app is essentially done. Pragmatic call is ship the design-correct placeholder and revisit later.
+
+**What ships in V1:**
+
+- SVG `MapCanvas` rendering pins at deterministic hash positions (not real geography). Same `<Pin>` SVG component as before, same design tokens, same selection/recency/halo treatments. Looks like the prototype; doesn't pan or zoom.
+- `isNativeMapAvailable()` returns `false`. The native-map code path stays committed but inert behind the gate. Flip it to `true` when the upstream fix lands.
+
+**Returning to a real basemap:**
+
+Two paths when we revisit:
+
+1. **MapLibre Native fix.** Watch [maplibre/maplibre-native](https://github.com/maplibre/maplibre-native) issues for "Fabric layout" / "GL surface measurement". When a release notes resolves it, flip `isNativeMapAvailable()` and rebuild. The MapLibre RN integration is already wired.
+2. **WebView Leaflet.** If the upstream fix takes too long, ship a WebView wrapping Leaflet + OSM tiles. Slightly worse performance than native but bypasses the entire RN layout chain — no GL-surface bug because there's no GL surface. About a day's work; the pin grammar serializes to inline SVG inside Leaflet `divIcon` without much friction.
+
+The V1 launch metro is small enough geographically (LA County, ~25mi radius) that the SVG canvas with kind-encoded pins reads cleanly to a user. The map experience improves materially with a real basemap, but the case-file aesthetic and the tip-routing flow — which are what make the product distinctive — work fully on the placeholder.
+
+---
+
 ## 2026-04-28 — Reanimated babel plugin is required, not optional
 
 **Decision:** `mobile/babel.config.js` is part of the foundation, not a setup-doc step. The plugin entry — `react-native-worklets/plugin` — must remain the last plugin in the array.

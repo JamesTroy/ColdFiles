@@ -149,11 +149,25 @@ function YouAreHereDot() {
 }
 
 /**
- * MapLibre + OpenFreeMap doesn't require any environment configuration —
- * the basemap is always available. Returns true unconditionally; the SVG
- * fallback path is preserved upstream for designer-mode use cases that
- * intentionally avoid native maps.
+ * NATIVE MAP RENDERER IS DISABLED FOR V1.
+ *
+ * MapLibre Native (and its forks Mapbox + the @rnmapbox/maps SDK) all hit the
+ * same GL-surface measurement bug under Fabric (newArchEnabled = true, which
+ * Reanimated 4 forces). The map renders at half height regardless of layout
+ * tricks — explicit dimensions, absolute positioning, deferred mount, force
+ * re-mount, three different SDK swaps; none stick.
+ *
+ * Bug fixes are upstream of all three bindings, in MapLibre Native itself,
+ * and not yet released. V1 ships with the SVG MapCanvas fallback (real
+ * design language, hashed pin positions instead of real geography). Real
+ * basemap returns when:
+ *   - MapLibre Native ships the Fabric fix, or
+ *   - We add a WebView-Leaflet integration that bypasses the native layout
+ *     chain entirely.
+ *
+ * Flip back by returning true once the upstream is fixed; the rest of the
+ * code path is intact and waiting.
  */
 export function isNativeMapAvailable(): boolean {
-  return true;
+  return false;
 }
