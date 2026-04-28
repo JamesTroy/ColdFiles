@@ -35,7 +35,7 @@ export type DateQuality =
 
 /**
  * Result row from cases_within_radius() and cases_in_bbox() RPCs.
- * Schema source: migrations/01_schema.sql.
+ * Schema source: migrations/01_schema.sql + migrations/02_cases_in_bbox_recency_alpha.sql.
  */
 export interface CaseRowMapNear {
   id: string;
@@ -53,6 +53,15 @@ export interface CaseRowMapNear {
   primary_agency_name: string | null;
   primary_photo_url: string | null;
   distance_miles: number | null;
+  /**
+   * Server-computed alpha for the recently-updated ring.
+   *   0–3 days since last_changed_at  → 1.0
+   *   4–10 days                       → 0.5
+   *   11+ days                        → 0   (client renders no ring)
+   * Always non-null on rows from the RPCs; null is reserved for sources that
+   * don't carry it (table reads on the List tab, etc.).
+   */
+  recency_alpha: number | null;
 }
 
 /** Fuller case row used by the case-detail screen. */

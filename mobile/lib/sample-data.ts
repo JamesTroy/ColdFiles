@@ -81,6 +81,16 @@ const AGENCIES: Record<string, AgencyRow> = {
 // CaseRowMapNear — used by useCasesNear / useCaseList
 // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * recency_alpha mirrors what cases_within_radius / cases_in_bbox compute
+ * server-side post-migration-02. Stepwise: 0–3 days → 1.0, 4–10 → 0.5, 11+ → 0.
+ */
+function recencyAlpha(daysSinceUpdate: number): number {
+  if (daysSinceUpdate <= 3) return 1;
+  if (daysSinceUpdate <= 10) return 0.5;
+  return 0;
+}
+
 export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
   {
     id: 'evans',
@@ -98,6 +108,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_agency_name: AGENCIES.lasd.name,
     primary_photo_url: null,
     distance_miles: 1.4,
+    recency_alpha: recencyAlpha(5),
   },
   {
     id: 'thompson',
@@ -115,6 +126,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_agency_name: AGENCIES.oxnard_pd.name,
     primary_photo_url: null,
     distance_miles: 4.7,
+    recency_alpha: recencyAlpha(1),
   },
   {
     id: 'doe-2003',
@@ -133,6 +145,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_agency_name: AGENCIES.vcso.name,
     primary_photo_url: null,
     distance_miles: 0.6,
+    recency_alpha: recencyAlpha(18),
   },
   {
     id: 'hernandez',
@@ -150,6 +163,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_agency_name: AGENCIES.vcso.name,
     primary_photo_url: null,
     distance_miles: 7.2,
+    recency_alpha: recencyAlpha(60),
   },
   {
     id: 'doe-1994',
@@ -167,6 +181,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_agency_name: AGENCIES.vcso.name,
     primary_photo_url: null,
     distance_miles: 9.1,
+    recency_alpha: recencyAlpha(90),
   },
   {
     id: 'wallace',
@@ -184,6 +199,7 @@ export const SAMPLE_CASES_MAP: CaseRowMapNear[] = [
     primary_agency_name: AGENCIES.topd.name,
     primary_photo_url: null,
     distance_miles: 12.8,
+    recency_alpha: recencyAlpha(14),
   },
 ];
 

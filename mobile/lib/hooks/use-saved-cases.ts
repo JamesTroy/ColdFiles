@@ -168,7 +168,10 @@ export function useSavedCases(): {
           const bySlug = new Map(
             (data ?? []).map((r) => [
               (r as { slug: string }).slug,
-              r as Omit<CaseRowMapNear, 'primary_agency_name' | 'primary_photo_url' | 'distance_miles'>,
+              r as Omit<
+                CaseRowMapNear,
+                'primary_agency_name' | 'primary_photo_url' | 'distance_miles' | 'recency_alpha'
+              >,
             ]),
           );
           const ordered = slugs
@@ -179,6 +182,7 @@ export function useSavedCases(): {
               primary_agency_name: null,
               primary_photo_url: null,
               distance_miles: null,
+              recency_alpha: null,
             })) as CaseRowMapNear[];
           setRows(ordered);
           setLoading(false);

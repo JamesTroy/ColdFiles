@@ -57,6 +57,18 @@ function hashedPosition(slug: string): { x: number; y: number } {
   return { x, y };
 }
 
+/**
+ * Reverse-map the server-side stepwise alpha back to a representative day
+ * count for the Pin renderer (which still takes days). This loses fidelity
+ * but reproduces the same ring opacity. When the Pin renderer is updated to
+ * accept alpha directly, this helper goes away.
+ */
+function alphaToDays(alpha: number): number | null {
+  if (alpha >= 0.99) return 1; // any value in 0–3-day band
+  if (alpha >= 0.49) return 7; // any value in 4–10-day band
+  return null; // 0 → no ring
+}
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>('all');
@@ -80,7 +92,13 @@ export default function MapScreen() {
     return cases.map((c) => {
       const sampleCoord = SAMPLE_MAP_COORDS[c.slug];
       const pos = sampleCoord ?? hashedPosition(c.slug);
-      const recentDays = SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null;
+      // Prefer the server-computed recency_alpha (live RPC). Fall back to the
+      // sample-data side-channel for designer mode + table-read paths where
+      // the column wasn't populated.
+      const recentDays =
+        c.recency_alpha != null
+          ? alphaToDays(c.recency_alpha)
+          : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null);
       return {
         id: c.slug,
         x: pos.x,
