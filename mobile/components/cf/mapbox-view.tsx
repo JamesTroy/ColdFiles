@@ -22,8 +22,8 @@ import Mapbox, {
   MapView,
   MarkerView,
 } from '@rnmapbox/maps';
-import { useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { type LayoutChangeEvent, Pressable, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
@@ -71,6 +71,29 @@ export function MapboxView({
 }: MapboxViewProps) {
   const mapRef = useRef<MapView | null>(null);
 
+  /**
+   * Explicit dimension state.
+   *
+   * @rnmapbox/maps v10 + Fabric (newArchEnabled) has a known measurement issue
+   * where MapView's `flex: 1` doesn't propagate correctly through nested flex
+   * containers — the map renders at half-height (or worse) until something
+   * forces a remeasure. Pinning explicit width/height from onLayout sidesteps
+   * the issue: the parent View still flexes; we measure it once and hand the
+   * MapView fixed numbers.
+   */
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (
+      !size ||
+      Math.abs(size.width - width) > 0.5 ||
+      Math.abs(size.height - height) > 0.5
+    ) {
+      setSize({ width, height });
+    }
+  };
+
   const handleCameraChanged = (state: MapState) => {
     if (!onViewportChange) return;
     const b = state.properties.bounds;
@@ -85,10 +108,14 @@ export function MapboxView({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+    <View
+      style={{ flex: 1, backgroundColor: tokens.color.bg.base }}
+      onLayout={handleLayout}
+    >
+      {size ? (
       <MapView
         ref={mapRef}
-        style={{ flex: 1 }}
+        style={{ width: size.width, height: size.height }}
         styleURL={tokens.map.styleUrl}
         logoEnabled={false}
         attributionEnabled
@@ -135,6 +162,7 @@ export function MapboxView({
           </MarkerView>
         ) : null}
       </MapView>
+      ) : null}
     </View>
   );
 }
