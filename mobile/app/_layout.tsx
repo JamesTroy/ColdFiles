@@ -97,6 +97,12 @@ export default function RootLayout() {
             animation: 'slide_from_bottom',
           }}
         />
+        <Stack.Screen
+          name="watch-zone"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
       </Stack>
       <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
     </ThemeProvider>
