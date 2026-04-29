@@ -163,7 +163,7 @@ export default function DeleteAccountScreen() {
               fontSize: tokens.size.meta,
             }}
           >
-            You are not signed in. Sign in first, then return here to delete.
+            You are not signed in. Continue with email first, then return here to delete.
           </SansBody>
         ) : (
           <>

@@ -233,7 +233,7 @@ function WatchZoneSignInGate() {
         <NarrativeText style={{ color: tokens.color.text.secondary, marginBottom: 32 }}>
           One-tap email sign-in. No password.
         </NarrativeText>
-        <AmberCTA label="Sign in" onPress={() => router.push('/sign-in')} />
+        <AmberCTA label="Continue with email" onPress={() => router.push('/sign-in')} />
       </View>
     </View>
   );

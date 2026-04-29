@@ -58,6 +58,12 @@ export default function MapScreen() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const { here, permissionStatus, requestAndAcquire } = useHere();
 
+  // Closed-testing radius: 5000mi effectively returns all seeded cases for
+  // any tester anywhere in the continental US. v1.0.0 ships ~50 alphabetical
+  // cases nationwide (no LA-specific scraper yet); a small radius would show
+  // empty for most testers because the seed isn't geographically dense.
+  // Restore "cases near you" semantics in v1.0.1 once the LA-county scraper
+  // and broader source coverage land.
   const {
     data: cases,
     loading,
@@ -65,9 +71,9 @@ export default function MapScreen() {
   } = useCasesNear({
     lat: here.lat,
     lng: here.lng,
-    radiusMiles: 25,
+    radiusMiles: 5000,
     kinds: KIND_FILTER_TO_RPC[filter],
-    limit: 100,
+    limit: 200,
   });
 
   const allCount = cases.length;
@@ -98,7 +104,7 @@ export default function MapScreen() {
               color={tokens.color.evidence.chrome}
               style={{ marginTop: 4 }}
             >
-              {headerSubLabel(loading ? null : allCount, 25)}
+              {headerSubLabel(loading ? null : allCount)}
             </MonoLabel>
           </View>
           <SearchButton />
@@ -390,11 +396,13 @@ function peekDisplayName(c: CaseRowMapNear): string {
 /**
  * Sub-header copy. Drops a locality string entirely — `useHere` doesn't
  * reverse-geocode, and a hardcoded "VENTURA" lies for any reviewer or
- * tester outside that metro. Count is omitted while loading so the label
- * never flashes "0 cases" before the first RPC settles.
+ * tester outside that metro. Radius is also dropped for v1.0.0: the
+ * map effectively shows all seeded cases (5000mi radius covers the
+ * continental US from any starting point), so showing "5000mi" would
+ * be misleading. v1.0.1 reintroduces locality + radius once the
+ * LA-county scraper densifies the seed.
  */
-function headerSubLabel(count: number | null, radiusMi: number): string {
-  const r = `${radiusMi}mi RADIUS`;
-  if (count == null) return r;
-  return `${count.toLocaleString()} ${count === 1 ? 'CASE' : 'CASES'} · ${r}`;
+function headerSubLabel(count: number | null): string {
+  if (count == null) return 'LOADING';
+  return `${count.toLocaleString()} ${count === 1 ? 'CASE' : 'CASES'} NATIONWIDE`;
 }

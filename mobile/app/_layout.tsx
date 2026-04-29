@@ -27,6 +27,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { tokens } from '@/constants/theme';
+import { useAuthCallback } from '@/lib/hooks/use-auth-callback';
 import { useOnboarding } from '@/lib/hooks/use-onboarding';
 
 // Hold the splash until fonts have loaded — prevents a flash of system-fallback
@@ -62,6 +63,12 @@ export default function RootLayout() {
     JetBrainsMono_500Medium,
     JetBrainsMono_600SemiBold,
   });
+
+  // Catches the magic-link deep link on cold launch + warm. Without this
+  // the email-OTP flow lands on coldfile://auth-callback but never creates
+  // a session, because supabase-js is configured with detectSessionInUrl
+  // false (correct for RN — see lib/supabase.ts).
+  useAuthCallback();
 
   useEffect(() => {
     if (fontsLoaded) {

@@ -12,12 +12,22 @@ type IconSymbolName = keyof typeof MAPPING;
  * Add your SF Symbols to Material Icons mappings here.
  * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
  * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
+ *
+ * Missing entries silently render no glyph on Android — `MaterialIcons` just
+ * skips an undefined `name`. Add a mapping every time a new SF Symbol is used
+ * by the app, otherwise Android users see a blank space where iOS users see
+ * an icon.
  */
 const MAPPING = {
   'house.fill': 'home',
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  // Tab bar icons — used by app/(tabs)/_layout.tsx.
+  'map.fill': 'map',
+  'list.bullet': 'format-list-bulleted',
+  'bookmark.fill': 'bookmark',
+  'person.fill': 'person',
 } as IconMapping;
 
 /**

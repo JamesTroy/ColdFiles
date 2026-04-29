@@ -39,3 +39,4 @@ scraper-fixtures/*.html
 # Coverage
 coverage/
 .nyc_output/
+.vercel

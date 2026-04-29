@@ -96,14 +96,14 @@ export default function SignInScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <SerifTitle size="h2" style={{ fontSize: 20 }}>
-            Sign in
+            Continue with email
           </SerifTitle>
           <MonoLabel
             size={tokens.size.monoLabel}
             color={tokens.color.evidence.chrome}
             style={{ marginTop: 2 }}
           >
-            EMAIL · NO PASSWORD · MAGIC LINK
+            NO PASSWORD · MAGIC LINK
           </MonoLabel>
         </View>
       </View>
@@ -136,8 +136,8 @@ export default function SignInScreen() {
         ) : (
           <>
             <NarrativeText style={{ marginBottom: 18 }}>
-              Sign in with your email. We&apos;ll send a one-tap link — no password
-              to set or remember.
+              Enter your email and we&apos;ll send a one-tap link — no password
+              to set or remember. The same link signs you in next time.
             </NarrativeText>
 
             <MonoLabel
@@ -187,7 +187,7 @@ export default function SignInScreen() {
               {status === 'sending' ? (
                 <ActivityIndicator color={tokens.color.accent.amber} />
               ) : (
-                <AmberCTA label="Send sign-in link" onPress={handleSubmit} />
+                <AmberCTA label="Send link" onPress={handleSubmit} />
               )}
             </View>
 
@@ -198,8 +198,8 @@ export default function SignInScreen() {
                 fontSize: tokens.size.meta,
               }}
             >
-              By signing in you agree to our Terms of Service and Privacy Policy.
-              We use your email only for sign-in and account contact.
+              By continuing you agree to our Terms of Service and Privacy Policy.
+              We use your email only for account contact — no marketing.
             </NarrativeText>
           </>
         )}

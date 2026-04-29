@@ -16,7 +16,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/cf/brand-mark';
@@ -24,7 +24,6 @@ import { AmberCTA } from '@/components/cf/cta-button';
 import {
   MonoLabel,
   NarrativeText,
-  SansBody,
   SerifTitle,
 } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
@@ -173,9 +172,19 @@ export default function OnboardingScreen() {
             hitSlop={12}
             style={{ alignItems: 'center', paddingVertical: 14 }}
           >
-            <SansBody style={{ color: tokens.color.text.secondary }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: tokens.color.text.secondary,
+                fontFamily: tokens.font.sans,
+                fontWeight: '400',
+                fontSize: tokens.size.body,
+                lineHeight: tokens.size.body * 1.4,
+                textAlign: 'center',
+              }}
+            >
               {step.secondaryLabel}
-            </SansBody>
+            </Text>
           </Pressable>
         ) : null}
       </View>

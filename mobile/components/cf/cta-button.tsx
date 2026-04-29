@@ -7,11 +7,9 @@
  */
 
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View, type ViewStyle } from 'react-native';
 
 import { tokens } from '@/constants/theme';
-
-import { SansMedium } from './text';
 
 interface AmberCTAProps {
   label: string;
@@ -26,6 +24,8 @@ export function AmberCTA({ label, onPress, loading, style }: AmberCTAProps) {
     <Pressable
       onPress={onPress}
       disabled={loading}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={({ pressed }) => [
         {
           flex: 1,
@@ -42,12 +42,26 @@ export function AmberCTA({ label, onPress, loading, style }: AmberCTAProps) {
       {loading ? (
         <ActivityIndicator color="#1a1408" />
       ) : (
-        <SansMedium
-          size={tokens.size.body}
-          style={{ color: '#1a1408', letterSpacing: 0 }}
+        // Inlined Text instead of <SansMedium> to bypass cf/text's
+        // `includeFontPadding: false` (Android Fabric mishandles it inside
+        // Pressable, occasionally collapsing text height to 0). fontFamily
+        // remains the design intent; fontWeight: '500' is the fallback hint
+        // so the system font still draws the label if Inter_500Medium fails
+        // to register on a particular device build.
+        <Text
+          numberOfLines={1}
+          style={{
+            color: '#1a1408',
+            fontFamily: tokens.font.sansMedium,
+            fontWeight: '500',
+            fontSize: tokens.size.body,
+            lineHeight: tokens.size.body * 1.4,
+            letterSpacing: 0.1,
+            textAlign: 'center',
+          }}
         >
           {label}
-        </SansMedium>
+        </Text>
       )}
     </Pressable>
   );

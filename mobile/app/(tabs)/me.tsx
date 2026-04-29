@@ -90,7 +90,7 @@ export default function MeScreen() {
             </>
           ) : (
             <Row
-              label={authAvailable ? 'Sign in' : 'Sign in (designer mode)'}
+              label={authAvailable ? 'Continue with email' : 'Continue with email (designer mode)'}
               value="→"
               valueColor={tokens.color.accent.amber}
               valueMono
