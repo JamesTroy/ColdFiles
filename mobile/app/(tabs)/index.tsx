@@ -19,6 +19,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/cf/empty-state';
 import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
 import {
   MapsView,
@@ -97,7 +98,7 @@ export default function MapScreen() {
               color={tokens.color.evidence.chrome}
               style={{ marginTop: 4 }}
             >
-              VENTURA · 25mi RADIUS
+              {headerSubLabel(loading ? null : allCount, 25)}
             </MonoLabel>
           </View>
           <SearchButton />
@@ -158,6 +159,11 @@ export default function MapScreen() {
             here={here}
           />
         )}
+        {!loading && cases.length === 0 ? (
+          <EmptyState
+            variant={filter === 'all' ? 'no-cases-in-region' : 'no-matches'}
+          />
+        ) : null}
         {permissionStatus !== 'granted' ? (
           <LocationFAB onPress={() => void requestAndAcquire()} />
         ) : null}
@@ -379,4 +385,16 @@ function peekDisplayName(c: CaseRowMapNear): string {
   if (c.victim_name) return c.victim_name;
   if (c.kind === 'unidentified' || c.kind === 'unclaimed') return 'Unidentified';
   return 'Name not released';
+}
+
+/**
+ * Sub-header copy. Drops a locality string entirely — `useHere` doesn't
+ * reverse-geocode, and a hardcoded "VENTURA" lies for any reviewer or
+ * tester outside that metro. Count is omitted while loading so the label
+ * never flashes "0 cases" before the first RPC settles.
+ */
+function headerSubLabel(count: number | null, radiusMi: number): string {
+  const r = `${radiusMi}mi RADIUS`;
+  if (count == null) return r;
+  return `${count.toLocaleString()} ${count === 1 ? 'CASE' : 'CASES'} · ${r}`;
 }

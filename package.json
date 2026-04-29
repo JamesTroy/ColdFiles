@@ -10,11 +10,11 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "scrape:dryrun": "tsx scripts/scrape-cli.ts --dryrun",
-    "scrape": "tsx scripts/scrape-cli.ts",
-    "scrape:tick": "tsx scripts/scrape-cli.ts --tick",
+    "scrape:dryrun": "tsx --env-file-if-exists=.env scripts/scrape-cli.ts --dryrun",
+    "scrape": "tsx --env-file-if-exists=.env scripts/scrape-cli.ts",
+    "scrape:tick": "tsx --env-file-if-exists=.env scripts/scrape-cli.ts --tick",
     "vendor:fixture": "tsx tools/vendor-fixture.ts",
-    "load:agencies": "tsx scripts/load-agencies.ts",
+    "load:agencies": "tsx --env-file-if-exists=.env scripts/load-agencies.ts",
     "test": "vitest run"
   },
   "dependencies": {

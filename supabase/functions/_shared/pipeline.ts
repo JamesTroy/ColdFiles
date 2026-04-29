@@ -143,18 +143,35 @@ async function sitemapDiscovery(
   fetcher: PoliteFetcher,
   opts: CrawlOptions,
 ): Promise<string[]> {
-  const xml = await fetcher.getText(strat.sitemapUrl);
   const seen = new Set<string>();
   const urls: string[] = [];
-  for (const m of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
-    const u = m[1].trim();
-    if (!strat.urlPattern.test(u)) continue;
-    if (seen.has(u)) continue;
-    seen.add(u);
-    urls.push(u);
-    opts.onProgress?.({ kind: 'detail_url_queued', url: u });
-    if (opts.detailLimit && urls.length >= opts.detailLimit) break;
-  }
+  let childIndex = 0;
+
+  // Charley (and most WordPress sources) ship a sitemap *index* at the
+  // top, not a flat URL list — root tag is <sitemapindex> with <loc>s
+  // pointing at child sitemaps. Detect and recurse one level.
+  const visit = async (sitemapUrl: string): Promise<void> => {
+    if (opts.detailLimit && urls.length >= opts.detailLimit) return;
+    const xml = await fetcher.getText(sitemapUrl);
+    const isIndex = /<sitemapindex[\s>]/i.test(xml);
+    for (const m of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+      const u = m[1].trim();
+      if (isIndex) {
+        opts.onProgress?.({ kind: 'list_page', url: u, index: childIndex++ });
+        await visit(u);
+        if (opts.detailLimit && urls.length >= opts.detailLimit) return;
+      } else {
+        if (!strat.urlPattern.test(u)) continue;
+        if (seen.has(u)) continue;
+        seen.add(u);
+        urls.push(u);
+        opts.onProgress?.({ kind: 'detail_url_queued', url: u });
+        if (opts.detailLimit && urls.length >= opts.detailLimit) return;
+      }
+    }
+  };
+
+  await visit(strat.sitemapUrl);
   return urls;
 }
 

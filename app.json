@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "933d850a-4e1f-431b-9c0d-497094357a00"
+      }
+    },
+    "android": {
+      "package": "com.arkeeezy.coldfile"
+    }
+  }
+}

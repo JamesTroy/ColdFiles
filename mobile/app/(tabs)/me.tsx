@@ -102,13 +102,8 @@ export default function MeScreen() {
         {/* Card 1 — Subscription */}
         <Card>
           <Row label="Subscription" value="FREE" valueMono />
-          <Row
-            label="Premium · watch zones"
-            value="UPGRADE →"
-            valueColor={tokens.color.accent.amber}
-            valueMono
-            onPress={() => router.push('/watch-zone')}
-          />
+          {/* Watch zones row deferred to v1.0.1 — drawing UI is not interactive
+              yet, so the entry point would promise something we don't ship. */}
         </Card>
 
         {/* Card 2 — User counts */}

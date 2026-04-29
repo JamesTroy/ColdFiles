@@ -3,9 +3,13 @@
  *
  * Required by Play Store policy since 2024: every app with accounts must
  * offer in-app account deletion. This screen invokes a Supabase RPC named
- * `delete_my_account()` (server-side) which:
- *   - cascades user-owned rows (saved cases, watch zones, tip routings)
- *   - deletes the auth.users row
+ * `delete_my_account()` (defined in migrations/03_account_deletion_and_retention.sql)
+ * which:
+ *   - nulls user_id on the user's tip_routings rows (the audit log itself
+ *     is retained 12 months for abuse detection per the privacy policy;
+ *     only the user-identifying linkage is severed here)
+ *   - deletes the auth.users row, cascading user_watches and
+ *     user_subscriptions
  *   - returns { ok: true } so we sign the client out
  *
  * The web-accessible counterpart lives at https://coldfile.app/account/delete
@@ -132,7 +136,7 @@ export default function DeleteAccountScreen() {
           • Your sign-in email and any session data{'\n'}
           • Saved cases synced to your account (device-local saves stay until you sign out){'\n'}
           • Watch zones and notification preferences{'\n'}
-          • Tip routing history (the agency-side records remain — agencies own those)
+          • Your link to any tips you've routed. The audit row (case ID, time, hash) stays up to 12 months for abuse detection, then auto-deletes. Agency-side records remain — agencies own those.
         </NarrativeText>
         <NarrativeText style={{ marginTop: 18 }}>
           We cannot recover deleted accounts. If you want to take a break instead,

@@ -24,6 +24,8 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+import { STATE_CLEARINGHOUSES } from '../_shared/state-routes.ts';
+
 interface RequestBody {
   case_id?: string;
   content_hash?: string | null;
@@ -105,7 +107,8 @@ async function resolveRoute(
   supabase: ReturnType<typeof createClient>,
   caseId: string,
 ): Promise<ResolvedRoute> {
-  // Single read: case + primary agency, both their tip_* fields.
+  // Single read: case + primary agency, both their tip_* fields. location_state
+  // is included so we can route to the state clearinghouse when no agency FK.
   const { data, error } = await supabase
     .from('cases')
     .select(`
@@ -113,6 +116,7 @@ async function resolveRoute(
       tip_route_kind,
       tip_url,
       tip_phone,
+      location_state,
       primary_agency:agencies!cases_primary_agency_id_fkey (
         id,
         name,
@@ -162,6 +166,27 @@ async function resolveRoute(
       tip_url: agency.tip_url,
       tip_phone: agency.phone_tip,
     };
+  }
+
+  // Tier 2.5: state clearinghouse fallback when no agency FK is set.
+  // The Charley aggregator doesn't carry agency identity strongly enough
+  // to FK most rows, but it does give us location_state. Routing to the
+  // state's missing-persons clearinghouse beats sending every case to the
+  // FBI tip line — that's the failure mode where 49 cases all read like
+  // they're owned by the same agency. Honest fall-through to FBI when the
+  // state has no clean clearinghouse entry.
+  const state = (data as { location_state?: string | null }).location_state;
+  if (state) {
+    const ch = STATE_CLEARINGHOUSES[state];
+    if (ch && (ch.tip_url || ch.tip_phone)) {
+      return {
+        agency_id: null,
+        agency_name: ch.name,
+        route_kind: ch.route_kind,
+        tip_url: ch.tip_url,
+        tip_phone: ch.tip_phone,
+      };
+    }
   }
 
   // Tier 3: FBI fallback.

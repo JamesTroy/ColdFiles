@@ -13,7 +13,7 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'The Cold File',
   slug: 'coldfile',
-  version: '0.1.0',
+  version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'coldfile',
@@ -24,9 +24,10 @@ const config: ExpoConfig = {
     bundleIdentifier: 'com.matteblackdev.coldfile',
     infoPlist: {
       NSLocationWhenInUseUsageDescription:
-        'Used to center the map on cases near you and to power Watch Zone alerts.',
-      NSLocationAlwaysAndWhenInUseUsageDescription:
-        'Used to deliver Watch Zone alerts when a saved zone has new activity.',
+        'Used to center the map on cases near you.',
+      // Background "always" permission deferred until watch zones ship
+      // (v1.0.1) — claiming it now would mismatch the privacy policy,
+      // which says location is used briefly per query, not retained.
     },
     config: {
       // iOS uses Apple Maps by default — react-native-maps' MapView with no
@@ -44,12 +45,17 @@ const config: ExpoConfig = {
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
     edgeToEdgeEnabled: true,
+    versionCode: 1,
     // Android 14+ predictive back gesture. Recommended now, expected required
     // for API 36 targets. Enable so the system can render the predictive
     // animation; per-screen `gestureEnabled: false` still works on screens
     // where we want to prevent accidental back-swipes (e.g. /onboarding).
     predictiveBackGestureEnabled: true,
-    permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
+    // COARSE only — radius queries use Accuracy.Balanced (see lib/hooks/use-here.ts).
+    // FINE_LOCATION would trigger Play's "precise location" disclosure and
+    // mismatch the privacy policy / Data Safety form, both of which declare
+    // approximate location only.
+    permissions: ['ACCESS_COARSE_LOCATION'],
   },
   web: {
     output: 'static',
@@ -73,6 +79,20 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+  updates: {
+    url: 'https://u.expo.dev/933d850a-4e1f-431b-9c0d-497094357a00',
+  },
+  // appVersion policy: OTA updates only reach clients on a matching `version`
+  // (currently 1.0.0). Bumping to 1.0.1 cuts the OTA channel to 1.0.0 clients,
+  // which is the right behavior — runtime contract changes need a new build.
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
+  extra: {
+    eas: {
+      projectId: '933d850a-4e1f-431b-9c0d-497094357a00',
+    },
   },
 };
 
