@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BrandMark } from '@/components/cf/brand-mark';
 import { AmberCTA } from '@/components/cf/cta-button';
 import {
   MonoLabel,
@@ -132,6 +133,14 @@ export default function OnboardingScreen() {
 
       {/* Body */}
       <View style={{ flex: 1 }}>
+        {/* Step 0 anchors with the BrandMark — the same blue pulsing dot the
+            user will later see on the map as YouAreHere. The visual
+            continuity is the brand: brand mark = wayfinding mark = you. */}
+        {stepIndex === 0 ? (
+          <View style={{ alignItems: 'center', marginBottom: 28, marginTop: 8 }}>
+            <BrandMark size={20} />
+          </View>
+        ) : null}
         <MonoLabel
           size={tokens.size.monoChip}
           tracking={tokens.tracking.chip}

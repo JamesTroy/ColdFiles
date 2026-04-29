@@ -100,7 +100,9 @@ Once approved you can submit a production release. The first production review t
 
 Since you have to wait 14 days anyway, use the time to:
 
-- [ ] Replace TODO_PHOTO_URL slots in `lib/sample-data.ts` with real LASD/FBI/NamUs/Charley photo URLs. See [feedback_photo_sourcing_policy.md](file:///Users/jtroy/.claude/projects/-Users-jtroy-Desktop-ColdFiles/memory/feedback_photo_sourcing_policy.md) — Charley needs mirroring, not hot-linking.
+- [ ] Replace TODO_PHOTO_URL slots in `lib/sample-data.ts` with real LASD/FBI/NamUs/Charley photo URLs.
+  - **Aujay / Charley Project must be mirrored before the URL goes anywhere user-facing.** Upload the photo to Supabase Storage, paste the public URL into `mirror_url`. The `url` field can hold the Charley page's photo URL for provenance, but `lib/photo-policy.ts` will refuse to render it for user display until `mirror_url` is set — so the photo will silently em-dash if you forget. Same rule applies to any future Doe Network photo. FBI / LASD / NamUs hot-link cleanly; populate just `url` for those.
+  - In dev, a `console.warn` fires when the policy trips so you'll see it in Metro before it ships.
 - [ ] Publish the Privacy Policy + TOS + Takedown + Account-deletion pages on coldfile.app/legal/* (must match the in-app copy verbatim).
 - [ ] Configure the Supabase `delete_my_account` RPC (cascade user-owned rows + drop auth.users entry).
 - [ ] Configure Supabase Auth → URL Configuration → add `coldfile://auth-callback` to Redirect URLs.

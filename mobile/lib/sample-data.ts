@@ -1029,4 +1029,95 @@ export const SAMPLE_TIP_ROUTES_BY_SLUG: Record<string, SampleTipRoute[]> = {
       recommended: true,
     },
   ],
+
+  // ── Real LA County cases — routes derived from each case's agency context.
+  //    For joint-jurisdiction cases (Abdelkader = FBI + LASD) we surface BOTH
+  //    agencies as separate routes; the user picks. The ROUTES TO list
+  //    grows/shrinks with the case — the structure is the data, not the
+  //    design. See feedback memory: routes-to is data-driven, not boilerplate.
+
+  'jonathan-aujay-1998-devils-punchbowl-ca': [
+    {
+      id: 'la-crime-stoppers',
+      agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
+      meta: 'Anonymous · routes to LASD detective · reward eligible',
+      recommended: true,
+    },
+    {
+      id: 'lasd-missing',
+      agency: { name: 'LASD Missing Persons Unit', short_name: 'LASD Missing' },
+      meta: '323-890-5500 · direct line',
+      recommended: false,
+    },
+  ],
+  'zaryn-armstead-2024-los-angeles-ca': [
+    {
+      id: 'la-crime-stoppers',
+      agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
+      meta: 'Anonymous · routes to LAPD · reward eligible',
+      recommended: true,
+    },
+    {
+      id: 'lapd-missing',
+      agency: { name: 'LAPD Missing Persons Unit', short_name: 'LAPD Missing' },
+      meta: '213-996-1800',
+      recommended: false,
+    },
+    {
+      id: 'namus-form',
+      agency: { name: 'NamUs Tipline', short_name: 'NamUs' },
+      meta: 'Specialized — case is in NamUs',
+      recommended: false,
+    },
+  ],
+  'doe-up125280-2024-los-angeles-county-ca': [
+    {
+      id: 'namus-form',
+      agency: { name: 'NamUs Tipline', short_name: 'NamUs' },
+      meta: 'Specialized for unidentified persons',
+      recommended: true,
+    },
+    {
+      id: 'lasd-coroner',
+      agency: { name: 'LASD / LA County Coroner', short_name: 'LASD Coroner' },
+      meta: '323-343-0512',
+      recommended: false,
+    },
+  ],
+  // Joint FBI/LASD case — both routes surface. The "ROUTES TO" UX makes the
+  // joint nature visible to the user before they tap.
+  'robert-abdelkader-iii-2024-compton-ca': [
+    {
+      id: 'fbi-tip',
+      agency: { name: 'FBI Los Angeles', short_name: 'FBI LA' },
+      meta: 'Lead agency · $20,000 reward · 1-800-CALL-FBI',
+      recommended: true,
+    },
+    {
+      id: 'lasd-homicide',
+      agency: { name: 'LASD Homicide Bureau', short_name: 'LASD Homicide' },
+      meta: 'Cosignatory · 323-890-5500',
+      recommended: false,
+    },
+    {
+      id: 'la-crime-stoppers',
+      agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
+      meta: 'Anonymous · reward eligible',
+      recommended: false,
+    },
+  ],
+  'carlos-alvarez-diaz-2022-hawaiian-gardens-ca': [
+    {
+      id: 'la-crime-stoppers',
+      agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
+      meta: 'Anonymous · routes to LASD · $30,000 reward',
+      recommended: true,
+    },
+    {
+      id: 'lasd-homicide',
+      agency: { name: 'LASD Homicide Bureau', short_name: 'LASD Homicide' },
+      meta: '323-890-5500',
+      recommended: false,
+    },
+  ],
 };

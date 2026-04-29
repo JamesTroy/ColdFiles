@@ -38,6 +38,7 @@ import { useCaseDetail } from '@/lib/hooks/use-case-detail';
 import { useFreshReceiptCount } from '@/lib/hooks/use-fresh-receipt';
 import { useIsSaved } from '@/lib/hooks/use-saved-cases';
 import { useSubmittedTip } from '@/lib/hooks/use-submitted-tips';
+import { effectivePhotoUri } from '@/lib/photo-policy';
 import type { CaseMediaRow, CaseRowFull, CaseSourceRow } from '@/lib/types/database';
 
 const KIND_DISPLAY: Record<CaseRowFull['kind'], string> = {
@@ -153,8 +154,7 @@ export default function CaseDetailScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
         <PhotoFrame
-          uri={primaryMedia?.url ?? null}
-          mirrorUri={primaryMedia?.mirror_url ?? null}
+          uri={effectivePhotoUri(primaryMedia)}
           caption={photoCaption}
           isReconstruction={primaryMedia?.is_reconstruction ?? false}
           displayWarning={primaryMedia?.display_warning ?? null}

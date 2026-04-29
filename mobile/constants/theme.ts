@@ -204,13 +204,19 @@ export const tokens = {
     },
     /** Per-case override beats agency default beats federal fallback. */
     routeResolutionOrder: ['case', 'agency', 'fbi'] as const,
-    /** Trust-disclosure surfaces — required, not optional. The redundancy is the point. */
+    /**
+     * Trust-disclosure surfaces — required, not optional. The redundancy is
+     * the point. The "what you share with them" clause is load-bearing: it
+     * keeps our promise scoped honestly to what we control (routing) rather
+     * than implying we control the agency's intake form. Agencies collect
+     * what they collect — that's between the user and the agency, not us.
+     */
     disclosureSurfaces: {
       caseDetailCaption: 'Tips route to the agency · The Cold File never stores them',
       modal: (agencyName: string): string =>
-        `Routes directly to ${agencyName}. The Cold File never reads, holds, or stores tip content.`,
+        `Routes directly to ${agencyName}. The Cold File never reads, holds, or stores your tip. What you share with them is between you and the agency.`,
       success: (agencyName: string): string =>
-        `Routes directly to ${agencyName}. The Cold File never reads, holds, or stores tip content.`,
+        `Routes directly to ${agencyName}. The Cold File never reads, holds, or stores your tip.`,
     },
     /** Tip-success animation: 600ms total, ease-out — only sanctioned use of tip.success in-app. */
     successFlashMs: { in: 200, hold: 100, out: 300 },

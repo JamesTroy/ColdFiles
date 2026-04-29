@@ -6,15 +6,18 @@
  * centered serif em-dash — never a generic silhouette (which would feel
  * disrespectful for a victim).
  *
- * Three orthogonal states layer on top of the photo:
+ * The `uri` prop is the already-resolved URL — callers run `effectivePhotoUri`
+ * (lib/photo-policy.ts) to apply the per-source mirror policy upstream.
+ * PhotoFrame just renders what it's given; em-dash if null. This keeps the
+ * no-hot-link rule for Charley / Doe enforced at one chokepoint.
+ *
+ * Two orthogonal states layer on top of the photo:
  *   - is_reconstruction → "FORENSIC RECONSTRUCTION" pill in the top-left so
  *     users tapping a Doe pin don't mistake artist's rendering for a real
- *     photo. Always visible, even without a warning.
+ *     photo. Always visible, even when the warning gate is up.
  *   - display_warning → tap-to-reveal gate. The photo renders blurred + dark
  *     until the user taps "View image"; lets us carry sensitive material
  *     without ambushing anyone with it on first scroll.
- *   - mirror_url → preferred over `url` when set (canonical CDN may rate-
- *     limit or 404 over time; mirror is the durable copy).
  *
  * See docs/04_DESIGN_SYSTEM.md "Hero photo frame".
  */
@@ -29,13 +32,11 @@ import { tokens } from '@/constants/theme';
 import { Mono, MonoLabel, SansBody, SerifTitle } from './text';
 
 interface PhotoFrameProps {
-  /** Canonical photo URL. When null, the em-dash placeholder renders. */
-  uri: string | null;
   /**
-   * Cached copy in our own storage. Preferred over `uri` when set, so
-   * canonical-source rate limits or takedowns don't break the case page.
+   * Resolved photo URL (caller passes the result of `effectivePhotoUri`,
+   * which applies the per-source mirror policy). Null → em-dash renders.
    */
-  mirrorUri?: string | null;
+  uri: string | null;
   /** Caption format: "PHOTO {NN} · {SOURCE_NAME} · {YEAR}". */
   caption: string;
   /**
@@ -57,15 +58,13 @@ const BRACKET_ARM = 14;
 
 export function PhotoFrame({
   uri,
-  mirrorUri,
   caption,
   isReconstruction = false,
   displayWarning = null,
   height = 200,
 }: PhotoFrameProps): ReactElement {
   const [revealed, setRevealed] = useState(false);
-  const effectiveUri = mirrorUri ?? uri;
-  const gateActive = !!displayWarning && !revealed && !!effectiveUri;
+  const gateActive = !!displayWarning && !revealed && !!uri;
 
   return (
     <View
@@ -79,9 +78,9 @@ export function PhotoFrame({
         backgroundColor: tokens.color.bg.elev1,
       }}
     >
-      {effectiveUri ? (
+      {uri ? (
         <Image
-          source={{ uri: effectiveUri }}
+          source={{ uri }}
           style={{ width: '100%', height: '100%' }}
           resizeMode="cover"
           blurRadius={gateActive ? 28 : 0}
@@ -105,13 +104,18 @@ export function PhotoFrame({
       )}
 
       <CornerBrackets />
-      {isReconstruction ? <ReconstructionPill /> : null}
       {gateActive ? (
         <WarningGate
           warning={displayWarning!}
           onReveal={() => setRevealed(true)}
         />
       ) : null}
+      {/* ReconstructionPill renders AFTER the gate so the label stays
+          visible OVER the dark cover. A user tapping a Doe case must know
+          the imagery behind the gate is artist-rendered, not a real photo —
+          otherwise they tap expecting a face and get an uncanny-valley
+          rendering. The label outside the gate removes that surprise. */}
+      {isReconstruction ? <ReconstructionPill /> : null}
       <CaptionStrip caption={caption} />
     </View>
   );

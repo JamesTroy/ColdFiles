@@ -22,7 +22,7 @@ import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
 import { useCaseList } from '@/lib/hooks/use-case-list';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
-import type { CaseRowMapNear } from '@/lib/types/database';
+import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
 const FRESH_DAY_LIMIT = 10;
 
@@ -147,7 +147,7 @@ function CaseListRow({
         },
       ]}
     >
-      <Thumbnail hasPhoto={row.has_photo} />
+      <Thumbnail hasPhoto={row.has_photo} kind={row.kind} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {showFreshDot && isFresh ? <FreshDot /> : null}
@@ -174,7 +174,18 @@ function CaseListRow({
   );
 }
 
-function Thumbnail({ hasPhoto }: { hasPhoto: boolean }) {
+function Thumbnail({
+  hasPhoto,
+  kind,
+}: {
+  hasPhoto: boolean;
+  kind: CaseKind;
+}) {
+  // Doe / unidentified rows render the thumbnail dimmed at scan level so
+  // users get a "this case has sensitive material" signal before tapping.
+  // The case-detail PhotoFrame still gates the actual photo behind a tap;
+  // this is the *list-level* foreshadowing, one layer earlier in the flow.
+  const isDoe = kind === 'unidentified' || kind === 'unclaimed';
   return (
     <View
       style={{
@@ -187,6 +198,7 @@ function Thumbnail({ hasPhoto }: { hasPhoto: boolean }) {
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
+        opacity: isDoe ? 0.5 : 1,
       }}
     >
       {hasPhoto ? (
