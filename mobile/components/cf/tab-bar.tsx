@@ -52,10 +52,16 @@ export function CFTabBar({ state, navigation }: BottomTabBarProps): ReactElement
         if (!config) return null;
         const isFocused = state.index === index;
 
-        const onPress = () => {
+        const onPressIn = () => {
+          // Haptic on press-in (not press) so the tactile cue lands the same
+          // moment the visual press state engages — feels snappier than
+          // waiting for the press-up event.
           Haptics.selectionAsync().catch(() => {
             /* no haptics on this device — silent */
           });
+        };
+
+        const onPress = () => {
           const event = navigation.emit({
             type: 'tabPress',
             target: route.key,
@@ -74,6 +80,7 @@ export function CFTabBar({ state, navigation }: BottomTabBarProps): ReactElement
           <Pressable
             key={route.key}
             onPress={onPress}
+            onPressIn={onPressIn}
             accessibilityRole="button"
             accessibilityState={{ selected: isFocused }}
             accessibilityLabel={config.label}

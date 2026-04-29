@@ -78,13 +78,13 @@ export default function MeScreen() {
               <Row
                 label="Sign out"
                 value="→"
-                valueColor={tokens.color.tip.success}
+                valueColor={tokens.color.text.secondary}
                 onPress={handleSignOut}
               />
               <Row
                 label="Delete account"
                 value="→"
-                valueColor={tokens.color.tip.success}
+                valueColor={tokens.color.text.secondary}
                 onPress={() => router.push('/delete-account')}
               />
             </>
@@ -148,10 +148,10 @@ export default function MeScreen() {
         <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
           <MonoLabel
             size={tokens.size.monoLabel}
-            color={tokens.color.evidence.chrome}
+            color={tokens.color.text.secondary}
             style={{ lineHeight: 18 }}
           >
-            THE COLD FILE · v0.1.0 (prototype){'\n'}MATTE BLACK DEV LLC · VENTURA, CA
+            THE COLD FILE · v1.0.0{'\n'}MATTE BLACK DEV LLC · VENTURA, CA
           </MonoLabel>
         </View>
       </ScrollView>

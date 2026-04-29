@@ -14,6 +14,7 @@
  * line is the meta affordance for surfaces without a key-facts table.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, View } from 'react-native';
 
 import { tokens } from '@/constants/theme';
@@ -29,6 +30,8 @@ interface PeekSheetProps {
   victimName: string;
   /** Tap anywhere on the sheet → opens the case detail. */
   onOpen: () => void;
+  /** Tap the X dismiss button → clears the pin selection. */
+  onDismiss?: () => void;
 }
 
 export function PeekSheet({
@@ -36,6 +39,7 @@ export function PeekSheet({
   kindLine,
   victimName,
   onOpen,
+  onDismiss,
 }: PeekSheetProps) {
   return (
     <Pressable
@@ -62,6 +66,36 @@ export function PeekSheet({
           marginBottom: 10,
         }}
       />
+
+      {/* Dismiss — top-right, only when caller wires onDismiss. The Pressable
+          stops propagation so tapping the X doesn't also fire the sheet's
+          onOpen. */}
+      {onDismiss ? (
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onDismiss();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Close preview"
+          hitSlop={12}
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 12,
+            width: 28,
+            height: 28,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons
+            name="close"
+            size={18}
+            color={tokens.color.text.secondary}
+          />
+        </Pressable>
+      ) : null}
 
       {/* Section label row */}
       <View

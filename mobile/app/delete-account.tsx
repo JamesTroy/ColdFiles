@@ -171,7 +171,7 @@ export default function DeleteAccountScreen() {
               <SansBody
                 style={{
                   marginTop: 18,
-                  color: tokens.color.tip.success,
+                  color: tokens.color.text.secondary,
                   fontSize: tokens.size.meta,
                 }}
               >

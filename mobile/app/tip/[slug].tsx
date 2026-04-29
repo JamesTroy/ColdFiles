@@ -26,6 +26,8 @@ import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   TextInput,
@@ -140,8 +142,14 @@ export default function TipModalScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 200 }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: tokens.color.bg.base }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 200 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <View
           style={{
             alignSelf: 'center',
@@ -292,7 +300,7 @@ export default function TipModalScreen() {
           />
         )}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

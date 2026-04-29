@@ -171,7 +171,10 @@ export default function CaseDetailScreen() {
           ) : null}
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-            <UnsolvedPill />
+            {c.status === 'open' ? <UnsolvedPill /> : null}
+            {/* ResolvedPill rendering deferred to v1.0.1 — cases table lacks
+                a resolved_at column to source the year. Closed-testing seed
+                is all status='open' so the branch is never visible. */}
             <ColdPill text={coldText} />
           </View>
         </View>
@@ -464,10 +467,15 @@ function primaryMediaRow(media: CaseMediaRow[]): CaseMediaRow | null {
  */
 function buildPhotoCaption(c: CaseRowFull, primary: CaseMediaRow | null): string {
   const sourceLabel = 'PHOTO 01'; // numbering when we surface a gallery
+  // Honest attribution: when neither the media row nor the case carries
+  // provenance, render "ATTRIBUTION PENDING" rather than the lazy "CASE
+  // FILE" fallback. This makes seed-data gaps visible instead of papering
+  // over them — the photo policy treats attribution as mandatory, not
+  // optional.
   const attribution =
     primary?.source_attribution?.toUpperCase() ??
     c.primary_agency?.name?.toUpperCase() ??
-    'CASE FILE';
+    'ATTRIBUTION PENDING';
   const year = c.incident_date ? c.incident_date.slice(0, 4) : '—';
   return `${sourceLabel} · ${attribution} · ${year}`;
 }

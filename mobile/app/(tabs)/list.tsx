@@ -53,10 +53,10 @@ export default function ListScreen() {
         </View>
         <MonoLabel
           size={tokens.size.monoLabel}
-          color={tokens.color.evidence.chrome}
+          color={tokens.color.text.secondary}
           style={{ marginTop: 4 }}
         >
-          {`${rows.length} WITHIN 25 MI · SORTED BY RECENCY`}
+          {`${rows.length} ${rows.length === 1 ? 'CASE' : 'CASES'} · SORTED BY RECENCY`}
         </MonoLabel>
       </View>
 

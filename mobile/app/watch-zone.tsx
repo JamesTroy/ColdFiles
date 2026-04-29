@@ -14,7 +14,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA } from '@/components/cf/cta-button';
@@ -63,7 +63,10 @@ export default function WatchZoneScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: tokens.color.bg.base }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       {/* Top chrome with back arrow */}
       <View
         style={{
@@ -111,7 +114,10 @@ export default function WatchZoneScreen() {
         <PremiumPill />
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 24 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {isNativeMapAvailable() ? <ZoneMapNativePreview /> : <ZoneMapLeafletPreview />}
 
         <SectionLabel>ZONE NAME</SectionLabel>
@@ -177,7 +183,7 @@ export default function WatchZoneScreen() {
       >
         <AmberCTA label="Save zone" onPress={() => router.back()} />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

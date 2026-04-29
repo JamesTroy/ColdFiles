@@ -75,9 +75,12 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [stepIndex, setStepIndex] = useState(0);
   const { complete } = useOnboarding();
-  const { requestAndAcquire } = useHere();
+  const { requestAndAcquire, acquiring } = useHere();
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
+  // SKIP is hidden on step 0 — the content-warning at step 1 is required
+  // viewing for the 17+ rating disclosure.
+  const showSkip = stepIndex > 0;
 
   const finish = async () => {
     await complete();
@@ -104,30 +107,53 @@ export default function OnboardingScreen() {
         paddingHorizontal: 16,
       }}
     >
-      {/* Top: skip + progress dots */}
+      {/* Top: back chevron (left, hidden on step 0) · progress dots (center) · skip (right, hidden on step 0).
+          The 32px reserved spacers preserve dot centering across step changes
+          so the layout doesn't jiggle when chevron/skip appear. */}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
           marginBottom: 32,
+          minHeight: 32,
         }}
       >
-        <ProgressDots count={STEPS.length} active={stepIndex} />
-        <Pressable
-          onPress={() => void finish()}
-          accessibilityLabel="Skip onboarding"
-          accessibilityRole="button"
-          hitSlop={12}
-        >
-          <MonoLabel
-            size={tokens.size.monoChip}
-            tracking={tokens.tracking.chip}
-            color={tokens.color.text.secondary}
+        {stepIndex > 0 ? (
+          <Pressable
+            onPress={() => setStepIndex((i) => i - 1)}
+            accessibilityLabel="Previous step"
+            accessibilityRole="button"
+            hitSlop={12}
+            style={{ width: 32, alignItems: 'flex-start' }}
           >
-            SKIP
-          </MonoLabel>
-        </Pressable>
+            <Ionicons name="chevron-back" size={20} color={tokens.color.text.secondary} />
+          </Pressable>
+        ) : (
+          <View style={{ width: 32 }} />
+        )}
+
+        <ProgressDots count={STEPS.length} active={stepIndex} />
+
+        {showSkip ? (
+          <Pressable
+            onPress={() => void finish()}
+            accessibilityLabel="Skip onboarding"
+            accessibilityRole="button"
+            hitSlop={12}
+            style={{ width: 32, alignItems: 'flex-end' }}
+          >
+            <MonoLabel
+              size={tokens.size.monoChip}
+              tracking={tokens.tracking.chip}
+              color={tokens.color.text.secondary}
+            >
+              SKIP
+            </MonoLabel>
+          </Pressable>
+        ) : (
+          <View style={{ width: 32 }} />
+        )}
       </View>
 
       {/* Body */}
@@ -163,7 +189,11 @@ export default function OnboardingScreen() {
 
       {/* CTAs */}
       <View style={{ gap: 12 }}>
-        <AmberCTA label={step.primaryLabel} onPress={() => void handlePrimary()} />
+        <AmberCTA
+          label={step.primaryLabel}
+          loading={isLast && acquiring}
+          onPress={() => void handlePrimary()}
+        />
         {step.secondaryLabel ? (
           <Pressable
             onPress={() => void finish()}
@@ -189,18 +219,6 @@ export default function OnboardingScreen() {
         ) : null}
       </View>
 
-      {/* Back chevron — only shows after step 1 */}
-      {stepIndex > 0 ? (
-        <Pressable
-          onPress={() => setStepIndex((i) => i - 1)}
-          accessibilityLabel="Previous step"
-          accessibilityRole="button"
-          hitSlop={12}
-          style={{ position: 'absolute', top: insets.top + 8, left: 0, padding: 16 }}
-        >
-          <Ionicons name="chevron-back" size={20} color={tokens.color.text.secondary} />
-        </Pressable>
-      ) : null}
     </View>
   );
 }

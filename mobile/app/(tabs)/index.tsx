@@ -20,6 +20,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/cf/empty-state';
+import { ErrorState } from '@/components/cf/error-state';
 import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
 import {
   MapsView,
@@ -67,6 +68,8 @@ export default function MapScreen() {
   const {
     data: cases,
     loading,
+    error,
+    refetch,
     source,
   } = useCasesNear({
     lat: here.lat,
@@ -165,7 +168,13 @@ export default function MapScreen() {
             here={here}
           />
         )}
-        {!loading && cases.length === 0 ? (
+        {error && cases.length === 0 ? (
+          <ErrorState
+            title="Couldn't load cases."
+            detail={error.message}
+            onRetry={refetch}
+          />
+        ) : !loading && cases.length === 0 ? (
           <EmptyState
             variant={filter === 'all' ? 'no-cases-in-region' : 'no-matches'}
           />
@@ -208,6 +217,7 @@ export default function MapScreen() {
           kindLine={kindLine(selectedCase)}
           victimName={peekDisplayName(selectedCase)}
           onOpen={() => router.push(`/case/${selectedCase.slug}`)}
+          onDismiss={() => setSelectedSlug(null)}
         />
       ) : null}
     </View>

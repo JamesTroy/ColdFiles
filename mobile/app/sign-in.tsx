@@ -15,7 +15,10 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
+  ScrollView,
   TextInput,
   View,
 } from 'react-native';
@@ -62,7 +65,10 @@ export default function SignInScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: tokens.color.bg.base }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View
         style={{
           paddingTop: insets.top + 6,
@@ -108,7 +114,16 @@ export default function SignInScreen() {
         </View>
       </View>
 
-      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 24 }}>
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: 16,
+          paddingTop: 24,
+          paddingBottom: 32,
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {!authAvailable ? (
           <NarrativeText style={{ color: tokens.color.text.secondary }}>
             Sign-in requires backend configuration. The app is currently running in
@@ -175,7 +190,7 @@ export default function SignInScreen() {
               <SansBody
                 style={{
                   marginTop: 10,
-                  color: tokens.color.tip.success,
+                  color: tokens.color.text.secondary,
                   fontSize: tokens.size.meta,
                 }}
               >
@@ -203,7 +218,7 @@ export default function SignInScreen() {
             </NarrativeText>
           </>
         )}
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
