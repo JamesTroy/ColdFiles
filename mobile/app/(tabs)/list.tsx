@@ -1,30 +1,91 @@
 /**
- * List tab — recent + all-cases-near-you.
+ * List tab — case-file index, browse by recency.
  *
- * Layout (matches prototype):
- *   - Header: "Cases" (serif) + "{N} within 25 mi · sorted by recency" (mono)
- *   - RECENTLY UPDATED section — top 4 sorted by last_changed_days asc
- *   - ALL CASES NEAR YOU section — the rest
- *   - Each row: 56px thumbnail (photo silhouette or serif em-dash), serif name
- *     with optional pulsing recency dot, mono kindline below, meta line with
- *     cold pill + occupation/circumstance, distance and update-age line
+ * Three behaviors that distinguish this from the previous fixed-N "Recently
+ * Updated / All Cases" split:
+ *
+ *   1. Filter chip row at the top, mirroring the Map tab. Same chips, same
+ *      data source, client-side filter. Switching between Map and List
+ *      preserves the filter mental model.
+ *
+ *   2. Date buckets — UPDATED TODAY / UPDATED THIS WEEK / UPDATED THIS MONTH
+ *      / OLDER. The "UPDATED" prefix is load-bearing; bare "TODAY" would
+ *      misframe cold-case data as "things that happened today," which is a
+ *      brutally wrong reading of this dataset. Empty buckets render a quiet
+ *      "NONE THIS WEEK" strip instead of disappearing — the absence is
+ *      information, telling the user the cadence of the dataset rather
+ *      than hiding the silence.
+ *
+ *   3. Pull-to-refresh. The fresh-dot stops feeling magical and starts
+ *      feeling controllable. Pairs with the bucketing semantic so the
+ *      freshness signal is user-driven from day one.
+ *
+ * Two design decisions worth naming, since they'll come under pressure later:
+ *
+ *   - If you're considering adding a bookmark star inline on List rows,
+ *     here's why we didn't: saving is a deliberate-attention action, not a
+ *     list-skim action. The case-detail page is the site of attention; the
+ *     star lives there because it requires the user to have read the case
+ *     before deciding to follow it. Inline saving from a list invites
+ *     accidental saves and creates the infinite-saved-cases anti-pattern
+ *     (Twitter/X follows the same pattern — bookmarks live inside a tweet's
+ *     detail view, not on the timeline).
+ *
+ *   - If you're considering adding a search field on the List tab, here's
+ *     why we didn't: global search has one anchor — the Map tab top-right.
+ *     Duplicating it on List splits where users go to find things. The
+ *     relief valve, if friction shows up in feedback, is making global
+ *     search reachable from a stable cross-tab anchor (search field in
+ *     the bottom tab bar, swipe gesture, etc.) — not adding a second site.
  */
 
 import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Ellipse, Rect } from 'react-native-svg';
 
+import { CaseRow } from '@/components/cf/case-row';
 import { ErrorState } from '@/components/cf/error-state';
-import { MonoLabel, SansBody, SansMedium, SerifTitle } from '@/components/cf/text';
+import { FilterChip } from '@/components/cf/pill';
+import { MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
-import { kindLine } from '@/lib/format';
 import { useCaseList } from '@/lib/hooks/use-case-list';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
-const FRESH_DAY_LIMIT = 10;
+type Filter = 'all' | 'homicide' | 'missing' | 'unidentified';
+
+const KIND_FILTER: Record<Filter, CaseKind[] | null> = {
+  all: null,
+  homicide: ['homicide', 'suspicious_death'],
+  missing: ['missing'],
+  unidentified: ['unidentified', 'unclaimed'],
+};
+
+type Bucket = 'today' | 'week' | 'month' | 'older';
+
+const BUCKET_ORDER: Bucket[] = ['today', 'week', 'month', 'older'];
+
+const BUCKET_LABEL: Record<Bucket, string> = {
+  today: 'UPDATED TODAY',
+  week: 'UPDATED THIS WEEK',
+  month: 'UPDATED THIS MONTH',
+  older: 'OLDER',
+};
+
+const BUCKET_EMPTY_LABEL: Record<Bucket, string> = {
+  today: 'NONE TODAY',
+  week: 'NONE THIS WEEK',
+  month: 'NONE THIS MONTH',
+  // OLDER never empties in practice — and an empty older bucket means there's
+  // no dataset at all, which is the root EmptyState's job. Skip the strip.
+  older: '',
+};
 
 /** Mirrors the map's stepwise recency_alpha → day-count translation. */
 function alphaToDays(alpha: number | null): number | null {
@@ -34,32 +95,79 @@ function alphaToDays(alpha: number | null): number | null {
   return null;
 }
 
+function bucketFor(days: number): Bucket {
+  if (days <= 1) return 'today';
+  if (days <= 7) return 'week';
+  if (days <= 31) return 'month';
+  return 'older';
+}
+
 export default function ListScreen() {
   const insets = useSafeAreaInsets();
-  const { data: rows, loading, error, source, refetch } = useCaseList({ limit: 100 });
+  const [filter, setFilter] = useState<Filter>('all');
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { recent, rest } = useMemo(() => {
-    const enriched = rows.map((r) => ({
-      row: r,
-      // SAMPLE_LAST_CHANGED_DAYS only covers the seed-six fixture slugs.
-      // For real RPC rows fall through to recency_alpha (server-computed:
-      // ≥0.99 → fresh, ≥0.49 → this week, else stale). 999 is the explicit
-      // "no recency signal" sentinel so the row sorts to the bottom.
-      days:
-        SAMPLE_LAST_CHANGED_DAYS[r.slug] ??
-        alphaToDays(r.recency_alpha) ??
-        999,
-    }));
-    enriched.sort((a, b) => a.days - b.days);
-    return {
-      recent: enriched.slice(0, 4),
-      rest: enriched.slice(4),
-    };
+  // Pulls all cases unfiltered so chip counts can preview selectivity (same
+  // pattern as the Map tab). The kind filter is then applied client-side.
+  const { data: rows, loading, error, source, refetch } = useCaseList({
+    kinds: null,
+    limit: 100,
+  });
+
+  const counts = useMemo(() => {
+    const c = { all: rows.length, homicide: 0, missing: 0, unidentified: 0 };
+    for (const r of rows) {
+      if (r.kind === 'homicide' || r.kind === 'suspicious_death') c.homicide += 1;
+      else if (r.kind === 'missing') c.missing += 1;
+      else if (r.kind === 'unidentified' || r.kind === 'unclaimed') c.unidentified += 1;
+    }
+    return c;
   }, [rows]);
+
+  const filtered = useMemo(() => {
+    const allowed = KIND_FILTER[filter];
+    if (!allowed) return rows;
+    return rows.filter((r) => allowed.includes(r.kind));
+  }, [rows, filter]);
+
+  const buckets = useMemo(() => {
+    const grouped: Record<Bucket, { row: CaseRowMapNear; days: number }[]> = {
+      today: [],
+      week: [],
+      month: [],
+      older: [],
+    };
+    for (const row of filtered) {
+      const days =
+        SAMPLE_LAST_CHANGED_DAYS[row.slug] ??
+        alphaToDays(row.recency_alpha) ??
+        999;
+      grouped[bucketFor(days)].push({ row, days });
+    }
+    // Within each bucket, sort by days asc so the freshest item leads.
+    for (const b of BUCKET_ORDER) grouped[b].sort((a, b) => a.days - b.days);
+    return grouped;
+  }, [filtered]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    refetch();
+    // useCaseList flips loading=true on refresh; the RefreshControl spinner
+    // hides as soon as we drop refreshing back to false. 600ms gives the
+    // RPC time to land on a slow connection without the spinner flickering
+    // away before the data arrives.
+    setTimeout(() => setRefreshing(false), 600);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          paddingHorizontal: 16,
+          paddingBottom: 8,
+        }}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <SerifTitle size="h2" style={{ fontSize: 22 }}>
             Cases
@@ -71,9 +179,46 @@ export default function ListScreen() {
           color={tokens.color.text.secondary}
           style={{ marginTop: 4 }}
         >
-          {`${rows.length} ${rows.length === 1 ? 'CASE' : 'CASES'} · SORTED BY RECENCY`}
+          {filtered.length === rows.length
+            ? `${rows.length} ${rows.length === 1 ? 'CASE' : 'CASES'} · SORTED BY RECENCY`
+            : `${filtered.length} OF ${rows.length} CASES · SORTED BY RECENCY`}
         </MonoLabel>
       </View>
+
+      {/* Filter chip row.
+          flexGrow:0 + flexShrink:0 is load-bearing on Android Fabric — see
+          the matching note in (tabs)/index.tsx for the full story. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0, flexShrink: 0 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }}
+      >
+        <FilterChip
+          label="All"
+          count={loading ? undefined : counts.all}
+          active={filter === 'all'}
+          onPress={() => setFilter('all')}
+        />
+        <FilterChip
+          label="Homicide"
+          count={loading ? undefined : counts.homicide}
+          active={filter === 'homicide'}
+          onPress={() => setFilter('homicide')}
+        />
+        <FilterChip
+          label="Missing"
+          count={loading ? undefined : counts.missing}
+          active={filter === 'missing'}
+          onPress={() => setFilter('missing')}
+        />
+        <FilterChip
+          label="Doe"
+          count={loading ? undefined : counts.unidentified}
+          active={filter === 'unidentified'}
+          onPress={() => setFilter('unidentified')}
+        />
+      </ScrollView>
 
       {loading && rows.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -88,197 +233,87 @@ export default function ListScreen() {
       ) : rows.length === 0 ? (
         <EmptyState />
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-          {recent.length > 0 ? (
-            <SectionLabel>RECENTLY UPDATED</SectionLabel>
-          ) : null}
-          {recent.map(({ row, days }) => (
-            <CaseListRow key={row.slug} row={row} daysSinceUpdate={days} showFreshDot />
-          ))}
-
-          {rest.length > 0 ? (
-            <SectionLabel style={{ paddingTop: 22 }}>ALL CASES</SectionLabel>
-          ) : null}
-          {rest.map(({ row, days }) => (
-            <CaseListRow key={row.slug} row={row} daysSinceUpdate={days} />
-          ))}
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 24 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={tokens.color.accent.amber}
+              colors={[tokens.color.accent.amber]}
+              progressBackgroundColor={tokens.color.bg.elev1}
+            />
+          }
+        >
+          {BUCKET_ORDER.map((bucket) => {
+            const items = buckets[bucket];
+            if (items.length === 0) {
+              const emptyLabel = BUCKET_EMPTY_LABEL[bucket];
+              if (!emptyLabel) return null;
+              return <EmptyBucketStrip key={bucket} label={emptyLabel} />;
+            }
+            return (
+              <View key={bucket}>
+                <SectionLabel>{BUCKET_LABEL[bucket]}</SectionLabel>
+                {items.map(({ row, days }) => (
+                  <CaseRow
+                    key={row.slug}
+                    row={row}
+                    daysSinceUpdate={days}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/case/[slug]',
+                        params: { slug: row.slug },
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            );
+          })}
         </ScrollView>
       )}
     </View>
   );
 }
 
-function SectionLabel({
-  children,
-  style,
-}: {
-  children: string;
-  style?: object;
-}) {
+function SectionLabel({ children }: { children: string }) {
   return (
     <MonoLabel
       size={tokens.size.monoLabel}
       tracking={tokens.tracking.label}
       color={tokens.color.text.secondary}
-      style={[{ paddingHorizontal: 18, paddingTop: 16, paddingBottom: 8 }, style]}
+      style={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 8 }}
     >
       {children}
     </MonoLabel>
   );
 }
 
-function CaseListRow({
-  row,
-  daysSinceUpdate,
-  showFreshDot,
-}: {
-  row: CaseRowMapNear;
-  daysSinceUpdate: number;
-  showFreshDot?: boolean;
-}) {
-  const display = displayName(row);
-  const isFresh = daysSinceUpdate <= FRESH_DAY_LIMIT;
-  const updateText =
-    daysSinceUpdate <= 3
-      ? 'updated today'
-      : daysSinceUpdate <= 10
-        ? 'updated this week'
-        : agencyShortName(row);
-  const distance = row.distance_miles?.toFixed(1) ?? '—';
-
-  return (
-    <Pressable
-      onPress={() => router.push(`/case/${row.slug}`)}
-      style={({ pressed }) => [
-        {
-          paddingHorizontal: 18,
-          paddingVertical: 14,
-          borderBottomWidth: 0.5,
-          borderBottomColor: tokens.color.border.subtle,
-          opacity: pressed ? 0.7 : 1,
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          gap: 14,
-        },
-      ]}
-    >
-      <Thumbnail hasPhoto={row.has_photo} kind={row.kind} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {showFreshDot && isFresh ? <FreshDot /> : null}
-          <SansMedium style={{ flexShrink: 1 }}>{display}</SansMedium>
-        </View>
-        <MonoLabel
-          size={tokens.size.monoLabel}
-          tracking={tokens.tracking.label}
-          color={tokens.color.text.secondary}
-          style={{ marginTop: 4 }}
-        >
-          {kindLine(row)}
-        </MonoLabel>
-        <MonoLabel
-          size={11}
-          color={tokens.color.text.disabled}
-          tracking={0}
-          style={{ marginTop: 6 }}
-        >
-          {`${distance} mi · ${updateText}`}
-        </MonoLabel>
-      </View>
-    </Pressable>
-  );
-}
-
-function Thumbnail({
-  hasPhoto,
-  kind,
-}: {
-  hasPhoto: boolean;
-  kind: CaseKind;
-}) {
-  // Doe / unidentified rows render the thumbnail dimmed at scan level so
-  // users get a "this case has sensitive material" signal before tapping.
-  // The case-detail PhotoFrame still gates the actual photo behind a tap;
-  // this is the *list-level* foreshadowing, one layer earlier in the flow.
-  const isDoe = kind === 'unidentified' || kind === 'unclaimed';
+/**
+ * Empty-bucket strip — the absence is information, not a layout problem.
+ * A casual user opening the app and seeing TODAY · NONE / THIS WEEK · 2 /
+ * THIS MONTH · 18 learns more about how cold-case data moves than they
+ * would from any onboarding screen.
+ */
+function EmptyBucketStrip({ label }: { label: string }) {
   return (
     <View
       style={{
-        width: 56,
-        height: 56,
-        borderRadius: 4,
-        backgroundColor: tokens.color.bg.elev1,
-        borderWidth: 0.5,
-        borderColor: tokens.color.border.strong,
-        overflow: 'hidden',
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: isDoe ? 0.5 : 1,
+        paddingHorizontal: 18,
+        paddingTop: 18,
+        paddingBottom: 6,
       }}
     >
-      {hasPhoto ? (
-        <Svg width="56" height="56" viewBox="0 0 56 56">
-          <Rect width="56" height="56" fill={tokens.color.silhouette.bg} />
-          <Ellipse cx="28" cy="22" rx="10" ry="12" fill={tokens.color.silhouette.figure} />
-          <Ellipse cx="28" cy="46" rx="14" ry="11" fill={tokens.color.silhouette.figure} />
-        </Svg>
-      ) : (
-        <SerifTitle
-          size="h1"
-          style={{ fontSize: 28, color: tokens.color.text.secondary, lineHeight: 28 }}
-        >
-          —
-        </SerifTitle>
-      )}
+      <MonoLabel
+        size={tokens.size.monoLabel}
+        tracking={tokens.tracking.label}
+        color={tokens.color.text.disabled}
+      >
+        {label}
+      </MonoLabel>
     </View>
   );
-}
-
-function FreshDot() {
-  return (
-    <View
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: tokens.color.accent.amberHot,
-        marginRight: 8,
-      }}
-    />
-  );
-}
-
-function agencyShortName(row: CaseRowMapNear): string {
-  if (!row.primary_agency_name) return '';
-  // Tier 1: leading uppercase abbreviation. "FBI Tip Line" → "FBI".
-  const abbrev = row.primary_agency_name.match(/^[A-Z]{2,5}\b/);
-  if (abbrev) return abbrev[0];
-  // Tier 2: parenthetical abbreviation. "California ... (MUPS)" → "MUPS".
-  const paren = row.primary_agency_name.match(/\(([A-Z]{2,6})\)/);
-  if (paren) return paren[1];
-  // Tier 3: initialism built from significant capitalized words.
-  // "Los Angeles County Sheriff's Department" → "LACSD".
-  const initials = row.primary_agency_name
-    .split(/[\s—–-]+/)
-    .filter((w) => /^[A-Z]/.test(w) && !['Of', 'The', 'And', 'For'].includes(w))
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 5);
-  if (initials.length >= 3) return initials;
-  // Tier 4: word-boundary truncation, never mid-word.
-  const before = row.primary_agency_name.split(/[—·]/)[0]?.trim() ?? '';
-  if (before.length <= 24) return before;
-  const truncated = before.slice(0, 24);
-  const lastSpace = truncated.lastIndexOf(' ');
-  return lastSpace > 12 ? truncated.slice(0, lastSpace) + '…' : truncated + '…';
-}
-
-function displayName(row: CaseRowMapNear): string {
-  if (row.victim_name) return row.victim_name;
-  if (row.kind === 'unidentified' || row.kind === 'unclaimed') {
-    return 'Unidentified person';
-  }
-  return 'Name not released';
 }
 
 function SampleTag() {
@@ -311,14 +346,37 @@ function EmptyState() {
         gap: 14,
       }}
     >
-      <SerifTitle
-        size="h1"
-        style={{ fontSize: 48, color: tokens.color.text.secondary }}
+      <View
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 32,
+          backgroundColor: tokens.color.bg.elev1,
+          borderWidth: 0.5,
+          borderColor: tokens.color.border.strong,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
-        —
+        <SerifTitle
+          size="h1"
+          style={{ fontSize: 28, color: tokens.color.text.secondary, lineHeight: 28 }}
+        >
+          —
+        </SerifTitle>
+      </View>
+      <SerifTitle size="h2" style={{ fontSize: 20 }}>
+        No cases yet
       </SerifTitle>
-      <SansBody style={{ color: tokens.color.text.secondary, textAlign: 'center' }}>
-        No cases match the current filters.
+      <SansBody
+        style={{
+          color: tokens.color.text.secondary,
+          textAlign: 'center',
+          lineHeight: tokens.size.body * 1.55,
+          maxWidth: 280,
+        }}
+      >
+        The dataset is still building. Pull down to refresh.
       </SansBody>
     </View>
   );
