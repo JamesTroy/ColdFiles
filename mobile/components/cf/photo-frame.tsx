@@ -171,7 +171,7 @@ function WarningGate({
           top: 0,
           left: 0,
           right: 0,
-          bottom: 28, // sit above the caption strip
+          bottom: 44, // sit above the two-line ledger caption strip
           backgroundColor: 'rgba(10, 10, 10, 0.78)',
           alignItems: 'center',
           justifyContent: 'center',
@@ -242,7 +242,44 @@ function CornerBrackets() {
   );
 }
 
-function CaptionStrip({ caption }: { caption: string }) {
+/**
+ * Two-line ledger caption — evidence-tag rhythm.
+ *
+ * Line 1 (10px mono, evidence.chrome): identifier + source.
+ *   PHOTO 01 / LASD HOMICIDE BUREAU
+ *
+ * Line 2 (8px mono 70% alpha): contextual metadata.
+ *   1985  (or "1985 · CONTACT SHEET 03 · FRAME 12" once those fields ship)
+ *
+ * Backwards-compat: callers may still pass a flat `caption` string; we
+ * split on " · " into primary/secondary so existing buildPhotoCaption()
+ * usage works without a migration. New callers should pass primaryLine +
+ * secondaryLine directly for full control.
+ */
+function CaptionStrip({
+  caption,
+  primaryLine,
+  secondaryLine,
+}: {
+  caption?: string;
+  primaryLine?: string;
+  secondaryLine?: string;
+}) {
+  let line1 = primaryLine ?? '';
+  let line2 = secondaryLine ?? '';
+  if (!line1 && caption) {
+    // Split "PHOTO 01 · {ATTRIBUTION} · {YEAR}" → "PHOTO 01 · ATTRIBUTION"
+    // on line 1, "YEAR" on line 2. Keeps the two-line aesthetic without
+    // forcing every call site to refactor immediately.
+    const parts = caption.split(' · ');
+    if (parts.length >= 3) {
+      line1 = parts.slice(0, parts.length - 1).join(' · ');
+      line2 = parts[parts.length - 1];
+    } else {
+      line1 = caption;
+    }
+  }
+
   return (
     <View
       pointerEvents="none"
@@ -251,19 +288,29 @@ function CaptionStrip({ caption }: { caption: string }) {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 28,
-        backgroundColor: 'rgba(0,0,0,0.65)',
-        justifyContent: 'center',
+        paddingTop: 8,
+        paddingBottom: 8,
         paddingHorizontal: 14,
+        backgroundColor: 'rgba(0,0,0,0.7)',
       }}
     >
       <MonoLabel
-        size={tokens.size.monoCaption}
-        tracking={tokens.tracking.chip}
-        color={tokens.color.text.secondary}
+        size={10}
+        tracking={tokens.tracking.label}
+        color={tokens.color.evidence.chrome}
       >
-        {caption}
+        {line1}
       </MonoLabel>
+      {line2 ? (
+        <MonoLabel
+          size={8}
+          tracking={0.12}
+          color={tokens.color.evidence.chrome}
+          style={{ marginTop: 2, opacity: 0.7 }}
+        >
+          {line2}
+        </MonoLabel>
+      ) : null}
     </View>
   );
 }

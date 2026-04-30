@@ -78,7 +78,7 @@ export function LeafletWatchZoneMap({
         <WebView
           ref={webRef}
           source={{ html }}
-          originWhitelist={['https://tile.openstreetmap.org', 'https://unpkg.com', 'about:blank']}
+          originWhitelist={['https://basemaps.cartocdn.com', 'https://a.basemaps.cartocdn.com', 'https://b.basemaps.cartocdn.com', 'https://c.basemaps.cartocdn.com', 'https://d.basemaps.cartocdn.com', 'https://unpkg.com', 'about:blank']}
           style={{
             width: size.width,
             height: size.height,
@@ -143,7 +143,7 @@ function buildHtml(
       -webkit-tap-highlight-color: transparent;
     }
     .leaflet-tile-pane {
-      filter: brightness(0.45) saturate(0.5) hue-rotate(-10deg) contrast(1.1);
+      filter: brightness(0.85) saturate(0.7);
     }
     .leaflet-control-attribution {
       background: rgba(10, 10, 10, 0.6) !important;
@@ -213,9 +213,12 @@ function buildHtml(
         tap: false,
       });
 
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // Mirror the main map's Carto Dark Matter basemap so the watch-zone
+      // preview reads as the same forensic-chart aesthetic.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap',
+        subdomains: 'abcd',
+        attribution: '© OpenStreetMap contributors, © CARTO',
       }).addTo(map);
 
       var vertices = ${JSON.stringify(polygonLatLngs)};

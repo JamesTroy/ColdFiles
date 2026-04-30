@@ -155,6 +155,12 @@ export function NarrativeText({ style, ...rest }: TextProps) {
           fontSize: tokens.size.narrative,
           lineHeight: tokens.size.narrative * 1.65,
           color: tokens.color.body.reading,
+          // Old-style (text) figures + proportional widths read as prose,
+          // not catalog. "in 1985 the body was found" wants 1, 8, 5 with
+          // their natural ascender/descender variation. Tabular lining
+          // figures stay reserved for Mono (case numbers, dates in the
+          // key-facts table) where column alignment matters.
+          fontVariant: ['oldstyle-nums', 'proportional-nums'],
         },
         style,
       ]}
