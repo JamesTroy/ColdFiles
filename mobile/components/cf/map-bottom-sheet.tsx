@@ -28,19 +28,16 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
-  type ReactNode,
 } from 'react';
 import { Pressable, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
-import Svg, { Ellipse, Rect } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
-import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
+import type { CaseRowMapNear } from '@/lib/types/database';
 
-import { MonoLabel, SansMedium, SerifTitle } from './text';
-
-const FRESH_DAY_LIMIT = 10;
+import { CaseRow } from './case-row';
+import { MonoLabel, SerifTitle } from './text';
 
 export interface MapBottomSheetHandle {
   /** Snap to peek (0), mid (1), or full (2). */
@@ -119,11 +116,17 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
     const renderItem = useCallback(
       ({ item }: { item: CaseRowMapNear }) => {
         return (
-          <CaseCard
+          <CaseRow
             row={item}
-            days={daysFor(item)}
+            daysSinceUpdate={daysFor(item)}
             highlighted={item.slug === selectedSlug}
-            onPress={() => router.push(`/case/${item.slug}`)}
+            withThumbnail
+            onPress={() =>
+              router.push({
+                pathname: '/case/[slug]',
+                params: { slug: item.slug },
+              })
+            }
           />
         );
       },
@@ -350,118 +353,6 @@ function WatchChip({
       )}
     </Pressable>
   );
-}
-
-interface CaseCardProps {
-  row: CaseRowMapNear;
-  days: number;
-  highlighted: boolean;
-  onPress: () => void;
-}
-
-function CaseCard({ row, days, highlighted, onPress }: CaseCardProps): ReactNode {
-  const display = displayName(row);
-  const isFresh = days <= FRESH_DAY_LIMIT;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        {
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          gap: 14,
-          paddingHorizontal: 18,
-          paddingVertical: 14,
-          borderBottomWidth: 0.5,
-          borderBottomColor: tokens.color.border.subtle,
-          opacity: pressed ? 0.7 : 1,
-          backgroundColor: highlighted ? tokens.color.bg.amberTintCard : 'transparent',
-        },
-      ]}
-    >
-      {/* Left-edge case-type stripe — 4dp wide, full card height. */}
-      <View
-        style={{
-          width: 3,
-          alignSelf: 'stretch',
-          marginLeft: -10,
-          marginRight: 4,
-          backgroundColor: stripeColor(row.kind),
-          borderRadius: 2,
-        }}
-      />
-      <Thumbnail hasPhoto={!!row.has_photo} kind={row.kind} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {isFresh ? <FreshDot /> : null}
-          <SansMedium style={{ flexShrink: 1 }}>{display}</SansMedium>
-        </View>
-        <MonoLabel
-          size={tokens.size.monoLabel}
-          tracking={tokens.tracking.label}
-          color={tokens.color.text.secondary}
-          style={{ marginTop: 4 }}
-        >
-          {kindLine(row)}
-        </MonoLabel>
-      </View>
-    </Pressable>
-  );
-}
-
-function Thumbnail({ hasPhoto, kind }: { hasPhoto: boolean; kind: CaseKind }) {
-  const isDoe = kind === 'unidentified' || kind === 'unclaimed';
-  return (
-    <View
-      style={{
-        width: 48,
-        height: 48,
-        borderRadius: 4,
-        backgroundColor: tokens.color.bg.elev2,
-        borderWidth: 0.5,
-        borderColor: tokens.color.border.strong,
-        overflow: 'hidden',
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: isDoe ? 0.5 : 1,
-      }}
-    >
-      {hasPhoto ? (
-        <Svg width="48" height="48" viewBox="0 0 56 56">
-          <Rect width="56" height="56" fill={tokens.color.silhouette.bg} />
-          <Ellipse cx="28" cy="22" rx="10" ry="12" fill={tokens.color.silhouette.figure} />
-          <Ellipse cx="28" cy="46" rx="14" ry="11" fill={tokens.color.silhouette.figure} />
-        </Svg>
-      ) : (
-        <SerifTitle
-          size="h1"
-          style={{ fontSize: 24, color: tokens.color.text.secondary, lineHeight: 24 }}
-        >
-          —
-        </SerifTitle>
-      )}
-    </View>
-  );
-}
-
-function FreshDot() {
-  return (
-    <View
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: tokens.color.accent.amberHot,
-        marginRight: 8,
-      }}
-    />
-  );
-}
-
-function stripeColor(kind: CaseKind): string {
-  if (kind === 'unidentified' || kind === 'unclaimed') return tokens.color.pin.doe;
-  if (kind === 'missing') return tokens.color.pin.missing;
-  return tokens.color.pin.homicide; // homicide + suspicious_death
 }
 
 function displayName(row: CaseRowMapNear): string {
