@@ -76,7 +76,11 @@ export default function MapScreen() {
     lng: here.lng,
     radiusMiles: 5000,
     kinds: KIND_FILTER_TO_RPC[filter],
-    limit: 200,
+    // Closed-testing seed targets 2000 alphabetical cases. Cap at 5000 so
+    // the map fetches everything the seed contains, and Leaflet's
+    // markercluster handles the volume in the WebView. Restore a tighter
+    // cap in v1.0.1 once the radius semantics shrink back to "near you".
+    limit: 5000,
   });
 
   const allCount = cases.length;
