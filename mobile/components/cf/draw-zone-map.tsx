@@ -54,6 +54,14 @@ export function DrawZoneMap({
 
   // Push radius changes once the WebView is loaded — and on every change
   // thereafter. injectJavaScript is a no-op until onLoad fires.
+  //
+  // Throttling note (low-end Android only): if a Pixel 6a tester reports
+  // the circle "snapping" rather than gliding while sliding the radius,
+  // the fix is a 16ms (one-frame) throttle wrapper around this inject plus
+  // an authoritative postMessage on slider release. The slider component
+  // already exposes `onSlidingComplete` for that. Not applied preemptively
+  // because every device tested so far is fine — see SHIP-BLOCKERS §12
+  // "Slider radius lag" for the full story.
   useEffect(() => {
     if (!loaded) return;
     webRef.current?.injectJavaScript(

@@ -127,6 +127,107 @@ in `docs/08_PLAY_STORE_LISTING.md`.
 
 ---
 
+## 🔴 Watch-zone + takedown launch checklist (v1.0.1)
+
+Added with commits 4f65257 / 578b17a / 2e5e8eb. Apply in order.
+
+### 8. Apply Migrations 06 + 07
+```sql
+-- Dashboard → SQL Editor — paste each in turn
+\i migrations/06_watch_zones.sql
+\i migrations/07_takedown_columns.sql
+```
+
+Sanity-check after Migration 06:
+```sql
+select proname from pg_proc
+  where proname in ('create_watch_zone','list_my_watch_zones','delete_watch_zone');
+-- expect 3 rows
+```
+
+Sanity-check after Migration 07:
+```sql
+select column_name from information_schema.columns
+  where table_name = 'takedown_requests'
+    and column_name in ('reference_code','requester_relationship_other','resolutions','requester_phone_hash');
+-- expect 4 rows
+```
+
+### 9. Deploy three Edge Functions
+```bash
+supabase functions deploy tip-route-submit       # rate-limit + body cap (commit 56aaa50)
+supabase functions deploy takedown-submit        # new — case-scoped form
+supabase functions deploy reverse-geocode        # new — Save & Name default
+```
+
+### 10. Wire Resend — **required, not optional**
+
+The takedown-submit Edge Function gracefully degrades to "DB row only" when
+Resend env vars are absent — but **shipping in that mode is wrong for
+v1.0.1**. The submitter confirmation email is the trust signal. A family
+member who doesn't see a receipt within 30 seconds will assume the form
+broke and re-submit; the second submission trips the per-(case_id, email)
+rate limit and they get the opaque "we'll reply to your earlier message"
+copy. Now they're confused, you've lost trust, and the queue still only has
+one row.
+
+Set these on `takedown-submit` (Supabase Dashboard → Functions → secrets):
+
+```
+RESEND_API_KEY        re_xxxxxxxxxxxx           # from resend.com
+TAKEDOWN_NOTIFY_FROM  noreply@coldfile.app      # verify this domain in Resend first
+TAKEDOWN_NOTIFY_TO    you@coldfile.app          # operator inbox
+TAKEDOWN_REPLY_TO     takedown@coldfile.app     # what submitter "Reply" lands in
+```
+
+Domain verification in Resend takes ~10 min (DNS records). Don't promote to
+closed testing until this is green.
+
+### 11. Smoke-test the takedown flow end-to-end
+
+Before shipping:
+
+1. Open the app, tap any case, scroll to "REPORT AN ISSUE WITH THIS CASE."
+2. Fill the form with your own email. Submit.
+3. **Expect within 30s:** confirmation email at your inbox carrying
+   `CF-XXXXX` reference, restating case + relationship + resolutions +
+   reason verbatim.
+4. **Expect within 30s:** operator notify at the `TAKEDOWN_NOTIFY_TO`
+   inbox, subject prefixed `[CF-XXXXX]`. Hit Reply — your draft should
+   land in the original submitter's inbox (verifies `reply_to`).
+5. Try submitting again from the same email on the same case. Should
+   return the opaque rate-limit copy after a few attempts (expected).
+
+### 12. Watch list (informational, no immediate action)
+
+These came up in the post-merge review. None block closed testing; flagging
+so they're greppable later:
+
+- **Geocode cache 3-decimal precision (~111m)** — fine for "Watch zone —
+  South Bay" naming. If we ever surface the geocoded label as a per-case
+  "near {place}" tag elsewhere, the grain will feel coarse near coastlines
+  and county lines. Bump to 4-decimal cache key if/when that ships.
+- **(case_id, email_hash, created_at) rate-limit index hot path** — fine
+  through v1.0.x volumes. If Edge Function p99s start spiking, this is
+  where to look first.
+- **Slider radius lag on low-end Android (Pixel 6a, etc.)** —
+  `injectJavaScript` for `cfSetRadius` fires per slider tick. If testing
+  reveals the circle "snaps" rather than glides, add a 16ms-throttle wrapper
+  around the inject and post the authoritative final value via
+  `postMessage` on slider release. See
+  `mobile/components/cf/draw-zone-map.tsx` for the inject site.
+- **Static-thumbnail strategy when MapLibre unblocks** — when the Fabric
+  fix lands and we can render real zone snapshots, **flip the whole Saved
+  → Zones list at once**. Mixed real + abstract tiles will read as
+  inconsistent rather than composed. Either backfill all or stay abstract.
+- **Polygon mode + Edit-shape are paired** — both ship in v1.0.2 in the
+  same PR. They share enough plumbing (vertex preload, rubber-band render,
+  kinks detection) that splitting them is more work, not less. Don't ship
+  Edit-shape circle-only — users expect "edit shape" to work on whatever
+  shape they drew, and a circle-only edit screen creates a forever-asterisk.
+
+---
+
 ## 🟠 Deferred to v1.0.1 (NOT closed-test blockers)
 
 Captured here so they don't get lost — these surface in audits but don't
