@@ -138,14 +138,17 @@ export default function MapScreen() {
     ),
   }));
 
-  // When a pin is tapped, snap the sheet to mid and bring that case to the
-  // top of the list. The state update + sheet snap are paired so the user
-  // never sees the list reorder mid-animation.
+  // When a pin is tapped, update the selection and let the peek header take
+  // over with the selected-case detail (count + name + kind line). Don't
+  // auto-snap to mid — that dumps the full list on someone who just wanted
+  // info about one pin and breaks the mental model. If the sheet is already
+  // at mid or full, the list scrolls to the selected case so it's visible
+  // without re-snapping.
   const handleMarkerPress = useCallback((id: string) => {
     setSelectedSlug(id);
-    sheetRef.current?.snapToIndex(1);
-    // Wait one frame so the new "selected" ordering renders before we scroll
-    // to it; otherwise scrollToIndex looks at stale data.
+    // scrollToSlug is a no-op if the list isn't rendered yet (peek state).
+    // When the user drags up later, the selected case is already first in
+    // the order, so it lands at the top organically.
     requestAnimationFrame(() => sheetRef.current?.scrollToSlug(id));
   }, []);
 
