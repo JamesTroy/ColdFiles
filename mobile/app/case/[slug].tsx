@@ -40,6 +40,7 @@ import { useIsSaved } from '@/lib/hooks/use-saved-cases';
 import { useSubmittedTip } from '@/lib/hooks/use-submitted-tips';
 import { effectivePhotoUri } from '@/lib/photo-policy';
 import type { CaseMediaRow, CaseRowFull, CaseSourceRow } from '@/lib/types/database';
+import { isMediaReconstruction } from '@/lib/types/database';
 
 const KIND_DISPLAY: Record<CaseRowFull['kind'], string> = {
   homicide: 'Homicide',
@@ -156,7 +157,7 @@ export default function CaseDetailScreen() {
         <PhotoFrame
           uri={effectivePhotoUri(primaryMedia)}
           caption={photoCaption}
-          isReconstruction={primaryMedia?.is_reconstruction ?? false}
+          isReconstruction={isMediaReconstruction(primaryMedia)}
           displayWarning={primaryMedia?.display_warning ?? null}
         />
 
@@ -248,6 +249,42 @@ export default function CaseDetailScreen() {
             />
           </View>
         ) : null}
+
+        {/* Report-an-issue link — case-scoped takedown form. Mono-caps under
+            a hairline keeps it editorial and tail-of-flow; the family member
+            who needs this finds it because it's right there on the page,
+            without it competing with the primary tip CTA. */}
+        <View
+          style={{
+            marginTop: 28,
+            paddingHorizontal: 16,
+            paddingTop: 14,
+            borderTopWidth: 0.5,
+            borderTopColor: tokens.color.border.subtle,
+            alignItems: 'center',
+          }}
+        >
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/takedown-request/[slug]',
+                params: { slug: c.slug },
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Report an issue with this case"
+            hitSlop={12}
+            style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+          >
+            <MonoLabel
+              size={tokens.size.monoChip}
+              tracking={tokens.tracking.chip}
+              color={tokens.color.text.secondary}
+            >
+              REPORT AN ISSUE WITH THIS CASE
+            </MonoLabel>
+          </Pressable>
+        </View>
       </ScrollView>
 
       {/* Sticky bar */}
@@ -460,22 +497,17 @@ function primaryMediaRow(media: CaseMediaRow[]): CaseMediaRow | null {
 }
 
 /**
- * Caption: "PHOTO 01 · {SOURCE_ATTRIBUTION} · {YEAR}".
- * Per-photo attribution comes from the media row, not the case agency —
- * the photo's provenance can differ from the investigating agency
- * (NamUs portrait vs LASD bulletin).
+ * Caption: "PHOTO 01 · {ATTRIBUTION} · {YEAR}".
+ * Attribution comes from the case's primary investigating agency. Per-photo
+ * source attribution is a v1.0.1 column (see docs/audit/security/06-data-and-sql.md);
+ * for closed testing, the agency name is the right grain.
  */
-function buildPhotoCaption(c: CaseRowFull, primary: CaseMediaRow | null): string {
+function buildPhotoCaption(c: CaseRowFull, _primary: CaseMediaRow | null): string {
   const sourceLabel = 'PHOTO 01'; // numbering when we surface a gallery
-  // Honest attribution: when neither the media row nor the case carries
-  // provenance, render "ATTRIBUTION PENDING" rather than the lazy "CASE
-  // FILE" fallback. This makes seed-data gaps visible instead of papering
-  // over them — the photo policy treats attribution as mandatory, not
-  // optional.
-  const attribution =
-    primary?.source_attribution?.toUpperCase() ??
-    c.primary_agency?.name?.toUpperCase() ??
-    'ATTRIBUTION PENDING';
+  // Honest attribution: render "ATTRIBUTION PENDING" rather than the lazy
+  // "CASE FILE" fallback when the case has no agency. Makes seed-data gaps
+  // visible.
+  const attribution = c.primary_agency?.name?.toUpperCase() ?? 'ATTRIBUTION PENDING';
   const year = c.incident_date ? c.incident_date.slice(0, 4) : '—';
   return `${sourceLabel} · ${attribution} · ${year}`;
 }
