@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CaseLocationMap } from '@/components/cf/case-location-map';
 import { AmberCTA, SecondaryCTA } from '@/components/cf/cta-button';
 import { ErrorState } from '@/components/cf/error-state';
 import { KeyFactsTable, type KeyFact } from '@/components/cf/key-facts';
@@ -171,6 +172,8 @@ export default function CaseDetailScreen() {
             </SansBody>
           ) : null}
 
+          <AliasesRow aliases={c.victim_aliases} />
+
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
             {c.status === 'open' ? <UnsolvedPill /> : null}
             {/* ResolvedPill rendering deferred to v1.0.1 — cases table lacks
@@ -191,6 +194,10 @@ export default function CaseDetailScreen() {
         <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
           <KeyFactsTable facts={facts} />
         </View>
+
+        <LastSeenBlock c={c} />
+
+        <CaseLocationPreview c={c} />
 
         {c.narrative ? (
           <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
@@ -455,6 +462,159 @@ function relativeReceiptLabel(iso: string): string {
   const sameYear = submitted.getFullYear() === now.getFullYear();
   if (sameYear) return `${month} ${submitted.getDate()}`;
   return `${month} ${submitted.getFullYear()}`;
+}
+
+/**
+ * Aliases row — "ALSO KNOWN AS / Maria · Mar · M. Doe". Lives between the
+ * subtitle and the pill row when the case carries any aliases. Useful for
+ * matching tipster memory against multiple identities the subject went by.
+ * Hidden when victim_aliases is null or empty.
+ */
+function AliasesRow({ aliases }: { aliases: string[] | null }) {
+  if (!aliases || aliases.length === 0) return null;
+  return (
+    <View style={{ marginTop: 10 }}>
+      <MonoLabel
+        size={tokens.size.monoLabel}
+        tracking={tokens.tracking.label}
+        color={tokens.color.text.secondary}
+      >
+        ALSO KNOWN AS
+      </MonoLabel>
+      <SansBody
+        style={{
+          marginTop: 4,
+          color: tokens.color.body.reading,
+          fontSize: tokens.size.body,
+        }}
+      >
+        {aliases.join(' · ')}
+      </SansBody>
+    </View>
+  );
+}
+
+/**
+ * Last-seen block — missing-person specifics. The schema carries date,
+ * place, clothing, and circumstances; rendering them in a structured block
+ * above the narrative makes them scannable for tipsters who only need to
+ * verify "did I see this person on this date in this place wearing this?"
+ * without having to read prose.
+ *
+ * Renders only for kind='missing' AND when at least one field is populated.
+ * Other kinds use the standard incident_date in the key-facts table.
+ */
+function LastSeenBlock({ c }: { c: CaseRowFull }) {
+  if (c.kind !== 'missing') return null;
+  const hasAny =
+    c.last_seen_date ||
+    c.last_seen_text ||
+    c.last_seen_clothing ||
+    c.last_seen_circumstances;
+  if (!hasAny) return null;
+
+  const dateLine = c.last_seen_date
+    ? formatDateMonthDay(c.last_seen_date)
+    : null;
+  const placeLine = c.last_seen_text;
+
+  return (
+    <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+      <MonoLabel
+        size={tokens.size.monoChip}
+        tracking={tokens.tracking.chip}
+        color={tokens.color.text.secondary}
+        style={{ marginBottom: 10 }}
+      >
+        LAST SEEN
+      </MonoLabel>
+      {dateLine || placeLine ? (
+        <SansMedium style={{ fontSize: 16, marginBottom: 6 }}>
+          {[dateLine, placeLine].filter(Boolean).join(' · ')}
+        </SansMedium>
+      ) : null}
+      {c.last_seen_clothing ? (
+        <FactLine label="WEARING" value={c.last_seen_clothing} />
+      ) : null}
+      {c.last_seen_circumstances ? (
+        <FactLine
+          label="CIRCUMSTANCES"
+          value={c.last_seen_circumstances}
+          paragraph
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function FactLine({
+  label,
+  value,
+  paragraph = false,
+}: {
+  label: string;
+  value: string;
+  paragraph?: boolean;
+}) {
+  return (
+    <View style={{ marginTop: 10 }}>
+      <MonoLabel
+        size={tokens.size.monoLabel}
+        tracking={tokens.tracking.label}
+        color={tokens.color.text.disabled}
+      >
+        {label}
+      </MonoLabel>
+      {paragraph ? (
+        <NarrativeText style={{ marginTop: 4 }}>{value}</NarrativeText>
+      ) : (
+        <SansBody
+          style={{
+            marginTop: 4,
+            fontSize: tokens.size.body,
+            color: tokens.color.body.reading,
+          }}
+        >
+          {value}
+        </SansBody>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Inline map preview — single amber pin at the case's location_point. Fixed
+ * zoom 13, no gestures; the pan/zoom map experience lives on the Map tab,
+ * this is just the spatial anchor for the case file. Renders only when the
+ * generated lat/lng columns (migration 08) are populated.
+ */
+function CaseLocationPreview({ c }: { c: CaseRowFull }) {
+  if (c.location_lat == null || c.location_lng == null) return null;
+  return (
+    <View
+      style={{
+        marginTop: 22,
+        marginHorizontal: 16,
+        height: 140,
+        borderRadius: 8,
+        overflow: 'hidden',
+        borderWidth: 0.5,
+        borderColor: tokens.color.border.subtle,
+      }}
+    >
+      <CaseLocationMap
+        lat={c.location_lat}
+        lng={c.location_lng}
+        kind={
+          c.kind === 'unidentified' || c.kind === 'unclaimed'
+            ? 'unidentified'
+            : c.kind === 'missing'
+              ? 'missing'
+              : 'homicide'
+        }
+      />
+    </View>
+  );
 }
 
 function buildKeyFacts(c: CaseRowFull): KeyFact[] {

@@ -75,6 +75,8 @@ export interface CaseRowFull {
   kind: CaseKind;
   status: CaseStatus;
   victim_name: string | null;
+  /** Known aliases / nicknames, free-form. Null or empty when none. */
+  victim_aliases: string[] | null;
   victim_age: number | null;
   victim_age_min: number | null;
   victim_age_max: number | null;
@@ -86,6 +88,14 @@ export interface CaseRowFull {
   location_text: string | null;
   location_city: string | null;
   location_state: string | null;
+  /** Generated columns from migration 08. Null when no geocode succeeded. */
+  location_lat: number | null;
+  location_lng: number | null;
+  /** Missing-person specifics. All null for non-missing kinds. */
+  last_seen_text: string | null;
+  last_seen_date: string | null;
+  last_seen_clothing: string | null;
+  last_seen_circumstances: string | null;
   narrative: string | null;
   narrative_short: string | null;
   case_number_primary: string | null;
