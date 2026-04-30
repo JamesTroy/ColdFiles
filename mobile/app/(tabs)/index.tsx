@@ -138,18 +138,16 @@ export default function MapScreen() {
     ),
   }));
 
-  // When a pin is tapped, update the selection and let the peek header take
-  // over with the selected-case detail (count + name + kind line). Don't
-  // auto-snap to mid — that dumps the full list on someone who just wanted
-  // info about one pin and breaks the mental model. If the sheet is already
-  // at mid or full, the list scrolls to the selected case so it's visible
-  // without re-snapping.
+  // Pin tap = "narrow scope to this case." Snap the sheet DOWN to peek
+  // (regardless of where the user had it) and the sheet body empties out so
+  // the only thing visible is the selected-case header. The full list is
+  // unreachable until the user clears the selection — that's the point;
+  // pin tap and browse-the-list are two different modes and they shouldn't
+  // overlap. The previous attempt (snap-to-mid + pin selected to top) had
+  // the user reading "I selected one pin and now there's 600 cases."
   const handleMarkerPress = useCallback((id: string) => {
     setSelectedSlug(id);
-    // scrollToSlug is a no-op if the list isn't rendered yet (peek state).
-    // When the user drags up later, the selected case is already first in
-    // the order, so it lands at the top organically.
-    requestAnimationFrame(() => sheetRef.current?.scrollToSlug(id));
+    sheetRef.current?.snapToIndex(0);
   }, []);
 
   const handleClearSelection = useCallback(() => setSelectedSlug(null), []);

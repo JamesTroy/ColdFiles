@@ -103,14 +103,15 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
       },
     }));
 
-    // Selected case pinned first, otherwise sort by recency.
+    // Browse-mode list. When the user has selected a pin, the body of the
+    // sheet goes empty — only the header renders — so they see exactly one
+    // thing about the case they tapped. Tapping the X clears the selection
+    // and the full list comes back. This is the "pin tap and browse-the-
+    // list are two different modes" contract.
     const ordered = useMemo(() => {
+      if (selectedSlug) return [];
       if (cases.length === 0) return cases;
-      const list = [...cases].sort((a, b) => daysFor(a) - daysFor(b));
-      if (!selectedSlug) return list;
-      const sel = list.find((r) => r.slug === selectedSlug);
-      if (!sel) return list;
-      return [sel, ...list.filter((r) => r.slug !== selectedSlug)];
+      return [...cases].sort((a, b) => daysFor(a) - daysFor(b));
     }, [cases, selectedSlug, daysFor]);
 
     const renderItem = useCallback(
