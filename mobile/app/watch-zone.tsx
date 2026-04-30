@@ -23,7 +23,6 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
-import Slider from '@react-native-community/slider';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -37,6 +36,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA } from '@/components/cf/cta-button';
+import { AmberSlider } from '@/components/cf/amber-slider';
 import { DrawZoneMap } from '@/components/cf/draw-zone-map';
 import { Mono, MonoLabel, NarrativeText, SansBody, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
@@ -417,16 +417,12 @@ function BottomBar({
           {`${formatRadius(radiusMi)} mi`}
         </Mono>
       </View>
-      <Slider
+      <AmberSlider
         minimumValue={RADIUS_MIN_MI}
         maximumValue={RADIUS_MAX_MI}
         step={0.1}
         value={radiusMi}
         onValueChange={onRadiusChange}
-        minimumTrackTintColor={tokens.color.accent.amber}
-        maximumTrackTintColor={tokens.color.border.hairline}
-        thumbTintColor={tokens.color.accent.amber}
-        style={{ height: 36 }}
       />
       <View style={{ marginTop: 12 }}>
         <AmberCTA label="Save zone" onPress={onSavePress} />
