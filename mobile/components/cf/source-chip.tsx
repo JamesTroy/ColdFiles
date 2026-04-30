@@ -25,7 +25,11 @@ export function SourceChip({ slug, url }: SourceChipProps) {
   return (
     <Pressable
       onPress={() => {
-        // No interstitial. Opens in the system in-app browser.
+        // Source URLs come from scraper output (case_sources.source_url), so
+        // gate the scheme to http(s) before handing to expo-web-browser. A
+        // poisoned row with javascript:/data:/file: would otherwise reach the
+        // system in-app browser and try to execute.
+        if (!/^https?:\/\//i.test(url)) return;
         WebBrowser.openBrowserAsync(url).catch(() => {
           /* swallow — opening the browser shouldn't crash the app */
         });

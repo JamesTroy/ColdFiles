@@ -147,15 +147,29 @@ async function sitemapDiscovery(
   const urls: string[] = [];
   let childIndex = 0;
 
+  // Pin recursion to the source's own host. A poisoned sitemap that lists
+  // an off-host <loc> would otherwise drag the crawler off the source's
+  // domain — and into anywhere the SSRF guard doesn't already block.
+  const pinHost = new URL(source.baseUrl).hostname.toLowerCase();
+  const sameHost = (u: string): boolean => {
+    try {
+      return new URL(u).hostname.toLowerCase() === pinHost;
+    } catch {
+      return false;
+    }
+  };
+
   // Charley (and most WordPress sources) ship a sitemap *index* at the
   // top, not a flat URL list — root tag is <sitemapindex> with <loc>s
   // pointing at child sitemaps. Detect and recurse one level.
   const visit = async (sitemapUrl: string): Promise<void> => {
     if (opts.detailLimit && urls.length >= opts.detailLimit) return;
+    if (!sameHost(sitemapUrl)) return; // refuse to follow cross-host index
     const xml = await fetcher.getText(sitemapUrl);
     const isIndex = /<sitemapindex[\s>]/i.test(xml);
     for (const m of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
       const u = m[1].trim();
+      if (!sameHost(u)) continue; // drop off-host entries silently
       if (isIndex) {
         opts.onProgress?.({ kind: 'list_page', url: u, index: childIndex++ });
         await visit(u);

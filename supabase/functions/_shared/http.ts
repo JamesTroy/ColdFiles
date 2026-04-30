@@ -4,6 +4,173 @@
 const DEFAULT_UA =
   'ColdFileBot/1.0 (+https://coldfile.app/about; contact@coldfile.app)';
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_BYTES = 25 * 1024 * 1024; // 25MB — generous for sitemaps + photos
+const DEFAULT_MAX_REDIRECTS = 5;
+
+/**
+ * SSRF guard. Rejects non-public destinations before fetch() is called.
+ *
+ * The scrape pipeline downloads photo bytes from third-party sites and writes
+ * them into the *publicly readable* `case-media` Storage bucket. Without this
+ * guard, a poisoned source row could direct the crawler at internal addresses
+ * (cloud metadata, RFC1918, loopback) and the response would be exfiltrated
+ * into the public bucket. Layered defense: scheme allow-list, hostname IP
+ * literal block, then per-redirect re-validation in safeFetch().
+ */
+export function assertSafeUrl(url: string): URL {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    throw new HttpError(`invalid URL: ${url}`, 0);
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+    throw new HttpError(`disallowed scheme: ${u.protocol}`, 0);
+  }
+  const host = u.hostname.toLowerCase();
+  if (!host) throw new HttpError(`empty hostname: ${url}`, 0);
+  // IPv4 literal — block private + loopback + link-local + IMDS.
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const o = v4.slice(1).map((n) => parseInt(n, 10));
+    if (o.some((n) => n > 255)) throw new HttpError(`invalid IPv4: ${host}`, 0);
+    if (
+      o[0] === 10 || // 10.0.0.0/8
+      o[0] === 127 || // loopback
+      (o[0] === 169 && o[1] === 254) || // 169.254.0.0/16 (IMDS, link-local)
+      (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || // 172.16.0.0/12
+      (o[0] === 192 && o[1] === 168) || // 192.168.0.0/16
+      o[0] === 0 || // 0.0.0.0/8
+      o[0] >= 224 // multicast / reserved
+    ) {
+      throw new HttpError(`disallowed IPv4: ${host}`, 0);
+    }
+  }
+  // IPv6 literal — block loopback + link-local + ULA. URL hostname strips brackets.
+  if (host.includes(':')) {
+    const lower = host.toLowerCase();
+    if (
+      lower === '::1' ||
+      lower === '::' ||
+      lower.startsWith('fe80:') ||
+      lower.startsWith('fc') ||
+      lower.startsWith('fd')
+    ) {
+      throw new HttpError(`disallowed IPv6: ${host}`, 0);
+    }
+    // IPv4-mapped IPv6 — re-check the v4 portion.
+    const mapped = lower.match(/::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (mapped) {
+      const inner = `${mapped[1]}.${mapped[2]}.${mapped[3]}.${mapped[4]}`;
+      assertSafeUrl(`http://${inner}`);
+    }
+  }
+  // Common internal-DNS gotchas. Cheap belt-and-suspenders; won't catch a
+  // /etc/hosts override or a public DNS pointing at 127.0.0.1 (rare; the IP
+  // re-check on each redirect catches the latter once the redirect lands).
+  if (host === 'localhost' || host === 'metadata.google.internal' || host.endsWith('.internal')) {
+    throw new HttpError(`disallowed hostname: ${host}`, 0);
+  }
+  return u;
+}
+
+/**
+ * fetch() wrapper that re-validates each redirect, enforces a global timeout,
+ * caps response body size, and refuses cross-host redirects when host-pinned.
+ *
+ * Manual redirect handling is the only way to re-run assertSafeUrl on the
+ * post-redirect Location: a 302 to http://169.254.169.254/ would otherwise
+ * sail past the entry-point check.
+ */
+export interface SafeFetchOptions extends RequestInit {
+  /** When set, redirects must keep the same host. Used for sitemap/RSS recursion. */
+  pinHost?: string;
+  /** Defaults to 30s. */
+  timeoutMs?: number;
+  /** Defaults to 25MB; throws HttpError(0) if exceeded. */
+  maxBytes?: number;
+  /** Defaults to 5; throws HttpError(0) if exceeded. */
+  maxRedirects?: number;
+}
+
+export async function safeFetch(url: string, opts: SafeFetchOptions = {}): Promise<Response> {
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxRedirects = opts.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
+  const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+  const pinHost = opts.pinHost?.toLowerCase();
+
+  let current = url;
+  let hops = 0;
+  while (true) {
+    const u = assertSafeUrl(current);
+    if (pinHost && u.hostname.toLowerCase() !== pinHost) {
+      throw new HttpError(`redirect off-host: ${u.hostname} vs pinned ${pinHost}`, 0);
+    }
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    let res: Response;
+    try {
+      res = await fetch(current, {
+        ...opts,
+        redirect: 'manual',
+        signal: ctl.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    // Manual mode reports redirects as 3xx with a Location header.
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      hops += 1;
+      if (hops > maxRedirects) {
+        throw new HttpError(`too many redirects (>${maxRedirects})`, 0);
+      }
+      const next = new URL(res.headers.get('location')!, current).toString();
+      current = next;
+      continue;
+    }
+    // Cap body size by inspecting Content-Length up-front. The full read
+    // happens in the consumer (.text/.json/.arrayBuffer), so we wrap the
+    // body with a counting transform when no Content-Length was sent.
+    const declared = parseInt(res.headers.get('content-length') ?? '', 10);
+    if (!Number.isNaN(declared) && declared > maxBytes) {
+      throw new HttpError(`response too large: ${declared} > ${maxBytes}`, 0);
+    }
+    if (res.body && (Number.isNaN(declared) || declared <= 0)) {
+      return new Response(capBodyStream(res.body, maxBytes), {
+        status: res.status,
+        statusText: res.statusText,
+        headers: res.headers,
+      });
+    }
+    return res;
+  }
+}
+
+function capBodyStream(body: ReadableStream<Uint8Array>, max: number): ReadableStream<Uint8Array> {
+  let read = 0;
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { value, done } = await reader.read();
+        if (done) return controller.close();
+        read += value.byteLength;
+        if (read > max) {
+          controller.error(new HttpError(`response exceeded ${max} bytes`, 0));
+          return;
+        }
+        controller.enqueue(value);
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+    cancel(reason) {
+      void reader.cancel(reason);
+    },
+  });
+}
+
 export class PoliteFetcher {
   private lastRequest = 0;
 
@@ -12,12 +179,12 @@ export class PoliteFetcher {
     private userAgent: string = DEFAULT_UA,
   ) {}
 
-  async get(url: string, init?: RequestInit): Promise<Response> {
+  async get(url: string, init?: SafeFetchOptions): Promise<Response> {
     const wait = Math.max(0, this.lastRequest + this.rateLimitMs - Date.now());
     if (wait > 0) await sleep(wait);
     this.lastRequest = Date.now();
 
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       ...init,
       headers: {
         'User-Agent': this.userAgent,
@@ -41,7 +208,7 @@ export class PoliteFetcher {
     return res;
   }
 
-  async getText(url: string, init?: RequestInit): Promise<string> {
+  async getText(url: string, init?: SafeFetchOptions): Promise<string> {
     const res = await this.get(url, init);
     if (!res.ok) {
       throw new HttpError(`GET ${url} failed: ${res.status}`, res.status);
@@ -49,7 +216,7 @@ export class PoliteFetcher {
     return res.text();
   }
 
-  async getJson<T = unknown>(url: string, init?: RequestInit): Promise<T> {
+  async getJson<T = unknown>(url: string, init?: SafeFetchOptions): Promise<T> {
     const res = await this.get(url, {
       ...init,
       headers: {
@@ -63,7 +230,7 @@ export class PoliteFetcher {
     return (await res.json()) as T;
   }
 
-  async getBytes(url: string, init?: RequestInit): Promise<ArrayBuffer> {
+  async getBytes(url: string, init?: SafeFetchOptions): Promise<ArrayBuffer> {
     const res = await this.get(url, init);
     if (!res.ok) {
       throw new HttpError(`GET ${url} failed: ${res.status}`, res.status);
