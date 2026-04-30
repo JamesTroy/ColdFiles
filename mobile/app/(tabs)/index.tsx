@@ -38,9 +38,11 @@ import {
   type MapsMarker,
   isNativeMapAvailable,
 } from '@/components/cf/maps-view';
+import { PeekSheet } from '@/components/cf/peek-sheet';
 import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
+import { kindLine } from '@/lib/format';
 import { useCasesNear } from '@/lib/hooks/use-cases-near';
 import { useHere } from '@/lib/hooks/use-here';
 import { useWatchZones } from '@/lib/hooks/use-watch-zones';
@@ -138,16 +140,17 @@ export default function MapScreen() {
     ),
   }));
 
-  // Pin tap = "narrow scope to this case." Snap the sheet DOWN to peek
-  // (regardless of where the user had it) and the sheet body empties out so
-  // the only thing visible is the selected-case header. The full list is
-  // unreachable until the user clears the selection — that's the point;
-  // pin tap and browse-the-list are two different modes and they shouldn't
-  // overlap. The previous attempt (snap-to-mid + pin selected to top) had
-  // the user reading "I selected one pin and now there's 600 cases."
+  // Pin tap = "narrow scope to one case." Browse-the-list and single-case
+  // detail are two distinct UIs and they don't overlap. We swap the entire
+  // bottom UI: when selectedSlug is set, the persistent MapBottomSheet
+  // unmounts and the PeekSheet (single-case dismissible card) takes over.
+  // Tap X to dismiss → MapBottomSheet remounts at peek for browse.
+  //
+  // Earlier attempts kept the bottom sheet rendered with empty data + snap
+  // to peek, but the persistent sheet's mere presence read as "the list is
+  // still there, just hiding." Conditional render is the unambiguous fix.
   const handleMarkerPress = useCallback((id: string) => {
     setSelectedSlug(id);
-    sheetRef.current?.snapToIndex(0);
   }, []);
 
   const handleClearSelection = useCallback(() => setSelectedSlug(null), []);
@@ -379,16 +382,37 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      <MapBottomSheet
-        ref={sheetRef}
-        cases={cases}
-        selectedSlug={selectedSlug}
-        onClearSelection={handleClearSelection}
-        daysFor={daysFor}
-        animatedIndex={sheetIndex}
-        onWatchHere={() => router.push('/watch-zone')}
-        watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
-      />
+      {selectedSlug ? (
+        (() => {
+          const selectedCase = cases.find((c) => c.slug === selectedSlug);
+          if (!selectedCase) return null;
+          return (
+            <PeekSheet
+              distanceMiles={selectedCase.distance_miles ?? 0}
+              kindLine={kindLine(selectedCase)}
+              victimName={peekDisplayName(selectedCase)}
+              onOpen={() =>
+                router.push({
+                  pathname: '/case/[slug]',
+                  params: { slug: selectedCase.slug },
+                })
+              }
+              onDismiss={handleClearSelection}
+            />
+          );
+        })()
+      ) : (
+        <MapBottomSheet
+          ref={sheetRef}
+          cases={cases}
+          selectedSlug={null}
+          onClearSelection={handleClearSelection}
+          daysFor={daysFor}
+          animatedIndex={sheetIndex}
+          onWatchHere={() => router.push('/watch-zone')}
+          watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
+        />
+      )}
     </View>
   );
 }
@@ -634,6 +658,12 @@ function SampleTag() {
  * be misleading. v1.0.1 reintroduces locality + radius once the
  * LA-county scraper densifies the seed.
  */
+function peekDisplayName(c: CaseRowMapNear): string {
+  if (c.victim_name) return c.victim_name;
+  if (c.kind === 'unidentified' || c.kind === 'unclaimed') return 'Unidentified person';
+  return 'Name not released';
+}
+
 function headerSubLabel(count: number | null): string {
   if (count == null) return 'LOADING';
   return `${count.toLocaleString()} ${count === 1 ? 'CASE' : 'CASES'} NATIONWIDE`;
