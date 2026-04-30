@@ -196,7 +196,7 @@ export default function CaseDetailScreen() {
             <MonoLabel
               size={tokens.size.monoChip}
               tracking={tokens.tracking.chip}
-              color={tokens.color.evidence.chrome}
+              color={tokens.color.text.secondary}
               style={{ marginBottom: 8 }}
             >
               CASE FILE
@@ -229,7 +229,7 @@ export default function CaseDetailScreen() {
             <MonoLabel
               size={tokens.size.monoChip}
               tracking={tokens.tracking.chip}
-              color={tokens.color.evidence.chrome}
+              color={tokens.color.text.secondary}
               style={{ marginBottom: 8 }}
             >
               {`SOURCES · ${data.sources.length}`}
@@ -351,7 +351,7 @@ function ReceiptBlock({
     >
       <SuccessFlash
         flashKey={flashKey}
-        baseColor={tokens.color.evidence.chrome}
+        baseColor={tokens.color.text.secondary}
         style={{
           fontFamily: tokens.font.mono,
           fontSize: tokens.size.monoLabel,

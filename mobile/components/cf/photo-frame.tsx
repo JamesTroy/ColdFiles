@@ -140,7 +140,7 @@ function ReconstructionPill() {
       <Mono
         size={tokens.size.monoCaption}
         style={{
-          color: tokens.color.evidence.chrome,
+          color: tokens.color.text.secondary,
           letterSpacing: tokens.size.monoCaption * tokens.tracking.chip,
         }}
       >
@@ -260,7 +260,7 @@ function CaptionStrip({ caption }: { caption: string }) {
       <MonoLabel
         size={tokens.size.monoCaption}
         tracking={tokens.tracking.chip}
-        color={tokens.color.evidence.chrome}
+        color={tokens.color.text.secondary}
       >
         {caption}
       </MonoLabel>

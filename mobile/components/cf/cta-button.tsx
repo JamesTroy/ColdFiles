@@ -26,6 +26,7 @@ export function AmberCTA({ label, onPress, loading, style }: AmberCTAProps) {
       disabled={loading}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ busy: loading, disabled: loading }}
       style={({ pressed }) => [
         {
           flex: 1,
@@ -34,7 +35,9 @@ export function AmberCTA({ label, onPress, loading, style }: AmberCTAProps) {
           borderRadius: tokens.radius.card,
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: pressed ? 0.85 : 1,
+          // Compose three visual states: pressed (briefly dimmer), loading
+          // (longer-running dim cue), and resting (full amber).
+          opacity: loading ? 0.6 : pressed ? 0.85 : 1,
         },
         style,
       ]}
@@ -56,7 +59,7 @@ export function AmberCTA({ label, onPress, loading, style }: AmberCTAProps) {
             fontWeight: '500',
             fontSize: tokens.size.body,
             lineHeight: tokens.size.body * 1.4,
-            letterSpacing: 0.1,
+            letterSpacing: tokens.size.body * tokens.tracking.label,
             textAlign: 'center',
           }}
         >

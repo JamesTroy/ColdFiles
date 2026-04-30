@@ -78,7 +78,7 @@ export function LegalDocScreen({
           </SerifTitle>
           <MonoLabel
             size={tokens.size.monoLabel}
-            color={tokens.color.evidence.chrome}
+            color={tokens.color.text.secondary}
             style={{ marginTop: 2 }}
           >
             {`LAST UPDATED · ${lastUpdated}`}
@@ -98,7 +98,7 @@ export function LegalDocScreen({
               <MonoLabel
                 size={tokens.size.monoChip}
                 tracking={tokens.tracking.chip}
-                color={tokens.color.evidence.chrome}
+                color={tokens.color.text.secondary}
                 style={{ marginBottom: 8 }}
               >
                 {section.heading}
@@ -119,7 +119,7 @@ export function LegalDocScreen({
           <Mono
             size={tokens.size.monoCaption}
             style={{
-              color: tokens.color.evidence.chrome,
+              color: tokens.color.text.secondary,
               letterSpacing: tokens.size.monoCaption * tokens.tracking.chip,
               lineHeight: tokens.size.monoCaption * 1.7,
             }}

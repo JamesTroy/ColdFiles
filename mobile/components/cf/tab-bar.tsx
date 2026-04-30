@@ -17,7 +17,7 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
 import type { ReactElement } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -55,7 +55,9 @@ export function CFTabBar({ state, navigation }: BottomTabBarProps): ReactElement
         const onPressIn = () => {
           // Haptic on press-in (not press) so the tactile cue lands the same
           // moment the visual press state engages — feels snappier than
-          // waiting for the press-up event.
+          // waiting for the press-up event. Gate on isFocused so tapping
+          // the already-active tab doesn't fake a navigation event.
+          if (isFocused) return;
           Haptics.selectionAsync().catch(() => {
             /* no haptics on this device — silent */
           });
@@ -93,7 +95,10 @@ export function CFTabBar({ state, navigation }: BottomTabBarProps): ReactElement
               flex: 1,
               alignItems: 'center',
               justifyContent: 'flex-start',
-              opacity: pressed ? 0.6 : 1,
+              // Android shows the ripple effect from android_ripple; layering
+              // an opacity dim on top double-cues the press and reads as
+              // visual noise. iOS has no ripple, so dim is the press signal.
+              opacity: Platform.OS === 'ios' && pressed ? 0.6 : 1,
               gap: INDICATOR_GAP,
             })}
           >

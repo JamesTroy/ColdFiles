@@ -59,7 +59,7 @@ export default function MeScreen() {
           </SerifTitle>
           <MonoLabel
             size={tokens.size.monoLabel}
-            color={tokens.color.evidence.chrome}
+            color={tokens.color.text.secondary}
             style={{ marginTop: 4 }}
           >
             ACCOUNT · SUBSCRIPTION · PRIVACY

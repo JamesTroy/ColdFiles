@@ -1,77 +1,61 @@
 import { LegalDocScreen } from '@/components/cf/legal-doc';
 
+const FULL_POLICY_URL = 'https://coldfile.app/legal/privacy';
+
 export default function PrivacyScreen() {
   return (
     <LegalDocScreen
       title="Privacy Policy"
-      lastUpdated="2026-04-28"
+      lastUpdated="2026-04-29"
       sections={[
         {
           body: [
-            'The Cold File helps you discover unsolved cases in your area and route tips to official law enforcement channels. This page explains what data the app collects, what we do with it, and how to contact us.',
+            'This in-app summary covers the load-bearing claims. The full policy — including retention windows, third-party providers, and your rights under CCPA / CPRA / GDPR — lives at coldfile.app/legal/privacy.',
           ],
         },
         {
-          heading: 'What we collect',
+          heading: 'The tip claim',
           body: [
-            'Device location (when you grant permission). Used only on your device, to filter cases by distance from where you are. Your location is not stored on our servers and is not shared.',
-            'Account information (when you sign in). Email address used to sign in, plus any cases you save and watch zones you create. Stored on Supabase, our database provider.',
-            'Tip routing logs. When you tap "Submit a tip," we log the date, the case, and which agency the tip was routed to. We do NOT log the content of your tip, and tips do not pass through our servers — they go directly from your phone to the agency\'s existing tip channel (Crime Stoppers, agency form, agency phone).',
-            'Crash reports. If the app crashes, an anonymous report is sent to help us fix bugs. These reports do not include personal information.',
+            'When you submit a tip, the content of what you wrote never reaches our servers. The text is hashed locally on your device, and the hash cannot be reversed to recover the words. We do log that a routing happened — case ID, time, the one-way hash, a hashed approximation of your IP, your device summary, the agency / URL / route kind we sent you to, and your user ID if you are signed in. None of those reveal the content.',
+            'After leaving the app you are interacting directly with the agency or its tip processor. We have no visibility into what you submit there.',
           ],
         },
         {
-          heading: "What we don't collect",
+          heading: 'Location',
           body: [
-            '• Tip content (we never read or store what you submit to agencies)',
-            '• Browsing history',
-            '• Contact lists, photos, microphone, or camera',
-            '• Identifiers used to track you across other apps',
+            'Approximate location is used briefly when you ask the app to show cases near you. It is sent to our database in the request and the result returns. We do not retain your location, build a movement history, or correlate it with any identifier.',
+            'You can revoke location permission at any time in your device Settings.',
           ],
         },
         {
-          heading: 'Who we share data with',
+          heading: 'Accounts',
           body: [
-            '• Supabase (database and authentication)',
-            '• Apple / Google (push notification delivery)',
-            '• No advertisers, no analytics that track you across apps',
+            'The app works without an account. If you sign in, we ask only for your email — used solely to authenticate you, never for marketing.',
+            'Delete your account via Me → Delete account. Your email and any server-side records are removed from our active database within 7 days. Saved cases live in device storage on your phone and are removed when you sign out or uninstall the app.',
           ],
         },
         {
-          heading: 'Your rights',
+          heading: 'What we do not do',
           body: [
-            'Request a copy of your data: email support@coldfile.app',
-            'Delete your account and all data: in-app via Me → Delete account, or email support@coldfile.app',
-            'Opt out of crash reports: in-app via Me → Privacy',
+            '• Sell or rent your data.',
+            '• Run ads or have advertising partners.',
+            '• Use third-party analytics that track you across apps.',
+            '• Store the content of your tips.',
           ],
         },
         {
-          heading: 'Photos in The Cold File',
+          heading: 'Takedown',
           body: [
-            'Case photos come from public agency releases (LASD, FBI, NamUs) and case-awareness aggregators (Charley Project, Doe Network). If you are a family member or rights holder and want a photo removed, see Takedown Request in the Me tab.',
+            'Family members, rights holders, and the agencies that own a case can request a case, photo, or specific information be removed or corrected. Email takedown@coldfile.app and we respond within 7 days.',
           ],
         },
         {
-          heading: 'Children',
-          body: [
-            'The Cold File is rated for users 17+ and is not directed at children. We do not knowingly collect data from children under 13. Cases involving minors are handled with attribution to the appropriate agency (typically NCMEC) and follow that agency\'s guidance for public dissemination.',
-          ],
-        },
-        {
-          heading: 'California (CCPA / CPRA)',
-          body: [
-            'California residents have the right to know what personal information we collect, request deletion, and opt out of any "sale" of personal information. We do not sell personal information. To exercise your rights, email support@coldfile.app.',
-          ],
-        },
-        {
-          heading: 'Changes',
-          body: [
-            'We may update this policy. The "Last updated" date above reflects the current version. Material changes will be announced in-app before they take effect.',
-          ],
+          heading: 'Full policy',
+          body: [FULL_POLICY_URL],
         },
         {
           heading: 'Contact',
-          body: ['Matte Black Dev LLC · Ventura, CA', 'support@coldfile.app'],
+          body: ['Matte Black Dev LLC · Ventura, CA', 'privacy@coldfile.app'],
         },
       ]}
     />

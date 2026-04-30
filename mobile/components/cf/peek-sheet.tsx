@@ -109,7 +109,7 @@ export function PeekSheet({
         <MonoLabel
           size={tokens.size.monoLabel}
           tracking={tokens.tracking.label}
-          color={tokens.color.evidence.chrome}
+          color={tokens.color.text.secondary}
         >
           {`SELECTED · ${distanceMiles.toFixed(1)} mi away`}
         </MonoLabel>

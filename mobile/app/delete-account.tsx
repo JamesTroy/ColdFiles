@@ -120,7 +120,7 @@ export default function DeleteAccountScreen() {
           </SerifTitle>
           <MonoLabel
             size={tokens.size.monoLabel}
-            color={tokens.color.evidence.chrome}
+            color={tokens.color.text.secondary}
             style={{ marginTop: 2 }}
           >
             PERMANENT · CANNOT BE UNDONE

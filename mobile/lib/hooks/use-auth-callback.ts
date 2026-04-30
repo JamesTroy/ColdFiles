@@ -35,30 +35,18 @@ export function useAuthCallback(): void {
       if (!url || cancelled) return;
       if (!url.startsWith(REDIRECT_PREFIX)) return;
 
-      // Try PKCE flow first (?code=...)
+      // PKCE flow only. The implicit-flow fallback (tokens in the URL
+      // hash) was removed — without origin validation a malicious Android
+      // intent could deliver attacker-controlled tokens through
+      // coldfile://auth-callback#access_token=... and sign the victim in
+      // as the attacker. PKCE binds the exchange to the originating device.
       const codeMatch = url.match(/[?&]code=([^&#]+)/);
-      if (codeMatch) {
-        const code = decodeURIComponent(codeMatch[1]);
-        try {
-          await getSupabase().auth.exchangeCodeForSession(code);
-        } catch {
-          // Code expired or invalid — UI re-prompts via the sign-in screen.
-        }
-        return;
-      }
-
-      // Fall back to implicit flow (tokens in URL hash)
-      const hashIdx = url.indexOf('#');
-      if (hashIdx === -1) return;
-      const hashParams = new URLSearchParams(url.slice(hashIdx + 1));
-      const access_token = hashParams.get('access_token');
-      const refresh_token = hashParams.get('refresh_token');
-      if (!access_token || !refresh_token) return;
-
+      if (!codeMatch) return;
+      const code = decodeURIComponent(codeMatch[1]);
       try {
-        await getSupabase().auth.setSession({ access_token, refresh_token });
+        await getSupabase().auth.exchangeCodeForSession(code);
       } catch {
-        // Token expired or invalid — same recovery path.
+        // Code expired or invalid — UI re-prompts via the sign-in screen.
       }
     };
 

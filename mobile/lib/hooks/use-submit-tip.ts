@@ -105,9 +105,11 @@ export function useSubmitTip(): UseSubmitTipShape {
 
       // Mark device-local receipt — drives the case-detail "you submitted a tip"
       // affordance. Don't block the return on the AsyncStorage write.
-      markCaseTipped(input.caseSlug, result.agency_name).catch((err) =>
-        console.warn('[useSubmitTip] markCaseTipped failed:', err),
-      );
+      // Errors are logged generically — no slug, since logcat / Play
+      // bug-reports could otherwise re-identify which case a user tipped on.
+      markCaseTipped(input.caseSlug, result.agency_name).catch(() => {
+        console.warn('[useSubmitTip] receipt write failed');
+      });
 
       // Set the transient fresh-receipt flag. The case-detail screen will
       // consume it on its next render — naturally one-shot, survives the

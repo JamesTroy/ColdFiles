@@ -127,7 +127,7 @@ export default function OnboardingScreen() {
             hitSlop={12}
             style={{ width: 32, alignItems: 'flex-start' }}
           >
-            <Ionicons name="chevron-back" size={20} color={tokens.color.text.secondary} />
+            <Ionicons name="chevron-back" size={18} color={tokens.color.text.secondary} />
           </Pressable>
         ) : (
           <View style={{ width: 32 }} />
@@ -169,7 +169,7 @@ export default function OnboardingScreen() {
         <MonoLabel
           size={tokens.size.monoChip}
           tracking={tokens.tracking.chip}
-          color={tokens.color.evidence.chrome}
+          color={tokens.color.text.secondary}
           style={{ marginBottom: 12 }}
         >
           {step.eyebrow}
@@ -197,10 +197,16 @@ export default function OnboardingScreen() {
         {step.secondaryLabel ? (
           <Pressable
             onPress={() => void finish()}
+            disabled={acquiring}
             accessibilityRole="button"
             accessibilityLabel={step.secondaryLabel}
+            accessibilityState={{ disabled: acquiring }}
             hitSlop={12}
-            style={{ alignItems: 'center', paddingVertical: 14 }}
+            style={{
+              alignItems: 'center',
+              paddingVertical: 14,
+              opacity: acquiring ? 0.4 : 1,
+            }}
           >
             <Text
               numberOfLines={1}

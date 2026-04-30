@@ -26,6 +26,14 @@ import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
 const FRESH_DAY_LIMIT = 10;
 
+/** Mirrors the map's stepwise recency_alpha → day-count translation. */
+function alphaToDays(alpha: number | null): number | null {
+  if (alpha == null) return null;
+  if (alpha >= 0.99) return 1;
+  if (alpha >= 0.49) return 7;
+  return null;
+}
+
 export default function ListScreen() {
   const insets = useSafeAreaInsets();
   const { data: rows, loading, error, source, refetch } = useCaseList({ limit: 100 });
@@ -33,7 +41,14 @@ export default function ListScreen() {
   const { recent, rest } = useMemo(() => {
     const enriched = rows.map((r) => ({
       row: r,
-      days: SAMPLE_LAST_CHANGED_DAYS[r.slug] ?? 999,
+      // SAMPLE_LAST_CHANGED_DAYS only covers the seed-six fixture slugs.
+      // For real RPC rows fall through to recency_alpha (server-computed:
+      // ≥0.99 → fresh, ≥0.49 → this week, else stale). 999 is the explicit
+      // "no recency signal" sentinel so the row sorts to the bottom.
+      days:
+        SAMPLE_LAST_CHANGED_DAYS[r.slug] ??
+        alphaToDays(r.recency_alpha) ??
+        999,
     }));
     enriched.sort((a, b) => a.days - b.days);
     return {
@@ -82,7 +97,7 @@ export default function ListScreen() {
           ))}
 
           {rest.length > 0 ? (
-            <SectionLabel style={{ paddingTop: 22 }}>ALL CASES NEAR YOU</SectionLabel>
+            <SectionLabel style={{ paddingTop: 22 }}>ALL CASES</SectionLabel>
           ) : null}
           {rest.map(({ row, days }) => (
             <CaseListRow key={row.slug} row={row} daysSinceUpdate={days} />
@@ -104,7 +119,7 @@ function SectionLabel({
     <MonoLabel
       size={tokens.size.monoLabel}
       tracking={tokens.tracking.label}
-      color={tokens.color.evidence.chrome}
+      color={tokens.color.text.secondary}
       style={[{ paddingHorizontal: 18, paddingTop: 16, paddingBottom: 8 }, style]}
     >
       {children}
@@ -156,7 +171,7 @@ function CaseListRow({
         <MonoLabel
           size={tokens.size.monoLabel}
           tracking={tokens.tracking.label}
-          color={tokens.color.evidence.chrome}
+          color={tokens.color.text.secondary}
           style={{ marginTop: 4 }}
         >
           {kindLine(row)}
@@ -210,7 +225,7 @@ function Thumbnail({
       ) : (
         <SerifTitle
           size="h1"
-          style={{ fontSize: 28, color: tokens.color.evidence.chrome, lineHeight: 28 }}
+          style={{ fontSize: 28, color: tokens.color.text.secondary, lineHeight: 28 }}
         >
           —
         </SerifTitle>
@@ -235,10 +250,27 @@ function FreshDot() {
 
 function agencyShortName(row: CaseRowMapNear): string {
   if (!row.primary_agency_name) return '';
-  const m = row.primary_agency_name.match(/^[A-Z]{2,5}\b/);
-  if (m) return m[0];
-  // Fallback: take everything before a "·" or just truncate
-  return row.primary_agency_name.split('·')[0]?.trim().slice(0, 24) ?? '';
+  // Tier 1: leading uppercase abbreviation. "FBI Tip Line" → "FBI".
+  const abbrev = row.primary_agency_name.match(/^[A-Z]{2,5}\b/);
+  if (abbrev) return abbrev[0];
+  // Tier 2: parenthetical abbreviation. "California ... (MUPS)" → "MUPS".
+  const paren = row.primary_agency_name.match(/\(([A-Z]{2,6})\)/);
+  if (paren) return paren[1];
+  // Tier 3: initialism built from significant capitalized words.
+  // "Los Angeles County Sheriff's Department" → "LACSD".
+  const initials = row.primary_agency_name
+    .split(/[\s—–-]+/)
+    .filter((w) => /^[A-Z]/.test(w) && !['Of', 'The', 'And', 'For'].includes(w))
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 5);
+  if (initials.length >= 3) return initials;
+  // Tier 4: word-boundary truncation, never mid-word.
+  const before = row.primary_agency_name.split(/[—·]/)[0]?.trim() ?? '';
+  if (before.length <= 24) return before;
+  const truncated = before.slice(0, 24);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return lastSpace > 12 ? truncated.slice(0, lastSpace) + '…' : truncated + '…';
 }
 
 function displayName(row: CaseRowMapNear): string {
@@ -261,7 +293,7 @@ function SampleTag() {
         borderColor: tokens.color.evidence.chrome,
       }}
     >
-      <MonoLabel size={9} tracking={0.12} color={tokens.color.evidence.chrome}>
+      <MonoLabel size={9} tracking={0.12} color={tokens.color.text.secondary}>
         SAMPLE
       </MonoLabel>
     </View>

@@ -78,7 +78,7 @@ export function LeafletWatchZoneMap({
         <WebView
           ref={webRef}
           source={{ html }}
-          originWhitelist={['*']}
+          originWhitelist={['https://tile.openstreetmap.org', 'https://unpkg.com', 'about:blank']}
           style={{
             width: size.width,
             height: size.height,
@@ -94,7 +94,7 @@ export function LeafletWatchZoneMap({
           androidLayerType="hardware"
           scrollEnabled={false}
           bounces={false}
-          mixedContentMode="always"
+          mixedContentMode="never"
         />
       ) : null}
     </View>

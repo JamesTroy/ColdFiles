@@ -40,7 +40,7 @@ export default function SavedScreen() {
         </SerifTitle>
         <MonoLabel
           size={tokens.size.monoLabel}
-          color={tokens.color.evidence.chrome}
+          color={tokens.color.text.secondary}
           style={{ marginTop: 4 }}
         >
           {count === 0 ? "CASES YOU'RE FOLLOWING" : `${count} CASE${count === 1 ? '' : 'S'} FOLLOWED`}
@@ -89,7 +89,7 @@ function SavedRow({ row }: { row: CaseRowMapNear }) {
         <MonoLabel
           size={tokens.size.monoLabel}
           tracking={tokens.tracking.label}
-          color={tokens.color.evidence.chrome}
+          color={tokens.color.text.secondary}
           style={{ marginTop: 4 }}
         >
           {kindLine(row)}
@@ -130,7 +130,7 @@ function EmptyState() {
       >
         <SerifTitle
           size="h1"
-          style={{ fontSize: 28, color: tokens.color.evidence.chrome, lineHeight: 28 }}
+          style={{ fontSize: 28, color: tokens.color.text.secondary, lineHeight: 28 }}
         >
           —
         </SerifTitle>

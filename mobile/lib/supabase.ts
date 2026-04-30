@@ -45,6 +45,12 @@ export function getSupabase(): SupabaseClient {
         autoRefreshToken: true,
         // Mobile platforms (RN) don't have a window.location to anchor URL detection on.
         detectSessionInUrl: false,
+        // PKCE binds the auth exchange to the originating device — closes
+        // the Android intent-hijack vector where an attacker could deliver
+        // implicit-flow tokens via the deep-link scheme. Verified by the
+        // auth callback handler at lib/hooks/use-auth-callback.ts which
+        // only handles ?code= and ignores any URL-fragment tokens.
+        flowType: 'pkce',
       },
       global: {
         headers: {

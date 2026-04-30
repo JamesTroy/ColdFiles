@@ -70,7 +70,7 @@ export default function SearchScreen() {
             },
           ]}
         >
-          <Ionicons name="chevron-back" size={18} color={tokens.color.text.primary} />
+          <Ionicons name="close" size={20} color={tokens.color.text.primary} />
         </Pressable>
         <TextInput
           value={query}
@@ -118,7 +118,7 @@ export default function SearchScreen() {
             <MonoLabel
               size={tokens.size.monoChip}
               tracking={tokens.tracking.chip}
-              color={tokens.color.evidence.chrome}
+              color={tokens.color.text.secondary}
               style={{ marginTop: 16, marginBottom: 8 }}
             >
               {`RESULTS · ${results.length}`}

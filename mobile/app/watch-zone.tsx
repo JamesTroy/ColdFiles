@@ -66,6 +66,7 @@ export default function WatchZoneScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: tokens.color.bg.base }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
       {/* Top chrome with back arrow */}
       <View
@@ -105,7 +106,7 @@ export default function WatchZoneScreen() {
           </SerifTitle>
           <MonoLabel
             size={tokens.size.monoLabel}
-            color={tokens.color.evidence.chrome}
+            color={tokens.color.text.secondary}
             style={{ marginTop: 2 }}
           >
             TAP THE MAP TO DRAW A PERIMETER
@@ -376,7 +377,7 @@ function SectionLabel({ children }: { children: string }) {
     <MonoLabel
       size={tokens.size.monoChip}
       tracking={tokens.tracking.chip}
-      color={tokens.color.evidence.chrome}
+      color={tokens.color.text.secondary}
       style={{ paddingHorizontal: 16, paddingTop: 22, paddingBottom: 8 }}
     >
       {children}

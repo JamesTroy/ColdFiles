@@ -104,7 +104,7 @@ export default function MapScreen() {
             </View>
             <MonoLabel
               size={tokens.size.monoLabel}
-              color={tokens.color.evidence.chrome}
+              color={tokens.color.text.secondary}
               style={{ marginTop: 4 }}
             >
               {headerSubLabel(loading ? null : allCount)}
@@ -169,11 +169,26 @@ export default function MapScreen() {
           />
         )}
         {error && cases.length === 0 ? (
-          <ErrorState
-            title="Couldn't load cases."
-            detail={error.message}
-            onRetry={refetch}
-          />
+          // ErrorState is built as a flex:1 fill (used full-page on
+          // case-detail). Wrap absolutely so it overlays the map renderer
+          // instead of stacking below it.
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: tokens.color.bg.base,
+            }}
+          >
+            <ErrorState
+              title="Couldn't load cases."
+              detail={error.message}
+              onRetry={refetch}
+            />
+          </View>
         ) : !loading && cases.length === 0 ? (
           <EmptyState
             variant={filter === 'all' ? 'no-cases-in-region' : 'no-matches'}
@@ -390,7 +405,7 @@ function SampleTag() {
         borderColor: tokens.color.evidence.chrome,
       }}
     >
-      <MonoLabel size={9} tracking={0.12} color={tokens.color.evidence.chrome}>
+      <MonoLabel size={9} tracking={0.12} color={tokens.color.text.secondary}>
         SAMPLE
       </MonoLabel>
     </View>

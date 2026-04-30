@@ -96,6 +96,7 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
+          <Stack.Screen name="auth-callback" options={{ animation: 'fade', gestureEnabled: false }} />
           <Stack.Screen
             name="case/[slug]"
             options={{

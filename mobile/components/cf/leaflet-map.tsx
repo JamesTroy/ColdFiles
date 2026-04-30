@@ -134,7 +134,7 @@ export function LeafletMap({
       <WebView
         ref={webRef}
         source={{ html }}
-        originWhitelist={['*']}
+        originWhitelist={['https://tile.openstreetmap.org', 'https://unpkg.com', 'about:blank']}
         style={{
           position: 'absolute',
           top: 0,
@@ -150,7 +150,7 @@ export function LeafletMap({
         androidLayerType="hardware"
         scrollEnabled={false}
         bounces={false}
-        mixedContentMode="always"
+        mixedContentMode="never"
       />
     </View>
   );

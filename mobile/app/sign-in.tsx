@@ -68,6 +68,7 @@ export default function SignInScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: tokens.color.bg.base }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
       <View
         style={{
@@ -98,7 +99,7 @@ export default function SignInScreen() {
             },
           ]}
         >
-          <Ionicons name="chevron-back" size={18} color={tokens.color.text.primary} />
+          <Ionicons name="close" size={20} color={tokens.color.text.primary} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <SerifTitle size="h2" style={{ fontSize: 20 }}>
@@ -106,7 +107,7 @@ export default function SignInScreen() {
           </SerifTitle>
           <MonoLabel
             size={tokens.size.monoLabel}
-            color={tokens.color.evidence.chrome}
+            color={tokens.color.text.secondary}
             style={{ marginTop: 2 }}
           >
             NO PASSWORD · MAGIC LINK
@@ -158,7 +159,7 @@ export default function SignInScreen() {
             <MonoLabel
               size={tokens.size.monoChip}
               tracking={tokens.tracking.chip}
-              color={tokens.color.evidence.chrome}
+              color={tokens.color.text.secondary}
               style={{ marginBottom: 8 }}
             >
               EMAIL
@@ -171,7 +172,10 @@ export default function SignInScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               autoComplete="email"
+              textContentType="emailAddress"
               keyboardType="email-address"
+              returnKeyType="send"
+              onSubmitEditing={() => void handleSubmit()}
               editable={status !== 'sending'}
               style={{
                 backgroundColor: tokens.color.bg.elev1,
@@ -188,6 +192,8 @@ export default function SignInScreen() {
 
             {errorMessage ? (
               <SansBody
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
                 style={{
                   marginTop: 10,
                   color: tokens.color.text.secondary,
@@ -199,11 +205,11 @@ export default function SignInScreen() {
             ) : null}
 
             <View style={{ marginTop: 24 }}>
-              {status === 'sending' ? (
-                <ActivityIndicator color={tokens.color.accent.amber} />
-              ) : (
-                <AmberCTA label="Send link" onPress={handleSubmit} />
-              )}
+              <AmberCTA
+                label="Send link"
+                loading={status === 'sending'}
+                onPress={handleSubmit}
+              />
             </View>
 
             <NarrativeText

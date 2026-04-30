@@ -145,6 +145,7 @@ export default function TipModalScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: tokens.color.bg.base }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 200 }}
@@ -251,8 +252,9 @@ export default function TipModalScreen() {
               value={tipBody}
               onChangeText={setTipBody}
               multiline
+              maxLength={5000}
               editable={phase === 'idle'}
-              placeholder={'e.g. "I knew David through PFF Bank in 1983–85. There was a colleague who…"'}
+              placeholder={'Anything you know about this case — what you saw, who you knew, when. The agency reads it; we don\'t.'}
               placeholderTextColor={tokens.color.text.disabled}
               style={{
                 color: tokens.color.text.primary,
