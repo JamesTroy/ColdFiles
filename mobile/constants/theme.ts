@@ -13,9 +13,15 @@
 export const tokens = {
   color: {
     bg: {
-      base: '#0a0a0a',
-      elev1: '#161616',
-      elev2: '#2a2a2a',
+      // Warm-ash dark — barely off-true-black, but warm enough to read as
+      // ash/paper rather than void. Spec: pure black eats OLED detail.
+      base: '#0c0a08',
+      // Map / sheet body surface — warm "ash" replacing neutral charcoal.
+      elev1: '#15120f',
+      // Elevated cards / chip inactive fill.
+      elev2: '#241f1a',
+      // Pressed states + sheet handle slot.
+      elev3: '#2e2823',
       /** Selected radio cards — border carries selection, this bg reinforces. */
       amberTintCard: '#161208',
       /** Small amber affordances (UNSOLVED pill, active filter chip) — bg carries the affordance alone. */
@@ -25,7 +31,12 @@ export const tokens = {
       /** Recently-resolved pill background. */
       resolvedTint: '#1a201b',
     },
-    border: { subtle: '#1f1f1f', strong: '#2a2a2a' },
+    border: {
+      subtle: '#1f1a14',
+      strong: '#2a2520',
+      /** 1dp dividers, chip outlines — slightly warmer than border.strong. */
+      hairline: '#3a322b',
+    },
     text: {
       primary: '#f5f1ea',
       // Bumped from #8a8580 → #a09b95 to clear WCAG AA 4.5:1 against bg.base
@@ -51,9 +62,47 @@ export const tokens = {
       missing: '#c5a572',
       doe: '#d5cdb8',
     },
-    cluster: { fill: '#3a3a3a', text: '#f5f1ea' },
-    /** Saturated mid blue for edge accents and dot fills — never used as body text. */
-    you: { here: '#5b8fb0' },
+    cluster: {
+      // Translucent amber haze instead of cool gray — reads as "indexed
+      // archive" rather than generic data point. Ring carries the brand
+      // amber; fill is the amber at low alpha so map tiles show through.
+      fill: 'rgba(197,165,114,0.20)',
+      ring: '#c5a572',
+      text: '#f5f1ea',
+      /** Soft outer halo, 8dp shadow blur. */
+      halo: 'rgba(197,165,114,0.10)',
+    },
+    /**
+     * Saturated mid blue for edge accents and dot fills — never used as body
+     * text. This is THE brand-signature mid-blue: the trust-disclosure left
+     * edge, the brand-mark dot, the YouAreHere map marker. Do NOT replace
+     * with cream/amber on the user-location dot — the blue dot IS the brand
+     * mark per components/cf/brand-mark.tsx. Map-redesign spec claimed a
+     * "no-cold-blue rule"; that rule applies to PINS (homicide/missing/doe
+     * shape-first encoding), not to the user-location dot.
+     */
+    you: {
+      here: '#5b8fb0',
+      /** Soft halo around the user-location dot — pulses on the map. */
+      halo: 'rgba(91,143,176,0.18)',
+    },
+    /**
+     * Map basemap tint overrides. Consumed by leaflet-map.tsx (CSS filters on
+     * the tile pane) and the future MapLibre style JSON. All values rendered
+     * at low opacity; this is "warm-dark editorial chart" not "navigation
+     * basemap" — labels look-at-when-needed only.
+     */
+    map: {
+      water: '#0a0908',
+      land: '#15120f',
+      park: '#181410',
+      roadMinor: 'rgba(232,220,196,0.10)',
+      roadMajor: 'rgba(232,220,196,0.22)',
+      roadMotorway: 'rgba(232,220,196,0.32)',
+      boundary: 'rgba(232,220,196,0.18)',
+      label: 'rgba(232,220,196,0.70)',
+      labelLo: 'rgba(232,220,196,0.45)',
+    },
     /** The only sanctioned use of red in the entire app. */
     tip: { success: '#b04545' },
     /** The only sanctioned use of green in the entire app. */
@@ -127,7 +176,13 @@ export const tokens = {
   },
 
   cluster: {
-    diameterFor: (count: number): number => (count >= 50 ? 40 : count >= 10 ? 32 : 24),
+    /**
+     * Square-root scale per redesign spec — `28 + sqrt(count) * 3.5`, clamped
+     * to [28, 64]. Linear scaling makes large clusters dominate; the
+     * sqrt curve gives the sense of "more here" without runaway growth.
+     */
+    diameterFor: (count: number): number =>
+      Math.max(28, Math.min(64, Math.round(28 + Math.sqrt(Math.max(0, count)) * 3.5))),
     /** Per-metro override; default 11. Below this zoom, cluster instead of pins. */
     zoomThreshold: { default: 11, 'la-county': 11, 'nv-rural': 14 } as Record<string, number>,
     expandStaggerMs: 200,

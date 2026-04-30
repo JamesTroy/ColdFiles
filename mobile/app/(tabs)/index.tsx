@@ -13,29 +13,42 @@
  *   - Peek sheet — slides up on pin tap
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/cf/empty-state';
 import { ErrorState } from '@/components/cf/error-state';
 import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
 import {
+  MapBottomSheet,
+  type MapBottomSheetHandle,
+} from '@/components/cf/map-bottom-sheet';
+import {
   MapsView,
   type MapsMarker,
   isNativeMapAvailable,
 } from '@/components/cf/maps-view';
-import { PeekSheet } from '@/components/cf/peek-sheet';
 import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
-import { kindLine } from '@/lib/format';
 import { useCasesNear } from '@/lib/hooks/use-cases-near';
 import { useHere } from '@/lib/hooks/use-here';
+import { useWatchZones } from '@/lib/hooks/use-watch-zones';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
+
+const ZONE_SOFT_CAP = 25;
+const ZONES_VISIBLE_KEY = 'cf:zones_visible:v1';
 
 type Filter = 'all' | 'homicide' | 'missing' | 'unidentified';
 
@@ -58,6 +71,94 @@ export default function MapScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const { here, permissionStatus, requestAndAcquire } = useHere();
+  const { zones } = useWatchZones();
+  const sheetRef = useRef<MapBottomSheetHandle>(null);
+  const [zonesVisible, setZonesVisible] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(ZONES_VISIBLE_KEY).then((v) => {
+      if (v === 'false') setZonesVisible(false);
+    });
+  }, []);
+
+  const toggleZonesVisible = useCallback(() => {
+    setZonesVisible((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem(ZONES_VISIBLE_KEY, next ? 'true' : 'false').catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const zoneOverlays = useMemo(
+    () =>
+      zones
+        .filter((z) => z.geojson?.type === 'Polygon')
+        .map((z) => ({
+          id: z.id,
+          // The hook types this as the JSONB shape we get back; cast through
+          // unknown because the runtime check above guarantees the discriminant.
+          geojson: z.geojson as unknown as {
+            type: 'Polygon';
+            coordinates: [number, number][][];
+          },
+          label: z.label,
+        })),
+    [zones],
+  );
+  // Shared value the bottom sheet writes its progress into (0=peek, 1=mid,
+  // 2=full). Drives the header collapse — wordmark fades, subtitle disappears,
+  // height shrinks to chip-row only as the user pulls the list up.
+  const sheetIndex = useSharedValue(0);
+
+  const wordmarkStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(sheetIndex.value, [0, 0.6], [1, 0], Extrapolation.CLAMP),
+    transform: [
+      {
+        translateY: interpolate(
+          sheetIndex.value,
+          [0, 1],
+          [0, -16],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
+
+  const subtitleStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(sheetIndex.value, [0, 0.4], [1, 0], Extrapolation.CLAMP),
+    height: interpolate(sheetIndex.value, [0, 1], [16, 0], Extrapolation.CLAMP),
+  }));
+
+  const headerStyle = useAnimatedStyle(() => ({
+    paddingBottom: interpolate(
+      sheetIndex.value,
+      [0, 1],
+      [12, 4],
+      Extrapolation.CLAMP,
+    ),
+  }));
+
+  // When a pin is tapped, snap the sheet to mid and bring that case to the
+  // top of the list. The state update + sheet snap are paired so the user
+  // never sees the list reorder mid-animation.
+  const handleMarkerPress = useCallback((id: string) => {
+    setSelectedSlug(id);
+    sheetRef.current?.snapToIndex(1);
+    // Wait one frame so the new "selected" ordering renders before we scroll
+    // to it; otherwise scrollToIndex looks at stale data.
+    requestAnimationFrame(() => sheetRef.current?.scrollToSlug(id));
+  }, []);
+
+  const handleClearSelection = useCallback(() => setSelectedSlug(null), []);
+
+  // Stepwise recency_alpha → days, mirroring use across the list tab.
+  const daysFor = useCallback((c: CaseRowMapNear) => {
+    if (c.recency_alpha != null) {
+      if (c.recency_alpha >= 0.99) return 1;
+      if (c.recency_alpha >= 0.49) return 7;
+    }
+    return SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? 999;
+  }, []);
 
   // Closed-testing radius: 5000mi effectively returns all seeded cases for
   // any tester anywhere in the continental US. v1.0.0 ships ~50 alphabetical
@@ -65,8 +166,12 @@ export default function MapScreen() {
   // empty for most testers because the seed isn't geographically dense.
   // Restore "cases near you" semantics in v1.0.1 once the LA-county scraper
   // and broader source coverage land.
+  // Query unfiltered so chip counts can preview selectivity (spec §3.5 — show
+  // counts on every chip, not just the active one). The kind filter is applied
+  // client-side from the same result set, which is cheap because the RPC
+  // already caps at 5000 and the kind set is closed (4 values).
   const {
-    data: cases,
+    data: casesAll,
     loading,
     error,
     refetch,
@@ -75,22 +180,47 @@ export default function MapScreen() {
     lat: here.lat,
     lng: here.lng,
     radiusMiles: 5000,
-    kinds: KIND_FILTER_TO_RPC[filter],
-    // Closed-testing seed targets 2000 alphabetical cases. Cap at 5000 so
-    // the map fetches everything the seed contains, and Leaflet's
-    // markercluster handles the volume in the WebView. Restore a tighter
-    // cap in v1.0.1 once the radius semantics shrink back to "near you".
+    kinds: null,
     limit: 5000,
   });
 
-  const allCount = cases.length;
-  const selectedCase = cases.find((c) => c.slug === selectedSlug) ?? null;
+  const counts = useMemo(() => {
+    const c = { all: casesAll.length, homicide: 0, missing: 0, unidentified: 0 };
+    for (const row of casesAll) {
+      if (row.kind === 'homicide' || row.kind === 'suspicious_death') c.homicide += 1;
+      else if (row.kind === 'missing') c.missing += 1;
+      else if (row.kind === 'unidentified' || row.kind === 'unclaimed') c.unidentified += 1;
+    }
+    return c;
+  }, [casesAll]);
+
+  const cases = useMemo(() => {
+    const allowed = KIND_FILTER_TO_RPC[filter];
+    if (!allowed) return casesAll;
+    return casesAll.filter((c) => allowed.includes(c.kind));
+  }, [casesAll, filter]);
+
+  const allCount = casesAll.length;
+
+  // If the previously-selected pin disappears from the filtered set (e.g.
+  // user toggled away from "all"), drop the selection so the sheet header
+  // doesn't render a phantom case.
+  useEffect(() => {
+    if (selectedSlug && !cases.some((c) => c.slug === selectedSlug)) {
+      setSelectedSlug(null);
+    }
+  }, [cases, selectedSlug]);
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      {/* Header */}
-      <View
-        style={{ paddingTop: insets.top + 6, paddingBottom: 12, paddingHorizontal: 16 }}
+      {/* Header — collapses on bottom-sheet drag. The wordmark fades + slides up,
+          the subtitle's height drops to zero so the chip row rises to a 56dp
+          compact bar, leaving more vertical map. */}
+      <Animated.View
+        style={[
+          { paddingTop: insets.top + 6, paddingHorizontal: 16 },
+          headerStyle,
+        ]}
       >
         <View
           style={{
@@ -100,23 +230,30 @@ export default function MapScreen() {
           }}
         >
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Animated.View
+              style={[
+                { flexDirection: 'row', alignItems: 'center' },
+                wordmarkStyle,
+              ]}
+            >
               <SerifTitle size="h2" style={{ fontSize: 22 }}>
                 The Cold File
               </SerifTitle>
               {source === 'sample' ? <SampleTag /> : null}
-            </View>
-            <MonoLabel
-              size={tokens.size.monoLabel}
-              color={tokens.color.text.secondary}
-              style={{ marginTop: 4 }}
-            >
-              {headerSubLabel(loading ? null : allCount)}
-            </MonoLabel>
+            </Animated.View>
+            <Animated.View style={[{ overflow: 'hidden' }, subtitleStyle]}>
+              <MonoLabel
+                size={tokens.size.monoLabel}
+                color={tokens.color.text.secondary}
+                style={{ marginTop: 4 }}
+              >
+                {headerSubLabel(loading ? null : allCount)}
+              </MonoLabel>
+            </Animated.View>
           </View>
           <SearchButton />
         </View>
-      </View>
+      </Animated.View>
 
       {/* Filter chip row.
           flexGrow:0 + flexShrink:0 on the ScrollView itself is load-bearing —
@@ -134,22 +271,25 @@ export default function MapScreen() {
       >
         <FilterChip
           label="All"
-          count={loading ? undefined : allCount}
+          count={loading ? undefined : counts.all}
           active={filter === 'all'}
           onPress={() => setFilter('all')}
         />
         <FilterChip
           label="Homicide"
+          count={loading ? undefined : counts.homicide}
           active={filter === 'homicide'}
           onPress={() => setFilter('homicide')}
         />
         <FilterChip
           label="Missing"
+          count={loading ? undefined : counts.missing}
           active={filter === 'missing'}
           onPress={() => setFilter('missing')}
         />
         <FilterChip
           label="Doe"
+          count={loading ? undefined : counts.unidentified}
           active={filter === 'unidentified'}
           onPress={() => setFilter('unidentified')}
         />
@@ -161,17 +301,25 @@ export default function MapScreen() {
           <NativeRenderer
             cases={cases}
             selectedSlug={selectedSlug}
-            onMarkerPress={setSelectedSlug}
+            onMarkerPress={handleMarkerPress}
             here={here}
           />
         ) : (
           <LeafletRenderer
             cases={cases}
             selectedSlug={selectedSlug}
-            onMarkerPress={setSelectedSlug}
+            onMarkerPress={handleMarkerPress}
             here={here}
+            zones={zoneOverlays}
+            zonesVisible={zonesVisible}
           />
         )}
+        {zoneOverlays.length > 0 ? (
+          <LayerToggleButton
+            visible={zonesVisible}
+            onPress={toggleZonesVisible}
+          />
+        ) : null}
         {error && cases.length === 0 ? (
           // ErrorState is built as a flex:1 fill (used full-page on
           // case-detail). Wrap absolutely so it overlays the map renderer
@@ -230,15 +378,16 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      {selectedCase ? (
-        <PeekSheet
-          distanceMiles={selectedCase.distance_miles ?? 0}
-          kindLine={kindLine(selectedCase)}
-          victimName={peekDisplayName(selectedCase)}
-          onOpen={() => router.push(`/case/${selectedCase.slug}`)}
-          onDismiss={() => setSelectedSlug(null)}
-        />
-      ) : null}
+      <MapBottomSheet
+        ref={sheetRef}
+        cases={cases}
+        selectedSlug={selectedSlug}
+        onClearSelection={handleClearSelection}
+        daysFor={daysFor}
+        animatedIndex={sheetIndex}
+        onWatchHere={() => router.push('/watch-zone')}
+        watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
+      />
     </View>
   );
 }
@@ -291,11 +440,15 @@ function LeafletRenderer({
   selectedSlug,
   onMarkerPress,
   here,
+  zones,
+  zonesVisible,
 }: {
   cases: CaseRowMapNear[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
   here: { lat: number; lng: number; fresh: boolean };
+  zones: { id: string; geojson: { type: 'Polygon'; coordinates: [number, number][][] }; label: string | null }[];
+  zonesVisible: boolean;
 }) {
   const markers: LeafletMarker[] = useMemo(() => {
     return cases
@@ -322,8 +475,63 @@ function LeafletRenderer({
       }}
       markers={markers}
       here={{ lat: here.lat, lng: here.lng, fresh: here.fresh }}
+      zones={zones}
+      zonesVisible={zonesVisible}
       onMarkerPress={onMarkerPress}
     />
+  );
+}
+
+/**
+ * Layer-toggle for the right-edge stack (spec §7). The "Z" glyph maps to
+ * watch-zone visibility; "on" = zones overlaid on the map, "off" = hidden.
+ * Persisted preference. Only renders when the user has zones — no point
+ * cluttering the screen with a control that does nothing.
+ */
+function LayerToggleButton({
+  visible,
+  onPress,
+}: {
+  visible: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={visible ? 'Hide watch zones' : 'Show watch zones'}
+      accessibilityState={{ selected: visible }}
+      hitSlop={6}
+      style={({ pressed }) => [
+        {
+          position: 'absolute',
+          right: 16,
+          top: 12,
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: visible ? tokens.color.bg.amberTintCard : tokens.color.bg.elev1,
+          borderWidth: 0.5,
+          borderColor: visible ? tokens.color.accent.amber : tokens.color.border.strong,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: pressed ? 0.7 : 1,
+          shadowColor: '#000',
+          shadowOpacity: 0.4,
+          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 1 },
+          elevation: 4,
+        },
+      ]}
+    >
+      <MonoLabel
+        size={14}
+        tracking={0}
+        color={visible ? tokens.color.accent.amber : tokens.color.text.secondary}
+      >
+        Z
+      </MonoLabel>
+    </Pressable>
   );
 }
 
@@ -414,12 +622,6 @@ function SampleTag() {
       </MonoLabel>
     </View>
   );
-}
-
-function peekDisplayName(c: CaseRowMapNear): string {
-  if (c.victim_name) return c.victim_name;
-  if (c.kind === 'unidentified' || c.kind === 'unclaimed') return 'Unidentified';
-  return 'Name not released';
 }
 
 /**

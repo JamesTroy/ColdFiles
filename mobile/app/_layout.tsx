@@ -23,6 +23,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -84,10 +85,11 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={navTheme}>
-        <OnboardingGate />
-        <Stack
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+      <SafeAreaProvider>
+        <ThemeProvider value={navTheme}>
+          <OnboardingGate />
+          <Stack
           screenOptions={{
             contentStyle: { backgroundColor: tokens.color.bg.base },
             headerShown: false,
@@ -120,13 +122,22 @@ export default function RootLayout() {
           <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="terms" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="takedown" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen
+            name="takedown-request/[slug]"
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="zone/[id]"
+            options={{ animation: 'slide_from_right' }}
+          />
           <Stack.Screen name="sign-in" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
           <Stack.Screen name="search" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
           <Stack.Screen name="delete-account" options={{ animation: 'slide_from_right' }} />
         </Stack>
-        <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
-      </ThemeProvider>
-    </SafeAreaProvider>
+          <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

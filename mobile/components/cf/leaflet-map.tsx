@@ -39,6 +39,16 @@ export interface LeafletMarker {
   recentDays?: number | null;
 }
 
+export interface LeafletZoneOverlay {
+  id: string;
+  /** GeoJSON Polygon: { type: 'Polygon', coordinates: [[ [lng,lat], ... ]] } */
+  geojson: {
+    type: 'Polygon';
+    coordinates: [number, number][][];
+  };
+  label?: string | null;
+}
+
 interface LeafletMapProps {
   center: { lat: number; lng: number; zoomLevel?: number };
   markers: LeafletMarker[];
@@ -50,6 +60,15 @@ interface LeafletMapProps {
    * in the project memory.
    */
   here?: { lat: number; lng: number; fresh?: boolean } | null;
+  /**
+   * The user's saved watch zones to render as low-opacity amber polygons
+   * underneath the case pins. Empty array → no overlay. Independent of
+   * `zonesVisible` so the parent can show/hide without re-fetching the
+   * zone list.
+   */
+  zones?: LeafletZoneOverlay[];
+  /** Defaults to true. Tied to the layer-stack Z toggle. */
+  zonesVisible?: boolean;
   onMarkerPress?: (id: string) => void;
   onRegionChange?: (bounds: {
     minLng: number;
@@ -63,6 +82,8 @@ export function LeafletMap({
   center,
   markers,
   here,
+  zones = [],
+  zonesVisible = true,
   onMarkerPress,
   onRegionChange,
 }: LeafletMapProps) {
@@ -77,6 +98,7 @@ export function LeafletMap({
 
   const markersJson = JSON.stringify(markers);
   const hereJson = JSON.stringify(here ?? null);
+  const zonesJson = JSON.stringify(zones);
 
   useEffect(() => {
     if (!ready) return;
@@ -84,10 +106,11 @@ export function LeafletMap({
       try {
         window.__cf_setMarkers && window.__cf_setMarkers(${markersJson});
         window.__cf_setHere && window.__cf_setHere(${hereJson});
+        window.__cf_setZones && window.__cf_setZones(${zonesJson}, ${zonesVisible ? 'true' : 'false'});
       } catch (e) {}
       true;
     `);
-  }, [ready, markersJson, hereJson]);
+  }, [ready, markersJson, hereJson, zonesJson, zonesVisible]);
 
   // Whenever the parent's size changes, force Leaflet to re-measure. Covers
   // device rotation and any case where the WebView grew after Leaflet's init.
@@ -134,7 +157,7 @@ export function LeafletMap({
       <WebView
         ref={webRef}
         source={{ html }}
-        originWhitelist={['https://tile.openstreetmap.org', 'https://unpkg.com', 'about:blank']}
+        originWhitelist={['https://basemaps.cartocdn.com', 'https://a.basemaps.cartocdn.com', 'https://b.basemaps.cartocdn.com', 'https://c.basemaps.cartocdn.com', 'https://d.basemaps.cartocdn.com', 'https://unpkg.com', 'about:blank']}
         style={{
           position: 'absolute',
           top: 0,
@@ -176,8 +199,9 @@ function buildLeafletHtml(
   const shapeMap = PIN_SHAPE_BY_KIND;
   const clusterTokens = {
     fill: tokens.color.cluster.fill,
+    ring: tokens.color.cluster.ring,
+    halo: tokens.color.cluster.halo,
     text: tokens.color.cluster.text,
-    border: tokens.color.border.strong,
   };
 
   return /* html */ `<!doctype html>
@@ -196,9 +220,11 @@ function buildLeafletHtml(
       background: ${tokens.color.bg.base};
       -webkit-tap-highlight-color: transparent;
     }
-    /* The Cold File dark voice: dim the OSM raster tiles + tame the attribution. */
+    /* Carto Dark Matter is already styled-dark; just nudge it a touch toward
+       the file-cabinet base color. Filter is light because the basemap was
+       designed for overlay data — heavy filtering crushes road contrast. */
     .leaflet-tile-pane {
-      filter: brightness(0.45) saturate(0.5) hue-rotate(-10deg) contrast(1.1);
+      filter: brightness(0.85) saturate(0.7);
     }
     .leaflet-control-attribution {
       background: rgba(10, 10, 10, 0.6) !important;
@@ -276,7 +302,11 @@ function buildLeafletHtml(
       0%   { transform: translate(-50%, -50%) scale(1);   opacity: 0.4; }
       100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
     }
-    /* Cluster icon — token-driven, replaces leaflet.markercluster defaults. */
+    /* Cluster icon — translucent amber-haze disc + amber ring + soft halo.
+       Reads as "indexed archive" rather than generic data point. The ring
+       carries the brand amber; the disc is the same amber at low alpha so
+       map tiles show through (you can see WHERE the cluster sits, not just
+       that there's a cluster there). */
     .cf-cluster {
       background: transparent;
       border: 0;
@@ -284,8 +314,10 @@ function buildLeafletHtml(
     .cf-cluster-inner {
       border-radius: 50%;
       background: ${tokens.color.cluster.fill};
-      border: 0.5px solid ${tokens.color.border.strong};
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      border: 1.5px solid ${tokens.color.cluster.ring};
+      box-shadow:
+        0 0 0 6px ${tokens.color.cluster.halo},
+        0 1px 3px rgba(0, 0, 0, 0.4);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -414,9 +446,16 @@ function buildLeafletHtml(
         attributionControl: true,
       });
 
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // Carto Dark Matter (no labels) — pre-styled dark monochrome basemap
+      // designed by Stamen for Carto, specifically tuned to "get out of the
+      // way" of overlay data. Strips POI / commercial labels / landuse;
+      // keeps water + roads + boundaries. The Cold File pins carry the
+      // visual weight; the basemap is forensic chart, not destination map.
+      // Free, no API key, subdomain-rotated for performance.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap',
+        subdomains: 'abcd',
+        attribution: '© OpenStreetMap contributors, © CARTO',
       }).addTo(map);
 
       // Region change → debounced postMessage so the consumer can refetch.
@@ -452,6 +491,36 @@ function buildLeafletHtml(
           iconAnchor: [diameter / 2, diameter / 2],
         });
       }
+
+      // Zone overlays sit BENEATH the markers/clusters so case pins read
+      // first and the zone is recognizable but quiet. addTo before the
+      // marker cluster ensures z-order.
+      var zoneLayer = L.layerGroup().addTo(map);
+      var zoneVisibleState = true;
+
+      window.__cf_setZones = function (list, visible) {
+        zoneLayer.clearLayers();
+        zoneVisibleState = !!visible;
+        if (!Array.isArray(list) || !zoneVisibleState) return;
+        for (var zi = 0; zi < list.length; zi++) {
+          var z = list[zi];
+          if (!z || !z.geojson) continue;
+          try {
+            // Spec §7: low-opacity amber. Visible enough to remind, quiet
+            // enough not to compete with case pins.
+            L.geoJSON(z.geojson, {
+              style: {
+                color: '${tokens.color.accent.amber}',
+                weight: 1.25,
+                opacity: 0.45,
+                fillColor: '${tokens.color.accent.amber}',
+                fillOpacity: 0.10,
+              },
+              interactive: false,
+            }).addTo(zoneLayer);
+          } catch (e) { /* skip malformed */ }
+        }
+      };
 
       var markerLayer = L.markerClusterGroup({
         showCoverageOnHover: false,
