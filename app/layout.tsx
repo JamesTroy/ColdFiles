@@ -37,17 +37,40 @@ const jetbrains = JetBrains_Mono({
   display: 'swap',
 });
 
+// Canonical host = apex (coldfile.app). Vercel Project → Domains must list
+// it as the primary; www should 308-redirect to apex. metadataBase + the
+// per-page canonical alternates assume this convention.
+const SITE_URL = 'https://coldfile.app';
+const SITE_NAME = 'The Cold File';
+const SITE_DESCRIPTION =
+  'Discover unsolved cases near you. Tips routed to the agencies that own them — never held by us.';
+
 export const metadata: Metadata = {
-  title: 'The Cold File',
-  description:
-    'Discover unsolved cases near you. Tips routed to the agencies that own them — never held by us.',
-  metadataBase: new URL('https://coldfile.app'),
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_NAME,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: 'Matte Black Dev LLC', url: SITE_URL }],
+  creator: 'Matte Black Dev LLC',
+  publisher: 'Matte Black Dev LLC',
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
-    title: 'The Cold File',
-    description:
-      'Discover unsolved cases near you. Tips routed to the agencies that own them — never held by us.',
     type: 'website',
-    url: 'https://coldfile.app',
+    siteName: SITE_NAME,
+    locale: 'en_US',
+    url: SITE_URL,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
   },
 };
 
@@ -56,13 +79,44 @@ export const viewport: Viewport = {
   themeColor: '#0a0a0a',
 };
 
+// JSON-LD Organization — cheapest publisher-identity signal a brand-new
+// domain can give a search engine. Matched to the privacy-policy
+// attribution. Add SoftwareApplication once the app launches publicly.
+const ORG_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Matte Black Dev LLC',
+  url: SITE_URL,
+  logo: `${SITE_URL}/icon.png`,
+  description: SITE_DESCRIPTION,
+  sameAs: [],
+  contactPoint: [
+    {
+      '@type': 'ContactPoint',
+      contactType: 'privacy',
+      email: 'privacy@coldfile.app',
+    },
+    {
+      '@type': 'ContactPoint',
+      contactType: 'takedown',
+      email: 'takedown@coldfile.app',
+    },
+  ],
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
       className={`${newsreader.variable} ${inter.variable} ${jetbrains.variable}`}
     >
-      <body>{children}</body>
+      <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_LD) }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

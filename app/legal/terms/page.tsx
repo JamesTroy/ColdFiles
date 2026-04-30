@@ -3,8 +3,15 @@ import type { Metadata } from 'next';
 import { LegalDoc } from '@/app/_components/legal-doc';
 
 export const metadata: Metadata = {
-  title: 'Terms of Service · The Cold File',
+  title: 'Terms of Service',
   description: 'Terms governing your use of The Cold File.',
+  alternates: { canonical: '/legal/terms' },
+  openGraph: {
+    title: 'Terms of Service · The Cold File',
+    description: 'Terms governing your use of The Cold File.',
+    url: '/legal/terms',
+    type: 'article',
+  },
 };
 
 export default function TermsPage() {

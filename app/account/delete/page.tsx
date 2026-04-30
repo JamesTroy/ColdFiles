@@ -2,9 +2,17 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Delete Account · The Cold File',
+  title: 'Delete Account',
   description:
     'Request permanent deletion of your Cold File account and associated data.',
+  alternates: { canonical: '/account/delete' },
+  openGraph: {
+    title: 'Delete Account · The Cold File',
+    description:
+      'Request permanent deletion of your Cold File account and associated data.',
+    url: '/account/delete',
+    type: 'article',
+  },
 };
 
 /**

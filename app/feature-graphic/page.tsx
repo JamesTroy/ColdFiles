@@ -27,9 +27,11 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Feature graphic · The Cold File',
-  // Don't index — this page is a listing asset, not content.
+  title: 'Feature graphic',
+  // Don't index — this page is a listing asset, not content. Also
+  // disallowed in robots.ts and excluded from sitemap.ts.
   robots: { index: false, follow: false },
+  alternates: { canonical: '/feature-graphic' },
 };
 
 const W = 1024;

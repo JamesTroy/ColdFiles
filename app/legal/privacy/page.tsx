@@ -3,9 +3,17 @@ import type { Metadata } from 'next';
 import { LegalDoc } from '@/app/_components/legal-doc';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy · The Cold File',
+  title: 'Privacy Policy',
   description:
     'How The Cold File collects, uses, and protects your data. Tips never pass through our servers.',
+  alternates: { canonical: '/legal/privacy' },
+  openGraph: {
+    title: 'Privacy Policy · The Cold File',
+    description:
+      'How The Cold File collects, uses, and protects your data. Tips never pass through our servers.',
+    url: '/legal/privacy',
+    type: 'article',
+  },
 };
 
 export default function PrivacyPage() {

@@ -3,9 +3,17 @@ import type { Metadata } from 'next';
 import { LegalDoc } from '@/app/_components/legal-doc';
 
 export const metadata: Metadata = {
-  title: 'Takedown Request · The Cold File',
+  title: 'Takedown Request',
   description:
     'How family members and rights holders can request a photo or case be removed from The Cold File.',
+  alternates: { canonical: '/legal/takedown' },
+  openGraph: {
+    title: 'Takedown Request · The Cold File',
+    description:
+      'How family members and rights holders can request a photo or case be removed from The Cold File.',
+    url: '/legal/takedown',
+    type: 'article',
+  },
 };
 
 export default function TakedownPage() {
