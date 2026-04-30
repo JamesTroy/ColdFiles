@@ -149,36 +149,38 @@ export interface CaseMediaRow {
     | 'photo_location'
     | 'sketch_poi'
     | 'document';
-  /** Canonical photo URL — usually the source agency / aggregator's CDN. */
-  url: string;
   /**
-   * Cached copy in Supabase Storage. Populated by the lazy-mirror pipeline,
-   * or eagerly on day-one for sources whose bandwidth is donation-funded
-   * (Charley Project, Doe Network) or that serve over plain HTTP.
-   * Client picks `mirror_url ?? url` so the canonical URL still wins when
-   * the mirror hasn't been built yet.
+   * Photo URL the client renders. By construction, this is always the
+   * Supabase Storage public URL — the ingest pipeline downloads bytes
+   * BEFORE inserting the row (supabase/functions/_shared/media.ts), so
+   * the no-hot-link guarantee for Charley/Doe is structurally enforced
+   * upstream. There is no separate `mirror_url` column — `url` IS the
+   * mirror.
    */
-  mirror_url: string | null;
+  url: string;
+  /** Original source CDN URL — kept for re-fetch and provenance. Never rendered. */
   source_url: string | null;
   caption: string | null;
   is_primary: boolean;
   display_warning: 'graphic' | 'sensitive' | null;
-  /**
-   * Per-photo attribution label rendered in the PhotoFrame caption strip.
-   * Required, not optional — a single case can carry photos from multiple
-   * sources (NamUs portrait, Doe reconstruction, Charley family photo) and
-   * each needs its own attribution. NOT redundant with case_sources.
-   */
-  source_attribution: string;
-  /**
-   * Orthogonal to display_warning. A forensic reconstruction or sketch
-   * always renders a "FORENSIC RECONSTRUCTION" label so users tapping a
-   * Doe pin don't mistake an artist's rendering for a real photo. Set true
-   * for kind in {reconstruction, sketch_victim, sketch_poi, age_progression}
-   * AND any case where the imagery is artist-rendered regardless of kind.
-   */
-  is_reconstruction: boolean;
   source_id: string | null;
+}
+
+/**
+ * True when the imagery is artist-rendered (forensic reconstruction, sketch,
+ * age progression). Used by PhotoFrame to render the FORENSIC RECONSTRUCTION
+ * pill so users tapping a Doe pin don't mistake the rendering for a real
+ * photo. Derived from kind rather than stored as a column — the kind taxonomy
+ * already encodes this distinction.
+ */
+export function isMediaReconstruction(media: Pick<CaseMediaRow, 'kind'> | null | undefined): boolean {
+  if (!media) return false;
+  return (
+    media.kind === 'reconstruction' ||
+    media.kind === 'sketch_victim' ||
+    media.kind === 'sketch_poi' ||
+    media.kind === 'age_progression'
+  );
 }
 
 export type TipRouteKind =

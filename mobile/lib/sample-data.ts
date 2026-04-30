@@ -790,20 +790,15 @@ function makePicsumPhoto(caseId: string, slug: string): CaseMediaRow {
   // Picsum returns deterministic Unsplash photographs by seed — landscapes
   // and objects, never faces / silhouettes. The corner-bracket frame and
   // caption strip mark these as case-file material, not illustration.
-  // source_attribution intentionally reads "Designer placeholder" so any
-  // QA glance at a screenshot can tell real material from filler.
   return {
     id: `media-${caseId}-photo`,
     case_id: caseId,
     kind: 'photo_victim',
     url: `https://picsum.photos/seed/${slug}/600/400`,
-    mirror_url: null,
     source_url: null,
     caption: null,
     is_primary: true,
     display_warning: null,
-    source_attribution: 'Designer placeholder',
-    is_reconstruction: false,
     source_id: null,
   };
 }
@@ -839,14 +834,11 @@ export const SAMPLE_CASE_MEDIA_BY_CASE_ID: Record<string, CaseMediaRow[]> = {
       id: 'media-aujay-photo',
       case_id: 'aujay-1998',
       kind: 'photo_victim',
-      url: 'TODO_PHOTO_URL', // Charley Project photo URL (provenance only)
-      mirror_url: null, // TODO: upload to Supabase Storage, paste public URL
+      url: 'TODO_PHOTO_URL', // upload to Supabase Storage, paste public URL
       source_url: 'https://charleyproject.org/case/jonathan-aujay',
       caption: 'Jonathan Aujay, last seen March 7, 1998',
       is_primary: true,
       display_warning: null,
-      source_attribution: 'Charley Project',
-      is_reconstruction: false,
       source_id: null,
     },
   ],
@@ -858,36 +850,28 @@ export const SAMPLE_CASE_MEDIA_BY_CASE_ID: Record<string, CaseMediaRow[]> = {
       id: 'media-armstead-photo',
       case_id: 'armstead-2024',
       kind: 'photo_victim',
-      url: 'TODO_PHOTO_URL', // grab CDN URL from NamUs DevTools
-      mirror_url: null,
+      url: 'TODO_PHOTO_URL', // upload to Supabase Storage, paste public URL
       source_url: 'https://namus.nij.ojp.gov/missing-person-namus-mp131995',
       caption: 'Zaryn Armstead, missing from Los Angeles since October 17, 2024',
       is_primary: true,
       display_warning: null,
-      source_attribution: 'NamUs',
-      is_reconstruction: false,
       source_id: null,
     },
   ],
 
-  // 3. UP125280 — unidentified, LA County, June 2024.
-  //    GATE BEHIND TAP. May include post-mortem photography or forensic
-  //    reconstruction. display_warning: 'sensitive' is pre-set; if the page
-  //    actually shows forensic art rather than a real photo, flip
-  //    is_reconstruction to true.
+  // 3. UP125280 — unidentified, LA County, June 2024. May include forensic
+  //    reconstruction; PhotoFrame derives the FORENSIC RECONSTRUCTION pill
+  //    from `kind` ('reconstruction' here) automatically.
   'up125280-2024': [
     {
       id: 'media-up125280-photo',
       case_id: 'up125280-2024',
-      kind: 'reconstruction', // change to 'photo_victim' if the source isn't art
+      kind: 'reconstruction', // flip to 'photo_victim' if the source isn't art
       url: 'TODO_PHOTO_URL',
-      mirror_url: null,
       source_url: 'https://namus.nij.ojp.gov/unidentified-person-namus-up125280',
       caption: 'Unidentified person, found in Los Angeles County, June 29, 2024',
       is_primary: true,
       display_warning: 'sensitive',
-      source_attribution: 'NamUs',
-      is_reconstruction: true, // flip false if NamUs page shows a real photo
       source_id: null,
     },
   ],
@@ -895,44 +879,32 @@ export const SAMPLE_CASE_MEDIA_BY_CASE_ID: Record<string, CaseMediaRow[]> = {
   // 4. Robert Abdelkader III — FBI seeking-info poster.
   //    Federal works, lowest legal risk. FBI page has a "View Poster" link
   //    pointing to a PDF; the poster preview image on the page itself is the
-  //    JPG you want. Hot-link OK.
+  //    JPG you want.
   'abdelkader-2024': [
     {
       id: 'media-abdelkader-photo',
       case_id: 'abdelkader-2024',
       kind: 'photo_victim',
       url: 'TODO_PHOTO_URL', // FBI poster preview JPG (not the PDF)
-      mirror_url: null,
       source_url: 'https://www.fbi.gov/wanted/seeking-info/robert-abdelkader-iii',
       caption: 'Robert Abdelkader III, homicide victim, Compton, June 7, 2024',
       is_primary: true,
       display_warning: null,
-      source_attribution: 'FBI',
-      is_reconstruction: false,
       source_id: null,
     },
   ],
 
   // 5. Carlos Alvarez-Diaz — LASD homicide bulletin, family snapshot.
-  //    LASD images at lasd.org/wp-content/uploads/YYYY/MM/<file>.jpg are
-  //    stable WordPress uploads — hot-link OK.
-  //    NOTE: source_url points to the homicide-bureau category page; the
-  //    specific May 17, 2023 bulletin slug couldn't be confirmed without a
-  //    successful fetch. Easiest fix: open the category page, scroll to the
-  //    May 17, 2023 entry, paste that bulletin's URL here.
   'alvarez-diaz-2022': [
     {
       id: 'media-alvarez-diaz-photo',
       case_id: 'alvarez-diaz-2022',
       kind: 'photo_victim',
       url: 'TODO_PHOTO_URL', // wp-content/uploads/2023/05/<file>.jpg
-      mirror_url: null,
       source_url: 'https://lasd.org/category/homicide-bureau/',
       caption: 'Carlos Alvarez-Diaz, killed in Hawaiian Gardens, October 8, 2022',
       is_primary: true,
       display_warning: null,
-      source_attribution: 'LASD',
-      is_reconstruction: false,
       source_id: null,
     },
   ],
