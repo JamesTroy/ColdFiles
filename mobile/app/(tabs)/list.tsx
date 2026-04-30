@@ -235,6 +235,11 @@ export default function ListScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={{ paddingBottom: 24 }}
+          // "handled" keeps inner Pressables responsive when the ScrollView
+          // is also handling pull-to-refresh / momentum gestures. Without
+          // this, taps near the start of a fling can get eaten by the
+          // ScrollView's gesture handler.
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -260,12 +265,11 @@ export default function ListScreen() {
                     key={row.slug}
                     row={row}
                     daysSinceUpdate={days}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/case/[slug]',
-                        params: { slug: row.slug },
-                      })
-                    }
+                    // Template-string format matches the legacy navigation
+                    // pattern that worked in this codebase pre-redesign.
+                    // Both forms are valid Expo Router APIs; this one is
+                    // battle-tested here.
+                    onPress={() => router.push(`/case/${row.slug}`)}
                   />
                 ))}
               </View>
