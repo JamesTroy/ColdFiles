@@ -12,7 +12,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,6 +21,7 @@ import { AmberCTA, SecondaryCTA } from '@/components/cf/cta-button';
 import { ErrorState } from '@/components/cf/error-state';
 import { KeyFactsTable, type KeyFact } from '@/components/cf/key-facts';
 import { PhotoFrame } from '@/components/cf/photo-frame';
+import { PhotoGallery } from '@/components/cf/photo-gallery';
 import { ColdPill, UnsolvedPill } from '@/components/cf/pill';
 import { SourceChipRow } from '@/components/cf/source-chip';
 import { SuccessFlash } from '@/components/cf/success-flash';
@@ -120,8 +121,16 @@ export default function CaseDetailScreen() {
   );
 
   const facts = buildKeyFacts(c);
-  const primaryMedia = primaryMediaRow(data.media);
-  const photoCaption = buildPhotoCaption(c, primaryMedia);
+  const defaultHero = useMemo(() => primaryMediaRow(data.media), [data.media]);
+  // Tap-to-promote: gallery thumbnails set heroId, swapping that media row
+  // into the PhotoFrame slot. Falls through to defaultHero on first paint
+  // and whenever the user hasn't promoted anything.
+  const [heroId, setHeroId] = useState<string | null>(null);
+  // Reset the promotion when the user navigates to a different case.
+  useEffect(() => setHeroId(null), [c.slug]);
+  const heroMedia =
+    (heroId && data.media.find((m) => m.id === heroId)) || defaultHero;
+  const photoCaption = buildPhotoCaption(c, heroMedia);
   const heroName = displayName(c);
 
   return (
@@ -156,10 +165,16 @@ export default function CaseDetailScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
         <PhotoFrame
-          uri={effectivePhotoUri(primaryMedia)}
+          uri={effectivePhotoUri(heroMedia)}
           caption={photoCaption}
-          isReconstruction={isMediaReconstruction(primaryMedia)}
-          displayWarning={primaryMedia?.display_warning ?? null}
+          isReconstruction={isMediaReconstruction(heroMedia)}
+          displayWarning={heroMedia?.display_warning ?? null}
+        />
+
+        <PhotoGallery
+          media={data.media}
+          heroId={heroMedia?.id ?? null}
+          onSelectHero={(row) => setHeroId(row.id)}
         />
 
         <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
@@ -196,6 +211,8 @@ export default function CaseDetailScreen() {
         </View>
 
         <LastSeenBlock c={c} />
+
+        <PhysicalDescriptionBlock c={c} />
 
         <CaseLocationPreview c={c} />
 
@@ -580,6 +597,101 @@ function FactLine({
       )}
     </View>
   );
+}
+
+/**
+ * Physical description block — sex / age / race / ethnicity / height /
+ * weight / eyes / hair / distinguishing marks. The most load-bearing surface
+ * for unidentified-person cases (the data that drives identifications);
+ * still useful for named victims when families review tips against memory.
+ *
+ * Hidden when the case carries none of these fields. Each row hidden when
+ * its specific field is null — no "Height: —" placeholders, just clean
+ * absence.
+ *
+ * Heights/weights stored in metric in the schema; rendered in imperial here
+ * because the user base is US-centric. Source-of-truth stays metric.
+ */
+function PhysicalDescriptionBlock({ c }: { c: CaseRowFull }) {
+  const ageDisplay = formatAgeRange(c);
+  const sexDisplay = formatSex(c.victim_sex);
+  const heightDisplay = formatHeight(c.victim_height_cm);
+  const weightDisplay = formatWeight(c.victim_weight_kg);
+
+  const facts: { label: string; value: string }[] = [];
+  if (sexDisplay) facts.push({ label: 'SEX', value: sexDisplay });
+  if (ageDisplay) facts.push({ label: 'AGE', value: ageDisplay });
+  if (c.victim_race) facts.push({ label: 'RACE', value: c.victim_race });
+  if (c.victim_ethnicity) facts.push({ label: 'ETHNICITY', value: c.victim_ethnicity });
+  if (heightDisplay) facts.push({ label: 'HEIGHT', value: heightDisplay });
+  if (weightDisplay) facts.push({ label: 'WEIGHT', value: weightDisplay });
+  if (c.victim_eye_color) facts.push({ label: 'EYES', value: c.victim_eye_color });
+  if (c.victim_hair_color) facts.push({ label: 'HAIR', value: c.victim_hair_color });
+
+  if (facts.length === 0 && !c.distinguishing_marks) return null;
+
+  return (
+    <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
+      <MonoLabel
+        size={tokens.size.monoChip}
+        tracking={tokens.tracking.chip}
+        color={tokens.color.text.secondary}
+        style={{ marginBottom: 10 }}
+      >
+        DESCRIPTION
+      </MonoLabel>
+      {facts.length > 0 ? (
+        <KeyFactsTable facts={facts.map((f) => ({ ...f, mono: false }))} />
+      ) : null}
+      {c.distinguishing_marks ? (
+        <View style={{ marginTop: 12 }}>
+          <MonoLabel
+            size={tokens.size.monoLabel}
+            tracking={tokens.tracking.label}
+            color={tokens.color.text.disabled}
+          >
+            DISTINGUISHING MARKS
+          </MonoLabel>
+          <NarrativeText style={{ marginTop: 4 }}>
+            {c.distinguishing_marks}
+          </NarrativeText>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function formatSex(s: CaseRowFull['victim_sex']): string | null {
+  if (!s || s === 'unknown') return null;
+  if (s === 'male') return 'Male';
+  if (s === 'female') return 'Female';
+  return 'Other';
+}
+
+function formatAgeRange(c: CaseRowFull): string | null {
+  if (c.victim_age != null) return String(c.victim_age);
+  if (c.victim_age_min != null && c.victim_age_max != null) {
+    return `${c.victim_age_min}–${c.victim_age_max} (estimated)`;
+  }
+  if (c.victim_age_min != null) return `~${c.victim_age_min}+ (estimated)`;
+  if (c.victim_age_max != null) return `~${c.victim_age_max} (estimated)`;
+  return null;
+}
+
+function formatHeight(cm: number | null): string | null {
+  if (cm == null) return null;
+  const totalInches = cm / 2.54;
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches - feet * 12);
+  // ROunding can push 11.5" up to 12" and break the display. Carry to next foot.
+  if (inches === 12) return `${feet + 1}′0″ (${cm} cm)`;
+  return `${feet}′${inches}″ (${cm} cm)`;
+}
+
+function formatWeight(kg: number | null): string | null {
+  if (kg == null) return null;
+  const lbs = Math.round(kg * 2.20462);
+  return `${lbs} lb (${kg} kg)`;
 }
 
 /**

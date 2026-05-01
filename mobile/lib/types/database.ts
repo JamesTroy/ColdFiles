@@ -82,6 +82,13 @@ export interface CaseRowFull {
   victim_age_max: number | null;
   victim_sex: 'male' | 'female' | 'unknown' | 'other' | null;
   victim_race: string | null;
+  victim_ethnicity: string | null;
+  victim_height_cm: number | null;
+  victim_weight_kg: number | null;
+  victim_eye_color: string | null;
+  victim_hair_color: string | null;
+  /** Scars, tattoos, surgical marks, piercings, etc. Free-form. */
+  distinguishing_marks: string | null;
   incident_date: string | null;
   incident_date_quality: DateQuality;
   incident_date_text: string | null;
