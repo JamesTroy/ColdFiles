@@ -22,7 +22,6 @@ import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -32,8 +31,13 @@ import { tokens } from '@/constants/theme';
 import { useAuthCallback } from '@/lib/hooks/use-auth-callback';
 import { useOnboarding } from '@/lib/hooks/use-onboarding';
 
-// Hold the splash until fonts have loaded — prevents a flash of system-fallback
-// type that would betray the case-file aesthetic.
+// Native splash stays up until JS mounts. We then immediately call
+// hideAsync() (in the layout's mount effect) and let our JS-rendered
+// BrandSplash take over for the rest of the cold-launch window — through
+// font-load and a 400ms brand beat. preventAutoHide keeps the native
+// splash visible during the JS-bundle-parse phase so the user doesn't
+// see a flash of system OS background between OS handoff and JS first
+// paint.
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* ignore — already hidden in some lifecycles */
 });
@@ -69,11 +73,14 @@ export default function RootLayout() {
   // JS-rendered brand splash overlay. Three-phase lifecycle:
   //   - mounted: true while the overlay is in the tree
   //   - visible: true while it's fully opaque (controls when fade starts)
-  // After fonts load + a 400ms hold, visible flips to false → BrandSplash
-  // animates opacity 1→0 → onFadeComplete fires → we unmount.
-  // 400ms is the minimum brand-beat duration; even on fast cold launches
-  // the user registers the logo. Per CLAUDE.md: hooks above any early
-  // return.
+  // BrandSplash is rendered from the very first JS paint — covers the
+  // entire startup window from native-splash-handoff through font-load
+  // through the 400ms brand beat. The "C" briefly renders in system serif
+  // fallback during font load, then snaps to Newsreader; single glyph,
+  // not visually noticeable, and the alternative (holding native splash
+  // through font load) means the user only sees our brand for the last
+  // ~400ms instead of the whole cold launch.
+  // Per CLAUDE.md: hooks above any early return.
   const [splashMounted, setSplashMounted] = useState(true);
   const [splashVisible, setSplashVisible] = useState(true);
 
@@ -83,20 +90,24 @@ export default function RootLayout() {
   // false (correct for RN — see lib/supabase.ts).
   useAuthCallback();
 
+  // Hide the native splash as soon as JS mounts — don't wait for fonts.
+  // Our BrandSplash overlay covers the screen from this point so there's
+  // no flash of un-themed app shell.
   useEffect(() => {
-    if (!fontsLoaded) return;
     SplashScreen.hideAsync().catch(() => {
       /* ignore */
     });
-    // Hold the JS splash 400ms after native hides, then trigger fade.
+  }, []);
+
+  // Once fonts have loaded, hold the brand for 400ms then trigger the
+  // fade. Fonts loading triggers a single re-render of the C glyph from
+  // system fallback into Newsreader; users typically don't notice at
+  // splash scale.
+  useEffect(() => {
+    if (!fontsLoaded) return;
     const t = setTimeout(() => setSplashVisible(false), 400);
     return () => clearTimeout(t);
   }, [fontsLoaded]);
-
-  if (!fontsLoaded) {
-    // Splash is up; render nothing rather than fallback type.
-    return <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }} />;
-  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
