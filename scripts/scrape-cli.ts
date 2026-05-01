@@ -167,7 +167,22 @@ async function runTick() {
 }
 
 function errMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === 'object') {
+    // Supabase PostgREST errors come back as plain objects {code, message,
+    // details, hint}. Bare String(obj) gives "[object Object]"; pull the
+    // useful fields out instead.
+    const e = err as Record<string, unknown>;
+    const parts = [e.message, e.details, e.hint, e.code]
+      .filter((p): p is string => typeof p === 'string' && p.length > 0);
+    if (parts.length > 0) return parts.join(' · ');
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  }
+  return String(err);
 }
 
 main().catch((err) => {
