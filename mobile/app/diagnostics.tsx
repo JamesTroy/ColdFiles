@@ -8,17 +8,19 @@
  * The "Copy diagnostics" amber CTA pushes the assembled plaintext block
  * onto the system clipboard and shows a 2s "Copied" inline confirmation.
  *
- * Per CLAUDE.md: hooks before early returns.
+ * Per CLAUDE.md: hooks before early returns. Card / Row primitives come
+ * from components/cf/screen-shell.
  */
 
 import * as Clipboard from 'expo-clipboard';
-import { router, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA } from '@/components/cf/cta-button';
-import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
+import { Card, PushScreenHeader, Row } from '@/components/cf/screen-shell';
+import { MonoLabel } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { assembleDiagnosticsText, collectDiagnostics } from '@/lib/diagnostics';
 
@@ -46,39 +48,11 @@ export default function DiagnosticsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 32 }}>
-        <View style={{ paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View style={{ flex: 1 }}>
-            <SerifTitle size="h2" style={{ fontSize: 22 }}>
-              Diagnostics
-            </SerifTitle>
-            <MonoLabel
-              size={tokens.size.monoLabel}
-              color={tokens.color.text.secondary}
-              style={{ marginTop: 4 }}
-            >
-              RUNTIME · BUILD · DEVICE
-            </MonoLabel>
-          </View>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            hitSlop={12}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingHorizontal: 4 })}
-          >
-            <SansBody style={{ color: tokens.color.text.secondary, fontSize: 13 }}>Close</SansBody>
-          </Pressable>
-        </View>
-
+      <PushScreenHeader title="Diagnostics" subtitle="DEVICE · BUILD" />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
         <Card>
-          {items.map((item, idx) => (
-            <Row
-              key={item.label}
-              label={item.label}
-              value={item.value}
-              isFirst={idx === 0}
-            />
+          {items.map((item) => (
+            <Row key={item.label} label={item.label} value={item.value} valueMono />
           ))}
         </Card>
 
@@ -96,51 +70,6 @@ export default function DiagnosticsScreen() {
           </MonoLabel>
         </View>
       </ScrollView>
-    </View>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <View
-      style={{
-        marginHorizontal: 16,
-        marginBottom: 12,
-        backgroundColor: tokens.color.bg.elev1,
-        borderColor: tokens.color.border.subtle,
-        borderWidth: 0.5,
-        borderRadius: 6,
-        overflow: 'hidden',
-      }}
-    >
-      {children}
-    </View>
-  );
-}
-
-function Row({ label, value, isFirst }: { label: string; value: string; isFirst?: boolean }) {
-  return (
-    <View
-      style={{
-        paddingHorizontal: 13,
-        paddingVertical: 13,
-        borderTopWidth: isFirst ? 0 : 0.5,
-        borderTopColor: tokens.color.border.subtle,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 12,
-      }}
-    >
-      <SansBody style={{ fontSize: 13.5 }}>{label}</SansBody>
-      <Mono
-        size={12}
-        style={{ color: tokens.color.text.secondary, flexShrink: 1, textAlign: 'right' }}
-        numberOfLines={1}
-        ellipsizeMode="middle"
-      >
-        {value}
-      </Mono>
     </View>
   );
 }

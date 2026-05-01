@@ -11,13 +11,18 @@
  *   - Footer: app version + LLC line in mono evidence-chrome
  *
  * The Premium row routes to /watch-zone (the new screen below).
+ *
+ * Card / Row / NavRow are imported from components/cf/screen-shell — same
+ * primitives are shared with diagnostics, notifications, tip-history,
+ * region-prefs. Keep them centralized.
  */
 
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Card, NavRow, Row } from '@/components/cf/screen-shell';
 import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { assembleDiagnosticsText } from '@/lib/diagnostics';
@@ -26,14 +31,6 @@ import { useSourceMix, type SourceMixRow } from '@/lib/hooks/use-source-mix';
 import { signOut, useUser } from '@/lib/hooks/use-user';
 
 const SUPPORT_EMAIL = 'support@coldfile.app';
-
-interface RowProps {
-  label: string;
-  value: string;
-  valueColor?: string;
-  valueMono?: boolean;
-  onPress?: () => void;
-}
 
 export default function MeScreen() {
   const insets = useSafeAreaInsets();
@@ -94,52 +91,19 @@ export default function MeScreen() {
                 value={user.email ?? '—'}
                 valueColor={tokens.color.text.secondary}
               />
-              <Row
-                label="Download my data"
-                value="→"
-                valueColor={tokens.color.text.secondary}
-                onPress={() => router.push('/data-export')}
-              />
-              <Row
-                label="Diagnostics"
-                value="→"
-                valueColor={tokens.color.text.secondary}
-                onPress={() => router.push('/diagnostics')}
-              />
-              <Row
-                label="Sign out"
-                value="→"
-                valueColor={tokens.color.text.secondary}
-                onPress={handleSignOut}
-              />
-              <Row
-                label="Delete account"
-                value="→"
-                valueColor={tokens.color.text.secondary}
-                onPress={() => router.push('/delete-account')}
-              />
+              <NavRow label="Download my data" onPress={() => router.push('/data-export')} />
+              <NavRow label="Diagnostics" onPress={() => router.push('/diagnostics')} />
+              <NavRow label="Sign out" onPress={handleSignOut} />
+              <NavRow label="Delete account" onPress={() => router.push('/delete-account')} />
             </>
           ) : (
             <>
-              <Row
+              <NavRow
                 label={authAvailable ? 'Continue with email' : 'Continue with email (designer mode)'}
-                value="→"
-                valueColor={tokens.color.accent.amber}
-                valueMono
                 onPress={() => router.push('/sign-in')}
               />
-              <Row
-                label="Download my data"
-                value="→"
-                valueColor={tokens.color.text.secondary}
-                onPress={() => router.push('/data-export')}
-              />
-              <Row
-                label="Diagnostics"
-                value="→"
-                valueColor={tokens.color.text.secondary}
-                onPress={() => router.push('/diagnostics')}
-              />
+              <NavRow label="Download my data" onPress={() => router.push('/data-export')} />
+              <NavRow label="Diagnostics" onPress={() => router.push('/diagnostics')} />
             </>
           )}
         </Card>
@@ -159,12 +123,7 @@ export default function MeScreen() {
             valueMono
             onPress={() => router.push('/tip-history')}
           />
-          <Row
-            label="Cases saved"
-            value="→"
-            valueColor={tokens.color.text.secondary}
-            onPress={() => router.push('/(tabs)/saved')}
-          />
+          <NavRow label="Cases saved" onPress={() => router.push('/(tabs)/saved')} />
         </Card>
 
         {/* Card 3 — Data · Sources (mix transparency) */}
@@ -206,41 +165,13 @@ export default function MeScreen() {
 
         {/* Card 4 — Help / Notifications / About */}
         <Card>
-          <Row
-            label="Help / contact"
-            value="→"
-            onPress={handleSupportEmail}
-          />
-          <Row
-            label="Notifications"
-            value="→"
-            onPress={() => router.push('/notifications')}
-          />
-          <Row
-            label="Pinned regions"
-            value="→"
-            onPress={() => router.push('/region-prefs')}
-          />
-          <Row
-            label="About · mission"
-            value="→"
-            onPress={() => router.push('/about')}
-          />
-          <Row
-            label="Privacy policy"
-            value="→"
-            onPress={() => router.push('/privacy')}
-          />
-          <Row
-            label="Terms of service"
-            value="→"
-            onPress={() => router.push('/terms')}
-          />
-          <Row
-            label="Takedown request"
-            value="→"
-            onPress={() => router.push('/takedown')}
-          />
+          <NavRow label="Help / contact" onPress={handleSupportEmail} />
+          <NavRow label="Notifications" onPress={() => router.push('/notifications')} />
+          <NavRow label="Pinned regions" onPress={() => router.push('/region-prefs')} />
+          <NavRow label="About · mission" onPress={() => router.push('/about')} />
+          <NavRow label="Privacy policy" onPress={() => router.push('/privacy')} />
+          <NavRow label="Terms of service" onPress={() => router.push('/terms')} />
+          <NavRow label="Takedown request" onPress={() => router.push('/takedown')} />
         </Card>
 
         {/* Footer */}
@@ -262,65 +193,6 @@ function sourceMixSummary(mix: ReturnType<typeof useSourceMix>): string {
   if (mix.loading) return 'Loading…';
   if (mix.error) return '—';
   return `${mix.total.toLocaleString()} cases · ${mix.bySource.length} ${mix.bySource.length === 1 ? 'source' : 'sources'}`;
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <View
-      style={{
-        marginHorizontal: 16,
-        marginBottom: 12,
-        backgroundColor: tokens.color.bg.elev1,
-        borderColor: tokens.color.border.subtle,
-        borderWidth: 0.5,
-        borderRadius: 6,
-        overflow: 'hidden',
-      }}
-    >
-      {children}
-    </View>
-  );
-}
-
-function Row({ label, value, valueColor, valueMono, onPress }: RowProps) {
-  const content = (
-    <View
-      style={{
-        paddingHorizontal: 13,
-        paddingVertical: 13,
-        borderTopWidth: 0.5,
-        borderTopColor: tokens.color.border.subtle,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}
-    >
-      <SansBody style={{ fontSize: 13.5 }}>{label}</SansBody>
-      {valueMono ? (
-        <Mono
-          size={13}
-          style={{ color: valueColor ?? tokens.color.text.secondary }}
-        >
-          {value}
-        </Mono>
-      ) : (
-        <SansBody
-          style={{ color: valueColor ?? tokens.color.text.secondary, fontSize: 13 }}
-        >
-          {value}
-        </SansBody>
-      )}
-    </View>
-  );
-
-  if (onPress) {
-    return (
-      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-        {content}
-      </Pressable>
-    );
-  }
-  return content;
 }
 
 function SourceRow({ row }: { row: SourceMixRow }) {

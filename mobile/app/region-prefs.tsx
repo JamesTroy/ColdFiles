@@ -11,7 +11,6 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,22 +19,20 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PushScreenHeader } from '@/components/cf/screen-shell';
 import {
   InfoText,
   Mono,
   MonoLabel,
   SansBody,
   SansMedium,
-  SerifTitle,
 } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { useRegionPrefs } from '@/lib/hooks/use-region-prefs';
 import { US_STATES, type UsState } from '@/lib/us-states';
 
 export default function RegionPrefsScreen() {
-  const insets = useSafeAreaInsets();
   const { pinnedStates, addState, removeState, ready } = useRegionPrefs();
   const [query, setQuery] = useState('');
 
@@ -77,55 +74,7 @@ export default function RegionPrefsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      {/* Header row — back chevron + title block */}
-      <View
-        style={{
-          paddingTop: insets.top + 6,
-          paddingHorizontal: 16,
-          paddingBottom: 12,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-          hitSlop={12}
-          style={({ pressed }) => [
-            {
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: tokens.color.bg.elev1,
-              borderWidth: 0.5,
-              borderColor: tokens.color.border.strong,
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: pressed ? 0.7 : 1,
-            },
-          ]}
-        >
-          <Ionicons
-            name="chevron-back"
-            size={20}
-            color={tokens.color.text.primary}
-          />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <SerifTitle size="h2" style={{ fontSize: 22 }}>
-            Regions
-          </SerifTitle>
-          <MonoLabel
-            size={tokens.size.monoLabel}
-            color={tokens.color.text.secondary}
-            style={{ marginTop: 4 }}
-          >
-            PINNED STATES
-          </MonoLabel>
-        </View>
-      </View>
+      <PushScreenHeader title="Regions" subtitle="PINNED STATES" />
 
       {/* TrustDisclosure-style callout — bespoke copy, same visual language as
           components/cf/trust-disclosure.tsx (you.here left edge + info tint

@@ -162,6 +162,17 @@ export const tokens = {
     pill: 12,
   },
 
+  /**
+   * Layout constants shared across screens. The "card gap" is the de-facto
+   * vertical spacing between stacked cards on settings-style screens (Me,
+   * Diagnostics, Notifications, Tip history). 12px lets two card edges sit
+   * close enough to read as the same surface family while preserving a
+   * legible hairline gutter.
+   */
+  layout: {
+    cardGap: 12,
+  },
+
   pin: {
     /** stroke = max(1.5, round(diameter / 8)) */
     strokeForDiameter: (d: number): number => Math.max(1.5, Math.round(d / 8)),

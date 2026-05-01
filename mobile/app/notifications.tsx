@@ -11,12 +11,13 @@
  */
 
 import * as Clipboard from 'expo-clipboard';
-import { router, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA } from '@/components/cf/cta-button';
-import { InfoText, MonoLabel, Mono, SansBody, SerifTitle } from '@/components/cf/text';
+import { Card, PushScreenHeader } from '@/components/cf/screen-shell';
+import { InfoText, Mono, SansBody } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import {
   useNotificationPrefs,
@@ -60,38 +61,8 @@ export default function NotificationsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 32 }}>
-        <View
-          style={{
-            paddingHorizontal: 16,
-            paddingBottom: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <SerifTitle size="h2" style={{ fontSize: 22 }}>
-              Notifications
-            </SerifTitle>
-            <MonoLabel
-              size={tokens.size.monoLabel}
-              color={tokens.color.text.secondary}
-              style={{ marginTop: 4 }}
-            >
-              PREFERENCES
-            </MonoLabel>
-          </View>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            hitSlop={12}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingHorizontal: 4 })}
-          >
-            <SansBody style={{ color: tokens.color.text.secondary, fontSize: 13 }}>Close</SansBody>
-          </Pressable>
-        </View>
+      <PushScreenHeader title="Notifications" subtitle="PREFERENCES" />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
 
         {/* Trust callout — same primitive shape as TrustDisclosureCallout. */}
         <View
@@ -281,24 +252,6 @@ function PermissionBlock({ status, token, loading, onRequest, onDisable }: Permi
           Open Settings →
         </SansBody>
       </Pressable>
-    </View>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <View
-      style={{
-        marginHorizontal: 16,
-        marginBottom: 12,
-        backgroundColor: tokens.color.bg.elev1,
-        borderColor: tokens.color.border.subtle,
-        borderWidth: 0.5,
-        borderRadius: 6,
-        overflow: 'hidden',
-      }}
-    >
-      {children}
     </View>
   );
 }

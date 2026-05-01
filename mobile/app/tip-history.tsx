@@ -19,6 +19,7 @@ import { router, Stack } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Card, PushScreenHeader } from '@/components/cf/screen-shell';
 import {
   Mono,
   MonoLabel,
@@ -41,41 +42,8 @@ export default function TipHistoryScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 32 }}>
-        <View
-          style={{
-            paddingHorizontal: 16,
-            paddingBottom: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <SerifTitle size="h2" style={{ fontSize: 22 }}>
-              Tip history
-            </SerifTitle>
-            <MonoLabel
-              size={tokens.size.monoLabel}
-              color={tokens.color.text.secondary}
-              style={{ marginTop: 4 }}
-            >
-              SUBMITTED
-            </MonoLabel>
-          </View>
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            hitSlop={12}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingHorizontal: 4 })}
-          >
-            <SansBody style={{ color: tokens.color.text.secondary, fontSize: 13 }}>
-              Close
-            </SansBody>
-          </Pressable>
-        </View>
-
+      <PushScreenHeader title="Tip history" subtitle="SUBMITTED" />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
         {loading ? (
           <Card>
             <SkeletonRow />
@@ -244,20 +212,3 @@ function SkeletonRow() {
   );
 }
 
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <View
-      style={{
-        marginHorizontal: 16,
-        marginBottom: 12,
-        backgroundColor: tokens.color.bg.elev1,
-        borderColor: tokens.color.border.subtle,
-        borderWidth: 0.5,
-        borderRadius: 6,
-        overflow: 'hidden',
-      }}
-    >
-      {children}
-    </View>
-  );
-}

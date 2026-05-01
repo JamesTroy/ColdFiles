@@ -82,14 +82,23 @@ export default function WatchZoneScreen() {
 
   const [saveSheetOpen, setSaveSheetOpen] = useState(false);
 
-  if (authAvailable && !userLoading && !user) {
-    return <WatchZoneSignInGate />;
-  }
-
   const radiusMeters = radiusMi * MILES_TO_METERS;
   const areaMi2 = Math.PI * radiusMi * radiusMi;
   const overAreaCap = areaMi2 > SOFT_AREA_CAP_MI2;
   const overZoneCap = zones.length >= SOFT_ZONE_CAP;
+
+  // Sign-in gate. Per CLAUDE.md, all hooks must run on every render — so
+  // every hook in this component has to be declared ABOVE this conditional
+  // return, never below it. Adding a hook between this `if` and the
+  // editor's `return` would skip on the gated render and surface as
+  // "Rendered more hooks than during the previous render" → blank grey
+  // screen on Android Fabric production. If you need state/effects scoped
+  // to the editor branch, put them in a child component (DrawZoneMap,
+  // SaveSheet, etc.) rather than here.
+  const showSignInGate = authAvailable && !userLoading && !user;
+  if (showSignInGate) {
+    return <WatchZoneSignInGate />;
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
