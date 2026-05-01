@@ -67,7 +67,10 @@ const config: ExpoConfig = {
       'expo-splash-screen',
       {
         image: './assets/images/splash-icon.png',
-        imageWidth: 200,
+        // 240dp fills ~65% of a typical Android screen width. The asset
+        // has its corner brackets at 10% inset so the visible-content
+        // width reads at ~190dp — the right scale for a brand splash.
+        imageWidth: 240,
         resizeMode: 'contain',
         backgroundColor: '#0a0a0a',
       },
