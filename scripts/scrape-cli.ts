@@ -26,17 +26,30 @@ import { SOURCE_BY_SLUG, getSourceOrThrow } from '../sources/index.ts';
 interface Args {
   source?: string;
   limit?: number;
+  /**
+   * Persist concurrency. Fetches stay serial (PoliteFetcher's lastRequest
+   * timestamp isn't lock-protected; parallel fetches would race and break
+   * the rate-limit contract per source). The persist phase is 5-10 Supabase
+   * round-trips per record — that's where the wall-clock time lives, and
+   * those round-trips don't share any rate-limit state, so we can pool
+   * them safely. Default 1 preserves the old fully-sequential behavior.
+   */
+  concurrency: number;
   dryrun: boolean;
   tick: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const out: Args = { dryrun: false, tick: false };
+  const out: Args = { dryrun: false, tick: false, concurrency: 1 };
   for (const a of argv.slice(2)) {
     if (a === '--dryrun') out.dryrun = true;
     else if (a === '--tick') out.tick = true;
     else if (a.startsWith('--source=')) out.source = a.slice('--source='.length);
     else if (a.startsWith('--limit=')) out.limit = parseInt(a.slice('--limit='.length), 10);
+    else if (a.startsWith('--concurrency=')) {
+      const n = parseInt(a.slice('--concurrency='.length), 10);
+      if (Number.isFinite(n) && n > 0) out.concurrency = n;
+    }
   }
   return out;
 }
@@ -102,7 +115,27 @@ async function main() {
   const stats: RunStats = { cases_seen: 0, cases_new: 0, cases_updated: 0, errors: [] };
 
   const urls = await discoverDetailUrls(source, fetcher, { detailLimit: args.limit });
-  console.log(`[${source.slug}] discovered ${urls.length} detail URLs`);
+  console.log(
+    `[${source.slug}] discovered ${urls.length} detail URLs · persist concurrency=${args.concurrency}`,
+  );
+
+  // Persist pool: a Set of in-flight persist promises, capped at
+  // args.concurrency. Fetches remain serial; only persists overlap. We
+  // wait via Promise.race when the pool is full so the next fetch can
+  // start as soon as ANY persist finishes — overlap fetch+persist time
+  // without breaking PoliteFetcher's per-source rate-limit contract.
+  const pool: Set<Promise<void>> = new Set();
+  const persistCtx = {
+    supabase,
+    source,
+    sourceId,
+    trustWeight: source.trustWeight,
+    fetcher,
+    mapboxToken: process.env.MAPBOX_ACCESS_TOKEN,
+    // Kill-switch: DEDUPE_TIER3_TO_REVIEW=false reverts to the old
+    // auto-merge path for Tier-3 candidates. Default on.
+    tier3ToReview: process.env.DEDUPE_TIER3_TO_REVIEW !== 'false',
+  };
 
   for (const u of urls) {
     const out = await extractDetail(source, u, fetcher);
@@ -111,31 +144,29 @@ async function main() {
       console.warn(`[${source.slug}] ! ${u}: ${out.error}`);
       continue;
     }
-    try {
-      await persistRecord(
-        {
-          supabase,
-          source,
-          sourceId,
-          trustWeight: source.trustWeight,
-          fetcher,
-          mapboxToken: process.env.MAPBOX_ACCESS_TOKEN,
-          // Kill-switch: DEDUPE_TIER3_TO_REVIEW=false reverts to the old
-          // auto-merge path for Tier-3 candidates. Default on.
-          tier3ToReview: process.env.DEDUPE_TIER3_TO_REVIEW !== 'false',
-        },
-        out,
-        stats,
-      );
-      console.log(
-        `[${source.slug}] ✓ ${out.victim_name ?? '<no name>'} (${u}) — ` +
-        `seen=${stats.cases_seen} new=${stats.cases_new} upd=${stats.cases_updated}`,
-      );
-    } catch (err) {
-      stats.errors.push({ url: u, message: errMessage(err) });
-      console.error(`[${source.slug}] persist error: ${errMessage(err)}`);
+
+    while (pool.size >= args.concurrency) {
+      await Promise.race(pool);
     }
+
+    const task = (async () => {
+      try {
+        await persistRecord(persistCtx, out, stats);
+        console.log(
+          `[${source.slug}] ✓ ${out.victim_name ?? '<no name>'} (${u}) — ` +
+            `seen=${stats.cases_seen} new=${stats.cases_new} upd=${stats.cases_updated}`,
+        );
+      } catch (err) {
+        stats.errors.push({ url: u, message: errMessage(err) });
+        console.error(`[${source.slug}] persist error: ${errMessage(err)}`);
+      }
+    })();
+    pool.add(task);
+    void task.finally(() => pool.delete(task));
   }
+
+  // Drain the pool before reporting final stats so the totals are accurate.
+  await Promise.all(pool);
 
   console.log(`\n[${source.slug}] done — seen=${stats.cases_seen} new=${stats.cases_new} upd=${stats.cases_updated} errors=${stats.errors.length}`);
 }

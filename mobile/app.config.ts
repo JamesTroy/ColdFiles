@@ -81,20 +81,16 @@ const config: ExpoConfig = {
     // expo-notifications — push delivery for watch-zone alerts, saved-case
     // updates, and tip status changes. Requires a native rebuild (NOT OTA).
     //
-    // TODO(notification-icon): commission a 96×96 monochrome PNG and drop it
-    // at mobile/assets/images/notification-icon.png. Until then we let the
-    // plugin run with no `icon`, which falls back to the app icon — fine for
-    // dev + closed testing, NOT acceptable for Play Store production submission
-    // (Google strips colored icons in the status bar, leaving a grey square).
-    // When the asset exists, change this entry to the array form:
-    //   ['expo-notifications', {
-    //     icon: './assets/images/notification-icon.png',
-    //     color: '#c5a572',
-    //   }]
+    // The icon is the open-C brand mark rendered as a 96×96 white-on-
+    // transparent PNG. Android system-tints monochrome notification icons
+    // using the `color` property; that's why the source asset must be
+    // alpha-only (white shape on transparent background). The asset was
+    // generated programmatically — to regenerate, see the PIL one-liner
+    // in the v1.0.1 push-notifications PR.
     [
       'expo-notifications',
       {
-        // icon: './assets/images/notification-icon.png',  // TODO: add asset
+        icon: './assets/images/notification-icon.png',
         color: '#c5a572', // tokens.color.accent.amber — splash backdrop accent
       },
     ],
