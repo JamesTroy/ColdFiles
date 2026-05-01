@@ -33,7 +33,7 @@ export default function TermsScreen() {
         {
           heading: 'Photos and content',
           body: [
-            'Photos and case information shown in this app come from public sources including law enforcement agencies (LASD, FBI, NamUs) and case-awareness aggregators (Charley Project, Doe Network). Photos are attributed to their source. If you are a family member or rights holder and want content removed, submit a Takedown Request from the Me tab.',
+            'Photos and case information shown in this app come from publicly available federal, state, and local public records, including law enforcement agency releases and volunteer case-awareness aggregators. The current source list is documented in our Privacy Policy. Photos are attributed to their source. If you are a family member or rights holder and want content removed, submit a Takedown Request from the Me tab.',
           ],
         },
         {

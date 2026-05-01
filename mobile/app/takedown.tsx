@@ -18,7 +18,7 @@ export default function TakedownScreen() {
             '• Immediate family members (parent, child, spouse, sibling) of a person depicted.',
             '• Legal representatives of the person or family.',
             '• Photographers / rights holders of a specific image.',
-            'For photos sourced from law enforcement agencies (LASD, FBI, NamUs, etc.), we also relay your request to that agency where appropriate.',
+            'For photos sourced from law enforcement agencies, we also relay your request to that agency where appropriate. The current list of sources is documented in our Privacy Policy.',
           ],
         },
         {

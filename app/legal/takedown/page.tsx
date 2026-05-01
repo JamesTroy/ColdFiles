@@ -20,7 +20,7 @@ export default function TakedownPage() {
   return (
     <LegalDoc
       title="Takedown Request"
-      lastUpdated="2026-04-28"
+      lastUpdated="2026-05-01"
       sections={[
         {
           body: [
@@ -34,7 +34,7 @@ export default function TakedownPage() {
             '• Immediate family members (parent, child, spouse, sibling) of a person depicted.',
             '• Legal representatives of the person or family.',
             '• Photographers / rights holders of a specific image.',
-            'For photos sourced from law enforcement agencies (LASD, FBI, NamUs, etc.), we also relay your request to that agency where appropriate.',
+            'For photos sourced from law enforcement agencies, we also relay your request to that agency where appropriate. The current list of sources is documented in our Privacy Policy.',
           ],
         },
         {

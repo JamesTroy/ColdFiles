@@ -20,7 +20,7 @@ export default function PrivacyPage() {
   return (
     <LegalDoc
       title="Privacy Policy"
-      lastUpdated="2026-04-29"
+      lastUpdated="2026-05-01"
       sections={[
         {
           heading: 'Plain-language summary',
@@ -76,7 +76,7 @@ export default function PrivacyPage() {
         {
           heading: 'Where case information comes from',
           body: [
-            'The cases shown in The Cold File are sourced from publicly available records and case-awareness aggregators, including: the National Missing and Unidentified Persons System (NamUs), operated by the U.S. Department of Justice; The Charley Project, a long-running volunteer archive of cold missing-persons cases; The Doe Network, an international volunteer organization for unidentified-persons cases; Project: Cold Case, an unsolved-homicide registry; and federal, state, and local law enforcement agencies that publish information about unsolved cases on their public websites.',
+            'Cases shown in The Cold File come from publicly available federal, state, and local public records, including law enforcement agency releases and volunteer case-awareness aggregators. The current source list — The Charley Project (volunteer-archived missing-persons cases), The Doe Network (volunteer-archived unidentified-persons cases), the FBI\'s public Wanted bulletin, and the Los Angeles County Sheriff\'s Department homicide bureau — may expand or change over time as we add new public-records integrations or retire ones that are no longer maintained. We will update this policy to reflect material changes.',
             'Each case in the app links back to the original source so you can read the full record.',
           ],
         },
@@ -97,7 +97,7 @@ export default function PrivacyPage() {
           heading: "Children's privacy",
           body: [
             'The Cold File is rated for users 17 and older and is not directed at children. We do not knowingly collect personal information from anyone under 13.',
-            'Some cases displayed in the app involve victims who were minors at the time of their disappearance or death. We display photos and information for these cases only when the photos have been released for public dissemination by an investigating agency, an official aggregator such as NamUs, or the National Center for Missing & Exploited Children (NCMEC). Takedown requests from family members or rights holders are honored as described above.',
+            'Some cases displayed in the app involve victims who were minors at the time of their disappearance or death. We display photos and information for these cases only when the photos have been released for public dissemination by an investigating agency, an official federal or state aggregator, or the National Center for Missing & Exploited Children (NCMEC). Takedown requests from family members or rights holders are honored as described above.',
           ],
         },
         {

@@ -56,11 +56,12 @@ abuse. None of that reveals what you said.
 
 Where cases come from
 
-The Cold File aggregates from public sources, including the National
-Missing and Unidentified Persons System (NamUs), The Charley Project, The
-Doe Network, Project: Cold Case, and federal, state, and local agencies
-that publish unsolved-case information online. Every case in the app links
-back to its original source so you can read the full record.
+The Cold File aggregates publicly available federal, state, and local
+public records — currently The Charley Project, The Doe Network, the
+FBI's public Wanted bulletin, and the Los Angeles County Sheriff's
+Department homicide bureau. The current source list may expand over
+time as we add new public-records integrations. Every case in the app
+links back to its original source so you can read the full record.
 
 Photos shown in the app come from the same public sources. Photos from
 volunteer-funded archives are mirrored on our infrastructure to avoid
@@ -183,7 +184,8 @@ topic — paste these into the matching IARC questions:
 - The app displays photos of missing persons and victims of homicide,
   including (in a future release) forensic reconstructions of unidentified
   remains. Photos are sourced exclusively from public records released by
-  investigating agencies, NamUs, NCMEC, or volunteer aggregators.
+  investigating agencies, official federal or state aggregators, NCMEC,
+  or volunteer case-awareness aggregators.
 - The app uses per-photo content gates with reveal-on-tap for any photo
   flagged as sensitive or graphic by the source.
 - **Recommended IARC age:** 17+. Match this in the `app.config.ts` and the
@@ -215,11 +217,14 @@ features (saved cases, account deletion):
 
 What the reviewer will see
 ==========================
-1. The home screen is a map of cold cases (missing persons and unidentified
-   remains) sourced from publicly available records including NamUs, the
-   Charley Project, the Doe Network, Project: Cold Case, and law-
-   enforcement agency websites. Tapping a pin opens a case detail with the
-   victim's name, photo (if released by source), and a tip submission CTA.
+1. The home screen is a map of cold cases (homicides, missing persons,
+   and unidentified remains) sourced from publicly available federal,
+   state, and local public records. The current production source list
+   for v1.0.0 is FBI Wanted, The Charley Project, The Doe Network, and
+   the Los Angeles County Sheriff's Department homicide bureau (see
+   docs/11_LEGAL_COPY_POLICY.md for the canonical reference). Tapping a
+   pin opens a case detail with the victim's name, photo (if released
+   by source), and a tip submission CTA.
 
 2. Photos shown in the app are sourced from public records released by
    investigating agencies or by volunteer aggregators. The app does not
@@ -273,10 +278,11 @@ need from them. Closed testing isn't a launch — it's bug-finding.
 Hi —
 
 I'm opening closed testing on a missing-persons cold-case app called The
-Cold File. It's a map of unsolved cases sourced from public records (NamUs,
-the Charley Project, the Doe Network, agency websites), with one-tap tip
-routing direct to the agency that owns each case. The Cold File never sees
-the content of tips — they go straight to the agency's own infrastructure.
+Cold File. It's a map of unsolved cases sourced from public records (FBI
+Wanted, the Charley Project, the Doe Network, LASD homicide bureau),
+with one-tap tip routing direct to the agency that owns each case. The
+Cold File never sees the content of tips — they go straight to the
+agency's own infrastructure.
 
 I'm looking for ~12 people to install it for two weeks and tell me whether
 the install / sign-in / map / tip flow works on a real device. If you have
