@@ -38,8 +38,24 @@ interface PhotoFrameProps {
    * which applies the per-source mirror policy). Null → em-dash renders.
    */
   uri: string | null;
-  /** Caption format: "PHOTO {NN} · {SOURCE_NAME} · {YEAR}". */
-  caption: string;
+  /**
+   * Caption — primary line (10px mono, evidence-chrome). Provenance:
+   * "Shared by family · The Charley Project", "FBI Wanted bulletin",
+   * "Released by LASD Homicide Bureau", etc.
+   */
+  captionPrimary: string;
+  /**
+   * Caption — secondary line (8px mono 70% alpha). Year and (eventually)
+   * contextual metadata like contact-sheet / frame numbers. Optional —
+   * single-line treatment when omitted.
+   */
+  captionSecondary?: string;
+  /**
+   * Joined caption ("primary · secondary") used by the lightbox where
+   * the bottom-of-screen caption is rendered as one line. The PhotoFrame
+   * itself uses captionPrimary + captionSecondary for the two-line ledger.
+   */
+  captionFlat?: string;
   /**
    * True when the imagery is artist-rendered (forensic reconstruction, age
    * progression, sketch). Renders a "FORENSIC RECONSTRUCTION" pill so users
@@ -59,7 +75,9 @@ const BRACKET_ARM = 14;
 
 export function PhotoFrame({
   uri,
-  caption,
+  captionPrimary,
+  captionSecondary,
+  captionFlat,
   isReconstruction = false,
   displayWarning = null,
   height = 200,
@@ -139,13 +157,13 @@ export function PhotoFrame({
           otherwise they tap expecting a face and get an uncanny-valley
           rendering. The label outside the gate removes that surprise. */}
       {isReconstruction ? <ReconstructionPill /> : null}
-      <CaptionStrip caption={caption} />
+      <CaptionStrip primaryLine={captionPrimary} secondaryLine={captionSecondary} />
 
       <PhotoLightbox
         visible={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
         uri={uri}
-        caption={caption}
+        caption={captionFlat ?? captionPrimary}
         isReconstruction={isReconstruction}
       />
     </View>

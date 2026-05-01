@@ -140,6 +140,9 @@ export default function CaseDetailScreen() {
   const heroMedia =
     (heroId && data.media.find((m) => m.id === heroId)) || defaultHero;
   const photoCaption = buildPhotoCaption(c, heroMedia, data.sources);
+  const photoCaptionJoined = photoCaption.secondary
+    ? `${photoCaption.primary} · ${photoCaption.secondary}`
+    : photoCaption.primary;
   const heroName = displayName(c);
 
   return (
@@ -175,7 +178,9 @@ export default function CaseDetailScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
         <PhotoFrame
           uri={effectivePhotoUri(heroMedia)}
-          caption={photoCaption}
+          captionPrimary={photoCaption.primary}
+          captionSecondary={photoCaption.secondary}
+          captionFlat={photoCaptionJoined}
           isReconstruction={isMediaReconstruction(heroMedia)}
           displayWarning={heroMedia?.display_warning ?? null}
         />
@@ -778,30 +783,87 @@ function primaryMediaRow(media: CaseMediaRow[]): CaseMediaRow | null {
 }
 
 /**
- * Caption: "PHOTO 01 · {ATTRIBUTION} · {YEAR}".
+ * Photo caption — two-line evidence-tag treatment.
  *
- * Attribution falls back through three levels:
- *   1. Case's primary investigating agency (clean join, when present).
- *   2. The case's first source (Doe Network / FBI / Charley / etc.) — most
- *      cases have a source even when no agency mapped, so this catches the
- *      bulk of what would otherwise read "ATTRIBUTION PENDING."
- *   3. The literal placeholder, for the rare row with neither.
+ * Returns { primary, secondary } where:
+ *   - primary = provenance line ("Photo shared by family · The Charley
+ *     Project", "FBI Wanted bulletin", "Released by LASD Homicide Bureau")
+ *   - secondary = year (and, eventually, contact-sheet / frame numbers)
  *
- * Per-photo `source_attribution` (a real column on `case_media`) is the
- * proper next-iteration model — it lets us surface family-credit lines from
- * Charley/Doe instead of just the source name. Deferred to v1.0.1.
+ * The provenance framing is the source of "feeling" in this surface — a
+ * photo from a family-attributed source is no longer a generic "PHOTO 01 ·
+ * SOURCE" identifier; it's an acknowledgment that someone chose to share
+ * it. The change shifts the photo from data-row to evidence-with-a-keeper.
+ *
+ * Family-shared heuristic at v1.0.0 (until per-photo source_attribution
+ * column lands in v1.0.1):
+ *   - charley_project: always family-shared (the project's whole intake
+ *     model is family submissions).
+ *   - doe_network with kind='missing': family-shared (the MP feed's photos
+ *     are typically family-submitted via the Doe Network forum).
+ *   - doe_network_uid: NOT family-shared (these are agency-released or
+ *     forensic reconstructions of unidentified remains).
+ *
+ * Other sources:
+ *   - fbi_wanted: "FBI Wanted bulletin" — the FBI's own public bulletin,
+ *     not "released by an agency we ingest from."
+ *   - primary_agency present: "Released by {agency}" (LASD homicide
+ *     bureau, etc.).
+ *   - source name only: "Via {source}" — honest but undecorated.
+ *   - fallback: "PHOTO 01 · ATTRIBUTION PENDING" — preserves the existing
+ *     trust posture (don't fake an attribution we don't have).
  */
+interface PhotoCaption {
+  primary: string;
+  secondary: string;
+}
+
 function buildPhotoCaption(
   c: CaseRowFull,
   _primary: CaseMediaRow | null,
   sources: CaseSourceRow[],
-): string {
-  const sourceLabel = 'PHOTO 01'; // numbering when we surface a gallery
-  const agencyName = c.primary_agency?.name?.toUpperCase();
-  const sourceName = sources[0]?.source?.name?.toUpperCase();
-  const attribution = agencyName ?? sourceName ?? 'ATTRIBUTION PENDING';
+): PhotoCaption {
   const year = c.incident_date ? c.incident_date.slice(0, 4) : '—';
-  return `${sourceLabel} · ${attribution} · ${year}`;
+  const sourceSlug = sources[0]?.source?.slug;
+  const sourceName = sources[0]?.source?.name;
+  const agencyName = c.primary_agency?.name;
+
+  if (isFamilySharedSource(sourceSlug, c.kind)) {
+    return {
+      primary: `Shared by family · ${sourceName}`,
+      secondary: year,
+    };
+  }
+
+  if (sourceSlug === 'fbi_wanted') {
+    return { primary: 'FBI Wanted bulletin', secondary: year };
+  }
+
+  if (agencyName) {
+    return { primary: `Released by ${agencyName}`, secondary: year };
+  }
+
+  if (sourceName) {
+    return { primary: `Via ${sourceName}`, secondary: year };
+  }
+
+  return { primary: 'PHOTO 01 · ATTRIBUTION PENDING', secondary: year };
+}
+
+/**
+ * True when the photo on a case from this source is *typically* family-
+ * submitted. False otherwise. The heuristic is intentionally conservative
+ * — only sources whose intake model is documented family-submission
+ * qualify. We don't want to claim "shared by family" for an agency
+ * release just because an aggregator happens to host it.
+ */
+function isFamilySharedSource(
+  slug: string | undefined,
+  kind: CaseRowFull['kind'],
+): boolean {
+  if (slug === 'charley_project') return true;
+  if (slug === 'doe_network' && kind === 'missing') return true;
+  return false;
 }
 
 function sourceChipsFor(sources: CaseSourceRow[]): { slug: string; url: string }[] {
