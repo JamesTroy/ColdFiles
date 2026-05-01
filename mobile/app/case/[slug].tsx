@@ -139,7 +139,7 @@ export default function CaseDetailScreen() {
   // primary photo when the user hasn't promoted anything.
   const heroMedia =
     (heroId && data.media.find((m) => m.id === heroId)) || defaultHero;
-  const photoCaption = buildPhotoCaption(c, heroMedia);
+  const photoCaption = buildPhotoCaption(c, heroMedia, data.sources);
   const heroName = displayName(c);
 
   return (
@@ -779,16 +779,27 @@ function primaryMediaRow(media: CaseMediaRow[]): CaseMediaRow | null {
 
 /**
  * Caption: "PHOTO 01 · {ATTRIBUTION} · {YEAR}".
- * Attribution comes from the case's primary investigating agency. Per-photo
- * source attribution is a v1.0.1 column (see docs/audit/security/06-data-and-sql.md);
- * for closed testing, the agency name is the right grain.
+ *
+ * Attribution falls back through three levels:
+ *   1. Case's primary investigating agency (clean join, when present).
+ *   2. The case's first source (Doe Network / FBI / Charley / etc.) — most
+ *      cases have a source even when no agency mapped, so this catches the
+ *      bulk of what would otherwise read "ATTRIBUTION PENDING."
+ *   3. The literal placeholder, for the rare row with neither.
+ *
+ * Per-photo `source_attribution` (a real column on `case_media`) is the
+ * proper next-iteration model — it lets us surface family-credit lines from
+ * Charley/Doe instead of just the source name. Deferred to v1.0.1.
  */
-function buildPhotoCaption(c: CaseRowFull, _primary: CaseMediaRow | null): string {
+function buildPhotoCaption(
+  c: CaseRowFull,
+  _primary: CaseMediaRow | null,
+  sources: CaseSourceRow[],
+): string {
   const sourceLabel = 'PHOTO 01'; // numbering when we surface a gallery
-  // Honest attribution: render "ATTRIBUTION PENDING" rather than the lazy
-  // "CASE FILE" fallback when the case has no agency. Makes seed-data gaps
-  // visible.
-  const attribution = c.primary_agency?.name?.toUpperCase() ?? 'ATTRIBUTION PENDING';
+  const agencyName = c.primary_agency?.name?.toUpperCase();
+  const sourceName = sources[0]?.source?.name?.toUpperCase();
+  const attribution = agencyName ?? sourceName ?? 'ATTRIBUTION PENDING';
   const year = c.incident_date ? c.incident_date.slice(0, 4) : '—';
   return `${sourceLabel} · ${attribution} · ${year}`;
 }

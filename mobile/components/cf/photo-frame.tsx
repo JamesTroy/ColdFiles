@@ -29,6 +29,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
 
+import { PhotoLightbox } from './photo-lightbox';
 import { Mono, MonoLabel, SansBody, SerifTitle } from './text';
 
 interface PhotoFrameProps {
@@ -64,7 +65,12 @@ export function PhotoFrame({
   height = 200,
 }: PhotoFrameProps): ReactElement {
   const [revealed, setRevealed] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const gateActive = !!displayWarning && !revealed && !!uri;
+  // The image is tappable to open the lightbox once a uri exists and the
+  // warning gate (if any) has been passed. Without a uri we render the
+  // em-dash placeholder, which isn't an image and shouldn't expand.
+  const expandable = !!uri && !gateActive;
 
   return (
     <View
@@ -79,13 +85,30 @@ export function PhotoFrame({
       }}
     >
       {uri ? (
-        <Image
-          source={{ uri }}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
-          blurRadius={gateActive ? 28 : 0}
-          accessibilityIgnoresInvertColors
-        />
+        <Pressable
+          onPress={expandable ? () => setLightboxOpen(true) : undefined}
+          disabled={!expandable}
+          accessibilityRole={expandable ? 'button' : undefined}
+          accessibilityLabel={expandable ? 'View photo full screen' : undefined}
+          style={({ pressed }) => [
+            {
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              opacity: pressed && expandable ? 0.92 : 1,
+            },
+          ]}
+        >
+          <Image
+            source={{ uri }}
+            style={{ flex: 1 }}
+            resizeMode="cover"
+            blurRadius={gateActive ? 28 : 0}
+            accessibilityIgnoresInvertColors
+          />
+        </Pressable>
       ) : (
         <View
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
@@ -117,6 +140,14 @@ export function PhotoFrame({
           rendering. The label outside the gate removes that surprise. */}
       {isReconstruction ? <ReconstructionPill /> : null}
       <CaptionStrip caption={caption} />
+
+      <PhotoLightbox
+        visible={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        uri={uri}
+        caption={caption}
+        isReconstruction={isReconstruction}
+      />
     </View>
   );
 }
