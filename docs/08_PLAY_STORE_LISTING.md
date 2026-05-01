@@ -15,21 +15,35 @@ name check.)
 
 ## Short description (80 char max)
 
-> Cold cases on a map. Tips route to the agency — never to us.
+> Unsolved homicides, missing persons, unidentified cases — mapped.
 
-Length: 56 characters. Carries the headline trust posture in one line. Two
-alternates if you want a softer angle:
+Length: 66 characters. The 80-char slot is one of the most weight-bearing
+ASO surfaces in the listing — every word earns either keyword weight or
+brand work. The comma list lands three high-volume search terms
+("unsolved homicides", "missing persons", "unidentified"); "mapped" at
+the end signals the format without spending characters on "directory"
+or "database."
 
+The previous "Cold cases on a map. Tips route to the agency — never to
+us." (56) carried the trust posture in this slot, but the trust line is
+now the second sentence of the long description (above the
+~200-char preview cutoff), and the keyword density wins are larger than
+the conversion loss from moving it.
+
+Earlier alternates kept here for posterity:
+
+- "Cold cases on a map. Tips route to the agency — never to us." (56)
 - "Unsolved cases, mapped. With one-tap tip routing to the right agency." (69)
 - "Map of unsolved missing-persons cases. Tips go straight to the agency." (70)
 
 ## Full description (4000 char max)
 
 ```
-The Cold File is a map-first directory of unsolved cold cases — missing
-persons and unidentified remains. Cases are aggregated from publicly
-available federal, state, and local records and shown on a map so you can
-see what's near you, or anywhere you choose to look.
+The Cold File is a map-first directory of unsolved cold cases —
+homicides, missing persons, and unidentified remains. Tips route to the
+investigating agency, never to us. Cases are aggregated from publicly
+available federal, state, and local records and shown on a map so you
+can see what's near you, or anywhere you choose to look.
 
 What we believe about tips
 
@@ -86,6 +100,41 @@ Email takedown@coldfile.app and we'll respond within 7 days.
 Length: ~2400 characters. Room to grow if you want to expand the takedown
 section or add a "what's coming" footer for v1.0.1 features (LA-area scrapers,
 identifying-features schema, watch zones).
+
+## Tagline / promo line (optional, template-dependent)
+
+Some Play Store listing templates surface a one-liner above the
+screenshots. If yours does, this slot is editorial-voice-with-no-ASO-
+pressure — the brand name is on the install button right next to it,
+so this is for *what the app is*, not for keywords.
+
+> A public index of unsolved cases.
+
+Six words. No verb, no claim, no "find" or "track" or "discover" — those
+words would push toward true-crime-app register. "Public index" leans
+into the editorial-archival posture and matches the Newsreader serif
+identity.
+
+If your template doesn't have this slot (most don't), skip it.
+
+## What's new (first release)
+
+Most devs leave the first-release notes generic ("Initial release. Bug
+fixes and improvements."). For a sensitive-content app at first launch,
+this slot is a tone-setter — the kind of user who reads release notes
+is also the kind who reads the privacy policy, and surfacing the data
+sources + takedown commitment here is a small move with outsized effect
+on that audience's decision to install.
+
+```
+First release. Cases sourced from FBI Wanted, the Doe Network, the
+Charley Project, and LASD's homicide bureau. If you're connected to a
+case and want a record reviewed, every request is read manually within
+5 business days — takedown@coldfile.app.
+```
+
+Length: 287 characters. Within the 500-char limit Play Console enforces
+on the "What's new" field.
 
 ## App category
 
