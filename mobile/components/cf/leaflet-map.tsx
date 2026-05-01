@@ -112,6 +112,52 @@ export function LeafletMap({
     `);
   }, [ready, markersJson, hereJson, zonesJson, zonesVisible]);
 
+  // Auto-pan the map to the user once we have a real location fix.
+  //
+  // The HTML bundle bakes the initial center at first render, which is the
+  // placeholder default-center until expo-location resolves. Without this
+  // effect, the dot moves to the user's real position but the *viewport*
+  // stays parked over the placeholder — so the user's complaint of "the
+  // map doesn't update my location" is actually "the map didn't follow my
+  // dot to where I am."
+  //
+  // Heuristics:
+  //   1. First fix per session: pan once when `here` first arrives at a
+  //      non-placeholder position.
+  //   2. Big jump (>5km): user opened the app from a new city / state;
+  //      pan to follow. 5km is wide enough that walking around won't
+  //      retrigger and fight a user who panned to browse.
+  // Small movements (<5km) only update the dot via __cf_setHere and don't
+  // disturb the viewport — that respects map browsing.
+  const pannedOnceRef = useRef(false);
+  const lastPannedRef = useRef<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!ready || !here) return;
+    const isPlaceholder =
+      here.lat === tokens.map.defaultCenter.lat &&
+      here.lng === tokens.map.defaultCenter.lng;
+    if (isPlaceholder) return;
+
+    let shouldPan = false;
+    if (!pannedOnceRef.current) {
+      shouldPan = true;
+    } else if (lastPannedRef.current) {
+      const km = haversineKm(lastPannedRef.current, here);
+      if (km > 5) shouldPan = true;
+    }
+    if (!shouldPan) return;
+
+    pannedOnceRef.current = true;
+    lastPannedRef.current = { lat: here.lat, lng: here.lng };
+    webRef.current?.injectJavaScript(`
+      try { window.__cf_setCenter && window.__cf_setCenter(${JSON.stringify({
+        lat: here.lat,
+        lng: here.lng,
+      })}); } catch (e) {}
+      true;
+    `);
+  }, [ready, here]);
+
   // Whenever the parent's size changes, force Leaflet to re-measure. Covers
   // device rotation and any case where the WebView grew after Leaflet's init.
   const onLayout = (_e: LayoutChangeEvent) => {
@@ -630,4 +676,20 @@ function buildLeafletHtml(
   </script>
 </body>
 </html>`;
+}
+
+function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }

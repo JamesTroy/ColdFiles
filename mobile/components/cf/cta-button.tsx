@@ -29,9 +29,19 @@ export function AmberCTA({ label, onPress, loading, style }: AmberCTAProps) {
       accessibilityState={{ busy: loading, disabled: loading }}
       style={({ pressed }) => [
         {
+          // flex:1 is the row-context default (alongside SecondaryCTA), but
+          // many call sites place AmberCTA in a column container with no
+          // defined height. flex:1 in that case can resolve to 0 on Android
+          // Fabric, which renders the button as an amber slab with the label
+          // collapsed into 0px of vertical space — looks like "no text."
+          // alignSelf:'stretch' + minHeight:48 keep the row use-case
+          // (full-width-of-row) AND guarantee a visible touch target.
           flex: 1,
+          alignSelf: 'stretch',
+          minHeight: 48,
           backgroundColor: tokens.color.accent.amber,
           paddingVertical: 14,
+          paddingHorizontal: 12,
           borderRadius: tokens.radius.card,
           alignItems: 'center',
           justifyContent: 'center',
@@ -47,18 +57,22 @@ export function AmberCTA({ label, onPress, loading, style }: AmberCTAProps) {
       ) : (
         // Inlined Text instead of <SansMedium> to bypass cf/text's
         // `includeFontPadding: false` (Android Fabric mishandles it inside
-        // Pressable, occasionally collapsing text height to 0). fontFamily
-        // remains the design intent; fontWeight: '500' is the fallback hint
-        // so the system font still draws the label if Inter_500Medium fails
-        // to register on a particular device build.
+        // Pressable, occasionally collapsing text height to 0). fontWeight
+        // '500' is the system-font fallback if Inter_500Medium fails to
+        // register on a particular device build.
+        //
+        // No explicit lineHeight: previous versions set lineHeight to
+        // fontSize × 1.4 which interacted badly with numberOfLines:1 on
+        // Fabric and clipped the glyphs. Letting RN derive line height
+        // from the font metrics renders reliably.
         <Text
           numberOfLines={1}
+          allowFontScaling
           style={{
             color: '#1a1408',
             fontFamily: tokens.font.sansMedium,
             fontWeight: '500',
             fontSize: tokens.size.body,
-            lineHeight: tokens.size.body * 1.4,
             letterSpacing: tokens.size.body * tokens.tracking.label,
             textAlign: 'center',
           }}

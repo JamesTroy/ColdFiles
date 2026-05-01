@@ -78,9 +78,12 @@ export default function OnboardingScreen() {
   const { requestAndAcquire, acquiring } = useHere();
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
-  // SKIP is hidden on step 0 — the content-warning at step 1 is required
-  // viewing for the 17+ rating disclosure.
-  const showSkip = stepIndex > 0;
+  // SKIP is available on every step. Earlier we hid it on step 0 to make
+  // sure users saw the content-warning, but the policy now is: skip lets
+  // users out of onboarding entirely — they'll still see the warning gate
+  // on individual sensitive photos in-app, which is what actually carries
+  // the 17+ disclosure.
+  const showSkip = true;
 
   const finish = async () => {
     await complete();
@@ -167,20 +170,28 @@ export default function OnboardingScreen() {
           </View>
         ) : null}
         <MonoLabel
-          size={tokens.size.monoChip}
-          tracking={tokens.tracking.chip}
+          size={tokens.size.monoLabel}
+          tracking={tokens.tracking.label}
           color={tokens.color.text.secondary}
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: 14 }}
         >
           {step.eyebrow}
         </MonoLabel>
-        <SerifTitle size="h1" style={{ marginBottom: 18 }}>
+        <SerifTitle size="h1" style={{ marginBottom: 22 }}>
           {step.title}
         </SerifTitle>
+        {/* Onboarding body intentionally renders larger than NarrativeText's
+            default 13px. NarrativeText's 13/1.65 is tuned for case-detail
+            prose; first-time onboarding readers need a more comfortable
+            16/1.55 to absorb the rating + privacy framing. */}
         {step.body.map((paragraph, i) => (
           <NarrativeText
             key={i}
-            style={{ marginBottom: i < step.body.length - 1 ? 14 : 0 }}
+            style={{
+              fontSize: 16,
+              lineHeight: 16 * 1.55,
+              marginBottom: i < step.body.length - 1 ? 16 : 0,
+            }}
           >
             {paragraph}
           </NarrativeText>
@@ -210,12 +221,12 @@ export default function OnboardingScreen() {
           >
             <Text
               numberOfLines={1}
+              allowFontScaling
               style={{
                 color: tokens.color.text.secondary,
                 fontFamily: tokens.font.sans,
                 fontWeight: '400',
                 fontSize: tokens.size.body,
-                lineHeight: tokens.size.body * 1.4,
                 textAlign: 'center',
               }}
             >
