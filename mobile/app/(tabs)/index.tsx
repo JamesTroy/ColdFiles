@@ -375,9 +375,18 @@ export default function MapScreen() {
             variant={filter === 'all' ? 'no-cases-in-region' : 'no-matches'}
           />
         ) : null}
-        {permissionStatus !== 'granted' ? (
-          <LocationFAB onPress={() => void requestAndAcquire()} />
-        ) : null}
+        {/* The FAB serves two roles. Before the user has granted location it
+            prompts; after grant it acts as "recenter on me" — calling
+            requestAndAcquire() acquires a fresh fix which flips here.fresh
+            to true for 30s, and LeafletMap's auto-pan effect treats that
+            rising edge as an explicit user-requested recenter (bypassing
+            the >5km move threshold). Useful when the user has scrolled
+            away from their dot, or when the auto-pan didn't catch a
+            cross-city move. */}
+        <LocationFAB
+          mode={permissionStatus === 'granted' ? 'recenter' : 'request'}
+          onPress={() => void requestAndAcquire()}
+        />
         {loading && cases.length > 0 ? (
           <View
             style={{
@@ -588,16 +597,23 @@ function LayerToggleButton({
 /* ---------------- floating affordances ---------------- */
 
 /**
- * "Use my location" floating button — appears when the user hasn't granted
- * location yet. Tapping prompts the system permission dialog (with the
- * usage description from app.config.ts as the rationale). On grant, the
- * map recenters and the YouAreHere dot starts pulsing for 30s.
+ * Floating button — two modes:
+ *   - 'request': user hasn't granted location yet. Tap → system prompt.
+ *   - 'recenter': user is granted. Tap → fresh fix + map auto-pans to it
+ *     (the LeafletMap effect treats here.fresh true→ as a recenter signal).
+ * Visual cue: filled locate icon for recenter, outline for request.
  */
-function LocationFAB({ onPress }: { onPress: () => void }) {
+function LocationFAB({
+  onPress,
+  mode,
+}: {
+  onPress: () => void;
+  mode: 'request' | 'recenter';
+}) {
   return (
     <Pressable
       onPress={onPress}
-      accessibilityLabel="Use my location"
+      accessibilityLabel={mode === 'recenter' ? 'Recenter on my location' : 'Use my location'}
       accessibilityRole="button"
       hitSlop={8}
       style={({ pressed }) => [
@@ -622,7 +638,11 @@ function LocationFAB({ onPress }: { onPress: () => void }) {
         },
       ]}
     >
-      <Ionicons name="locate-outline" size={20} color={tokens.color.you.here} />
+      <Ionicons
+        name={mode === 'recenter' ? 'locate' : 'locate-outline'}
+        size={20}
+        color={tokens.color.you.here}
+      />
     </Pressable>
   );
 }

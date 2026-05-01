@@ -114,32 +114,36 @@ export function LeafletMap({
 
   // Auto-pan the map to the user once we have a real location fix.
   //
-  // The HTML bundle bakes the initial center at first render, which is the
-  // placeholder default-center until expo-location resolves. Without this
-  // effect, the dot moves to the user's real position but the *viewport*
-  // stays parked over the placeholder — so the user's complaint of "the
-  // map doesn't update my location" is actually "the map didn't follow my
-  // dot to where I am."
-  //
-  // Heuristics:
-  //   1. First fix per session: pan once when `here` first arrives at a
-  //      non-placeholder position.
-  //   2. Big jump (>5km): user opened the app from a new city / state;
-  //      pan to follow. 5km is wide enough that walking around won't
+  // Three pan triggers:
+  //   1. First fix per mount: pan once when `here` first arrives at a
+  //      non-placeholder position (HTML bakes the placeholder center on
+  //      mount; without this effect, the dot moves but the viewport
+  //      stays parked over the placeholder).
+  //   2. Fresh rising edge: useHere flips here.fresh false→true after an
+  //      explicit `requestAndAcquire()` (FAB tap, onboarding completion).
+  //      Treat that as the user asking for a recenter — pan regardless
+  //      of distance, even if we just panned 100m ago.
+  //   3. Big jump (>5km): the user opened the app from a new city/state.
+  //      Pan to follow. 5km is wide enough that walking around won't
   //      retrigger and fight a user who panned to browse.
-  // Small movements (<5km) only update the dot via __cf_setHere and don't
-  // disturb the viewport — that respects map browsing.
+  // Small unprompted movements (<5km) only update the dot via __cf_setHere
+  // and don't disturb the viewport — respects map browsing.
   const pannedOnceRef = useRef(false);
   const lastPannedRef = useRef<{ lat: number; lng: number } | null>(null);
+  const prevFreshRef = useRef(false);
   useEffect(() => {
     if (!ready || !here) return;
     const isPlaceholder =
       here.lat === tokens.map.defaultCenter.lat &&
       here.lng === tokens.map.defaultCenter.lng;
+    const freshRising = !prevFreshRef.current && !!here.fresh;
+    prevFreshRef.current = !!here.fresh;
     if (isPlaceholder) return;
 
     let shouldPan = false;
     if (!pannedOnceRef.current) {
+      shouldPan = true;
+    } else if (freshRising) {
       shouldPan = true;
     } else if (lastPannedRef.current) {
       const km = haversineKm(lastPannedRef.current, here);
