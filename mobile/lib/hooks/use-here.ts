@@ -94,6 +94,19 @@ export function useHere(): UseHereResult {
     let cancelled = false;
 
     if (permissionStatus === 'granted' && appState === 'active') {
+      // First get an immediate fix so we don't wait for the user to move
+      // 10 meters just to see where they currently are.
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      }).then((loc) => {
+        if (cancelled) return;
+        setHere((prev) => ({
+          ...prev,
+          lat: loc.coords.latitude,
+          lng: loc.coords.longitude,
+        }));
+      }).catch(() => { /* silent */ });
+
       Location.watchPositionAsync(
         { 
           accuracy: Location.Accuracy.Balanced, 
