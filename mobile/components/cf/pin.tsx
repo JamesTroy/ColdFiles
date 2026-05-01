@@ -57,35 +57,53 @@ export function Pin({
   const haloDiameter = selected ? diameter * tokens.pin.selected.haloScale : 0;
   const recentAlpha = recentDays != null ? tokens.pin.recent.alphaByAge(recentDays) : 0;
   const recentDiameter = recentAlpha > 0 ? diameter * tokens.pin.recent.ringScale : 0;
-  // Pin itself is at center; the SVG canvas accommodates the largest of the three.
-  const canvas = Math.max(diameter, haloDiameter, recentDiameter);
+  // Canvas sizing: pad by the largest stroke half-width so neither the
+  // selection halo nor the recency ring clips on the SVG outer edge.
+  // Earlier versions used `Math.max(diameter, halo, recent)` without
+  // padding — visible as a sliced halo / recency ring on selected or
+  // recently-updated pins, since each ring's outer edge sits at half-
+  // stroke beyond its nominal radius.
+  const haloStroke = selected ? tokens.pin.strokeForDiameter(haloDiameter) : 0;
+  const recentStroke =
+    recentDiameter > 0
+      ? Math.max(1, tokens.pin.strokeForDiameter(recentDiameter) - 0.5)
+      : 0;
+  const maxStroke = Math.max(stroke, haloStroke, recentStroke);
+  const canvas = Math.max(diameter, haloDiameter, recentDiameter) + maxStroke;
   const cx = canvas / 2;
   const cy = canvas / 2;
 
   return (
     <Svg width={canvas} height={canvas} viewBox={`0 0 ${canvas} ${canvas}`}>
-      {/* Recent (amberHot) — outermost so the halo can render outside it on selection */}
+      {/* Selection treatment: soft amber disc + thin amber ring. The disc
+          (15% alpha) reads as "this is the answer" with more confidence
+          than the previous hairline-only treatment. */}
+      {selected && (
+        <>
+          <Circle cx={cx} cy={cy} r={haloDiameter / 2} fill={tokens.color.accent.amber} fillOpacity={0.15} />
+          <Circle
+            cx={cx}
+            cy={cy}
+            r={haloDiameter / 2}
+            stroke={tokens.color.accent.amber}
+            strokeWidth={haloStroke}
+            strokeOpacity={0.6}
+            fill="none"
+          />
+        </>
+      )}
+
+      {/* Recent (amberHot) — drawn after halo so the hot tone lands on top of
+          the halo's amber wash (per design system spec, hot ring sits inside
+          selection halo when both fire). */}
       {recentDiameter > 0 && (
         <Circle
           cx={cx}
           cy={cy}
           r={recentDiameter / 2}
           stroke={tokens.color.accent.amberHot}
-          strokeWidth={Math.max(1, tokens.pin.strokeForDiameter(recentDiameter) - 0.5)}
+          strokeWidth={recentStroke}
           strokeOpacity={recentAlpha}
-          fill="none"
-        />
-      )}
-
-      {/* Halo (amber) — outside the base shape when selected */}
-      {selected && (
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={haloDiameter / 2}
-          stroke={tokens.color.accent.amber}
-          strokeWidth={tokens.pin.strokeForDiameter(haloDiameter)}
-          strokeOpacity={tokens.pin.selected.haloAlpha}
           fill="none"
         />
       )}
@@ -95,6 +113,17 @@ export function Pin({
 
       {shape === 'open_ring' && (
         <>
+          {/* 10% alpha cream fill so the open-ring pin reads as a lens
+              rather than a hole on low-contrast tiles. The shape (open
+              ring) still encodes kind; this just keeps the inside from
+              being pure-transparent against water + dim park tiles. */}
+          <Circle
+            cx={cx}
+            cy={cy}
+            r={diameter / 2 - stroke / 2}
+            fill={color}
+            fillOpacity={0.10}
+          />
           <Circle
             cx={cx}
             cy={cy}

@@ -291,14 +291,18 @@ function buildLeafletHtml(
       outline: none;
     }
     /* Marker icons: SVG owns its own positioning, the wrapping div is a hit target.
-       drop-shadow on the SVG element gives the pin separation from the dimmed OSM
-       basemap without introducing a hard outline that fights the design grammar. */
+       Two-stop drop-shadow gives the pin separation from the dimmed OSM basemap:
+       the first stop is a tight 0.5px rim outline that hairlines the pin against
+       any tile color (water, road, park) without introducing a hard ink line that
+       fights the design grammar; the second stop is a soft falloff for depth. */
     .cf-pin {
       background: transparent;
       border: 0;
     }
     .cf-pin svg {
-      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+      filter:
+        drop-shadow(0 0 0.5px rgba(10, 10, 10, 0.85))
+        drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
       transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
       transform-origin: center center;
     }
@@ -416,6 +420,13 @@ function buildLeafletHtml(
       }
 
       // Inline SVG matching components/cf/pin.tsx exactly.
+      //
+      // Canvas sizing: the largest visible element across all states is the
+      // selection halo (1.6× diameter) or the recent ring (1.4× diameter).
+      // Each ring's outer-edge sits at half-stroke beyond its nominal radius,
+      // so without padding the SVG canvas viewBox would clip the outer half-
+      // stroke on the right and bottom edges — visible as a sliced halo /
+      // recency ring on selected or recently-updated pins.
       function pinSvg(opts) {
         var diameter = opts.diameter || 14;
         var color = PALETTE[opts.kind] || PALETTE.homicide;
@@ -425,26 +436,40 @@ function buildLeafletHtml(
         var haloD = opts.selected ? diameter * TOKENS.haloScale : 0;
         var recAlpha = recentAlphaFor(opts.recentDays);
         var recD = recAlpha > 0 ? diameter * TOKENS.recentScale : 0;
-        var canvas = Math.max(diameter, haloD, recD);
+        // Largest stroke-width across whichever rings will be drawn this frame.
+        // Pad the canvas by that half-width so no ring's outer edge clips.
+        var haloStroke = opts.selected ? strokeForDiameter(haloD) : 0;
+        var recStroke = recD > 0 ? Math.max(1, strokeForDiameter(recD) - 0.5) : 0;
+        var maxStroke = Math.max(stroke, haloStroke, recStroke);
+        var canvas = Math.max(diameter, haloD, recD) + maxStroke;
         var cx = canvas / 2;
         var cy = canvas / 2;
         var parts = [];
 
-        // Recent ring (outermost)
-        if (recD > 0) {
-          parts.push(
-            '<circle cx="' + cx + '" cy="' + cy + '" r="' + (recD / 2) + '" ' +
-            'stroke="' + TOKENS.amberHot + '" stroke-width="' + Math.max(1, strokeForDiameter(recD) - 0.5) + '" ' +
-            'stroke-opacity="' + recAlpha + '" fill="none" />'
-          );
-        }
-
-        // Selection halo
+        // Selection treatment: a soft amber disc behind the pin (15% alpha)
+        // reads as "this is the answer" with more confidence than a hairline
+        // ring around the pin. The thin amber ring around the disc keeps the
+        // grammar consistent with the existing token (haloScale × diameter).
         if (opts.selected) {
           parts.push(
             '<circle cx="' + cx + '" cy="' + cy + '" r="' + (haloD / 2) + '" ' +
-            'stroke="' + TOKENS.amber + '" stroke-width="' + strokeForDiameter(haloD) + '" ' +
-            'stroke-opacity="' + TOKENS.haloAlpha + '" fill="none" />'
+            'fill="' + TOKENS.amber + '" fill-opacity="0.15" />'
+          );
+          parts.push(
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + (haloD / 2) + '" ' +
+            'stroke="' + TOKENS.amber + '" stroke-width="' + haloStroke + '" ' +
+            'stroke-opacity="0.6" fill="none" />'
+          );
+        }
+
+        // Recent ring (drawn after halo so the amberHot lands on top of the
+        // halo's amber tone, not buried under it). For selected+recent the
+        // hot ring sits inside the selection halo — see design system spec.
+        if (recD > 0) {
+          parts.push(
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + (recD / 2) + '" ' +
+            'stroke="' + TOKENS.amberHot + '" stroke-width="' + recStroke + '" ' +
+            'stroke-opacity="' + recAlpha + '" fill="none" />'
           );
         }
 
@@ -452,6 +477,16 @@ function buildLeafletHtml(
         if (shape === 'filled') {
           parts.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + (diameter / 2) + '" fill="' + color + '" />');
         } else if (shape === 'open_ring') {
+          // Doe pins (open ring) get a 10% alpha cream fill so they read as a
+          // lens rather than a hole on low-contrast tiles. Without the fill,
+          // an 18px ring with a 2px stroke is mostly transparent — the pin
+          // disappears into water + dim-park tiles. Maintains the open-ring
+          // grammar (shape still encodes kind); just makes the inside not
+          // pure-transparent.
+          parts.push(
+            '<circle cx="' + cx + '" cy="' + cy + '" r="' + (diameter / 2 - stroke / 2) + '" ' +
+            'fill="' + color + '" fill-opacity="0.10" />'
+          );
           parts.push(
             '<circle cx="' + cx + '" cy="' + cy + '" r="' + (diameter / 2 - stroke / 2) + '" ' +
             'stroke="' + color + '" stroke-width="' + stroke + '" fill="none" />'
@@ -468,7 +503,7 @@ function buildLeafletHtml(
         }
 
         return {
-          html: '<svg width="' + canvas + '" height="' + canvas + '" viewBox="0 0 ' + canvas + ' ' + canvas + '" xmlns="http://www.w3.org/2000/svg">' + parts.join('') + '</svg>',
+          html: '<svg width="' + canvas + '" height="' + canvas + '" viewBox="0 0 ' + canvas + ' ' + canvas + '" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">' + parts.join('') + '</svg>',
           size: canvas,
         };
       }
