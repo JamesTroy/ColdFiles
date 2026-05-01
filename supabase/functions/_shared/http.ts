@@ -237,6 +237,47 @@ export class PoliteFetcher {
     }
     return res.arrayBuffer();
   }
+
+  /**
+   * POST a JSON body and return the parsed JSON response. Honors the same
+   * polite-rate + 429/503-retry envelope as get(). Used by sources whose
+   * discovery API takes a JSON body (NamUs Search) rather than query params.
+   */
+  async postJson<T = unknown>(
+    url: string,
+    body: unknown,
+    init?: SafeFetchOptions,
+  ): Promise<T> {
+    const wait = Math.max(0, this.lastRequest + this.rateLimitMs - Date.now());
+    if (wait > 0) await sleep(wait);
+    this.lastRequest = Date.now();
+
+    const res = await safeFetch(url, {
+      ...init,
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: {
+        'User-Agent': this.userAgent,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    });
+
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get('Retry-After') ?? '60', 10);
+      await sleep(Math.min(retryAfter, 600) * 1000);
+      return this.postJson<T>(url, body, init);
+    }
+    if (res.status === 503) {
+      await sleep(60_000);
+      return this.postJson<T>(url, body, init);
+    }
+    if (!res.ok) {
+      throw new HttpError(`POST ${url} failed: ${res.status}`, res.status);
+    }
+    return (await res.json()) as T;
+  }
 }
 
 export class HttpError extends Error {

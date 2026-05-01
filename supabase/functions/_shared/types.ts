@@ -102,6 +102,15 @@ export interface CaseRecord {
   location_county?: string;
   location_state?: string; // 2-letter
   location_zip?: string;
+  /**
+   * Pre-geocoded coordinates when the source supplies them (NamUs, FBI
+   * seeking-info posters with embedded GPS). When set, persist.ts uses
+   * these directly and skips the cache-aside geocoder; when absent, the
+   * geocoder runs against location_text. Either path lands the same
+   * geography(Point) in the cases.location_point column.
+   */
+  location_lat?: number;
+  location_lng?: number;
 
   last_seen_text?: string;
   last_seen_date?: string;
@@ -169,11 +178,26 @@ export interface ListStrategyAlphaIndex {
   detailLinkSelector?: string;
 }
 
+/**
+ * Escape hatch for sources whose discovery doesn't fit the four built-in
+ * strategies. The source provides its own discoverFn returning detail URLs.
+ * Use sparingly — reach for this only when the source's API genuinely
+ * differs from the built-in shapes (e.g. NamUs's POST-with-JSON-body search).
+ */
+export interface ListStrategyCustom {
+  kind: 'custom';
+  discoverFn: (
+    fetcher: import('./http.ts').PoliteFetcher,
+    detailLimit?: number,
+  ) => Promise<string[]>;
+}
+
 export type ListStrategy =
   | ListStrategyStatePagination
   | ListStrategySitemap
   | ListStrategyJsonApi
-  | ListStrategyAlphaIndex;
+  | ListStrategyAlphaIndex
+  | ListStrategyCustom;
 
 export interface DetailSelectors {
   name?: string;

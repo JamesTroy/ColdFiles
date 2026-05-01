@@ -65,10 +65,6 @@ async function ensureGeocode(
   caseId: string,
   record: CaseRecord,
 ): Promise<void> {
-  if (!ctx.mapboxToken) return;
-  const query = record.location_text ?? joinLocation(record);
-  if (!query) return;
-
   // Skip if we've already set a point on this case.
   const { data: existing } = await ctx.supabase
     .from('cases')
@@ -76,6 +72,30 @@ async function ensureGeocode(
     .eq('id', caseId)
     .maybeSingle();
   if (existing?.location_point && existing.location_precision !== 'unknown') return;
+
+  // Pre-supplied coordinates (NamUs UP cases include publicGeolocation;
+  // FBI seeking-info posters sometimes embed GPS). When the source has
+  // already done the geocoding work, trust it — saves an upstream Mapbox
+  // call per case and gives us address-level precision for free.
+  if (
+    typeof record.location_lat === 'number' &&
+    typeof record.location_lng === 'number'
+  ) {
+    await ctx.supabase
+      .from('cases')
+      .update({
+        location_point: makePointWkt(record.location_lng, record.location_lat),
+        location_precision: 'address',
+      })
+      .eq('id', caseId);
+    return;
+  }
+
+  // Fall through to Mapbox forward geocoding when the source didn't
+  // pre-geocode. Skipped silently when MAPBOX_ACCESS_TOKEN isn't set.
+  if (!ctx.mapboxToken) return;
+  const query = record.location_text ?? joinLocation(record);
+  if (!query) return;
 
   const result = await resolveGeocode(
     { supabase: ctx.supabase, mapboxToken: ctx.mapboxToken },

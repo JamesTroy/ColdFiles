@@ -51,6 +51,8 @@ export async function discoverDetailUrls(
       return sitemapDiscovery(source, source.list, fetcher, opts);
     case 'json_api':
       return jsonApiDiscovery(source, source.list, fetcher, opts);
+    case 'custom':
+      return source.list.discoverFn(fetcher, opts.detailLimit);
   }
 }
 
