@@ -215,6 +215,16 @@ export default function MapScreen() {
     }
   }, [cases, selectedSlug]);
 
+  // If the active filter belongs to a kind that just dropped to zero (data
+  // refresh removed all of those cases), snap the filter back to "all" so
+  // the user isn't stranded on a chip that's about to be hidden.
+  useEffect(() => {
+    if (loading) return;
+    if (filter === 'homicide' && counts.homicide === 0) setFilter('all');
+    else if (filter === 'missing' && counts.missing === 0) setFilter('all');
+    else if (filter === 'unidentified' && counts.unidentified === 0) setFilter('all');
+  }, [loading, counts, filter]);
+
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
       {/* Header — collapses on bottom-sheet drag. The wordmark fades + slides up,
@@ -267,6 +277,10 @@ export default function MapScreen() {
           axis to its content but a column-flex item to its parent). Forcing
           flex:0 on both axes makes it size to content (~36px), exactly what
           its visual contract requires. */}
+      {/* Filter chips. Zero-count kinds are hidden once data lands so the
+          row reads as "what's actually in the dataset" rather than "every
+          axis we could theoretically filter on." During loading we render
+          the full row to avoid a chip-flicker as counts settle. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -279,24 +293,30 @@ export default function MapScreen() {
           active={filter === 'all'}
           onPress={() => setFilter('all')}
         />
-        <FilterChip
-          label="Homicide"
-          count={loading ? undefined : counts.homicide}
-          active={filter === 'homicide'}
-          onPress={() => setFilter('homicide')}
-        />
-        <FilterChip
-          label="Missing"
-          count={loading ? undefined : counts.missing}
-          active={filter === 'missing'}
-          onPress={() => setFilter('missing')}
-        />
-        <FilterChip
-          label="Doe"
-          count={loading ? undefined : counts.unidentified}
-          active={filter === 'unidentified'}
-          onPress={() => setFilter('unidentified')}
-        />
+        {loading || counts.homicide > 0 ? (
+          <FilterChip
+            label="Homicide"
+            count={loading ? undefined : counts.homicide}
+            active={filter === 'homicide'}
+            onPress={() => setFilter('homicide')}
+          />
+        ) : null}
+        {loading || counts.missing > 0 ? (
+          <FilterChip
+            label="Missing"
+            count={loading ? undefined : counts.missing}
+            active={filter === 'missing'}
+            onPress={() => setFilter('missing')}
+          />
+        ) : null}
+        {loading || counts.unidentified > 0 ? (
+          <FilterChip
+            label="Doe"
+            count={loading ? undefined : counts.unidentified}
+            active={filter === 'unidentified'}
+            onPress={() => setFilter('unidentified')}
+          />
+        ) : null}
       </ScrollView>
 
       {/* Map canvas — native MapLibre if/when re-enabled, WebView+Leaflet otherwise */}

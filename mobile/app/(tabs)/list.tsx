@@ -40,7 +40,7 @@
  */
 
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -130,6 +130,15 @@ export default function ListScreen() {
     return rows.filter((r) => allowed.includes(r.kind));
   }, [rows, filter]);
 
+  // If the active filter belongs to a kind that just dropped to zero, snap
+  // the filter back to "all" so the user isn't stranded on a hidden chip.
+  useEffect(() => {
+    if (loading) return;
+    if (filter === 'homicide' && counts.homicide === 0) setFilter('all');
+    else if (filter === 'missing' && counts.missing === 0) setFilter('all');
+    else if (filter === 'unidentified' && counts.unidentified === 0) setFilter('all');
+  }, [loading, counts, filter]);
+
   const buckets = useMemo(() => {
     const grouped: Record<Bucket, { row: CaseRowMapNear; days: number }[]> = {
       today: [],
@@ -187,7 +196,8 @@ export default function ListScreen() {
 
       {/* Filter chip row.
           flexGrow:0 + flexShrink:0 is load-bearing on Android Fabric — see
-          the matching note in (tabs)/index.tsx for the full story. */}
+          the matching note in (tabs)/index.tsx for the full story.
+          Zero-count chips hide once data lands; matches the Map tab. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -200,24 +210,30 @@ export default function ListScreen() {
           active={filter === 'all'}
           onPress={() => setFilter('all')}
         />
-        <FilterChip
-          label="Homicide"
-          count={loading ? undefined : counts.homicide}
-          active={filter === 'homicide'}
-          onPress={() => setFilter('homicide')}
-        />
-        <FilterChip
-          label="Missing"
-          count={loading ? undefined : counts.missing}
-          active={filter === 'missing'}
-          onPress={() => setFilter('missing')}
-        />
-        <FilterChip
-          label="Doe"
-          count={loading ? undefined : counts.unidentified}
-          active={filter === 'unidentified'}
-          onPress={() => setFilter('unidentified')}
-        />
+        {loading || counts.homicide > 0 ? (
+          <FilterChip
+            label="Homicide"
+            count={loading ? undefined : counts.homicide}
+            active={filter === 'homicide'}
+            onPress={() => setFilter('homicide')}
+          />
+        ) : null}
+        {loading || counts.missing > 0 ? (
+          <FilterChip
+            label="Missing"
+            count={loading ? undefined : counts.missing}
+            active={filter === 'missing'}
+            onPress={() => setFilter('missing')}
+          />
+        ) : null}
+        {loading || counts.unidentified > 0 ? (
+          <FilterChip
+            label="Doe"
+            count={loading ? undefined : counts.unidentified}
+            active={filter === 'unidentified'}
+            onPress={() => setFilter('unidentified')}
+          />
+        ) : null}
       </ScrollView>
 
       {loading && rows.length === 0 ? (
