@@ -21,12 +21,13 @@ import { useFonts } from 'expo-font';
 import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { BrandSplash } from '@/components/cf/brand-splash';
 import { tokens } from '@/constants/theme';
 import { useAuthCallback } from '@/lib/hooks/use-auth-callback';
 import { useOnboarding } from '@/lib/hooks/use-onboarding';
@@ -65,6 +66,17 @@ export default function RootLayout() {
     JetBrainsMono_600SemiBold,
   });
 
+  // JS-rendered brand splash overlay. Three-phase lifecycle:
+  //   - mounted: true while the overlay is in the tree
+  //   - visible: true while it's fully opaque (controls when fade starts)
+  // After fonts load + a 400ms hold, visible flips to false → BrandSplash
+  // animates opacity 1→0 → onFadeComplete fires → we unmount.
+  // 400ms is the minimum brand-beat duration; even on fast cold launches
+  // the user registers the logo. Per CLAUDE.md: hooks above any early
+  // return.
+  const [splashMounted, setSplashMounted] = useState(true);
+  const [splashVisible, setSplashVisible] = useState(true);
+
   // Catches the magic-link deep link on cold launch + warm. Without this
   // the email-OTP flow lands on coldfile://auth-callback but never creates
   // a session, because supabase-js is configured with detectSessionInUrl
@@ -72,11 +84,13 @@ export default function RootLayout() {
   useAuthCallback();
 
   useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync().catch(() => {
-        /* ignore */
-      });
-    }
+    if (!fontsLoaded) return;
+    SplashScreen.hideAsync().catch(() => {
+      /* ignore */
+    });
+    // Hold the JS splash 400ms after native hides, then trigger fade.
+    const t = setTimeout(() => setSplashVisible(false), 400);
+    return () => clearTimeout(t);
   }, [fontsLoaded]);
 
   if (!fontsLoaded) {
@@ -137,6 +151,14 @@ export default function RootLayout() {
           <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
         </ThemeProvider>
       </SafeAreaProvider>
+      {/* Sits last in the tree so it overlays everything during the brand
+          beat. Unmounts itself once the fade completes. */}
+      {splashMounted ? (
+        <BrandSplash
+          visible={splashVisible}
+          onFadeComplete={() => setSplashMounted(false)}
+        />
+      ) : null}
     </GestureHandlerRootView>
   );
 }
