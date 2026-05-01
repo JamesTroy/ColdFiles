@@ -280,7 +280,12 @@ export default function MapScreen() {
       {/* Filter chips. Zero-count kinds are hidden once data lands so the
           row reads as "what's actually in the dataset" rather than "every
           axis we could theoretically filter on." During loading we render
-          the full row to avoid a chip-flicker as counts settle. */}
+          the full row to avoid a chip-flicker as counts settle.
+          The "All" chip is unconditional — it's the reset action, not just
+          a filter. Even when counts.all is 0 (rare but possible at deep
+          map zoom into an empty area), keeping All visible means the user
+          isn't stranded on a hidden filter with no way back to the wider
+          view. Don't wrap this in a conditional. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

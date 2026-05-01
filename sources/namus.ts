@@ -11,13 +11,68 @@
  * the unique data we don't carry from any other source today and the
  * one that lights up the "Doe" filter chip on the map/list tabs.
  *
- * API shape (probed live):
+ * ─── DORMANT — DO NOT REMOVE ───────────────────────────────────────────
+ *
+ * This source is fully wired into the pipeline (registered in
+ * sources/index.ts) but does NOT ingest at runtime. Every detail-page
+ * URL is rejected by NamUs's robots.txt:
+ *
+ *     User-agent: *
+ *     Allow: /$
+ *     Allow: /About
+ *     Allow: /Contact
+ *     Disallow: /
+ *
+ * Our PoliteFetcher honors this and skips every /api/ URL. Result:
+ * scrape:run on this source completes with 0 records.
+ *
+ * ─── HOW TO WAKE IT UP ─────────────────────────────────────────────────
+ *
+ * NamUs's posture has historically swung — public scraping was
+ * previously tolerated, then formalized via an API access program, then
+ * tightened, then partially reopened. When the conditions allow, this
+ * source can be live by changing ONE of the following:
+ *
+ * 1. Register at https://www.namus.gov/About (or whatever the current
+ *    "Developer / API" link is). NamUs's program approves bona-fide
+ *    research / public-safety integrations. They issue:
+ *      - An API key (HTTP header — name varies by program version,
+ *        currently `Ocp-Apim-Subscription-Key` on the Azure-fronted
+ *        endpoints)
+ *      - A documented rate-limit envelope
+ *      - A user-agent string they whitelist
+ *    To use the key, add support for `headers` in PoliteFetcher.postJson
+ *    and ensureSourceRow → wire `NAMUS_API_KEY` env var into this
+ *    source's `discoverFn` + `fetchUrls` callbacks. Robots-respect can
+ *    stay on; registered traffic is bypassed by their access control,
+ *    not by ignoring robots.
+ *
+ * 2. Receive explicit user attestation that they have permission to
+ *    scrape NamUs (e.g. operator is a registered LE agency with
+ *    standing access). In that case, gate the source's pipeline on a
+ *    `cf:bypass-robots-namus` flag and only honor it when set in env —
+ *    this keeps the rule enforced for everyone except the attesting
+ *    operator. The bypass should NEVER ship with a default "on."
+ *
+ * 3. NamUs publishes a permissive robots.txt amendment (unlikely but
+ *    historically has happened). At that point this source runs without
+ *    any code change.
+ *
+ * The supporting infrastructure (ListStrategyCustom in types.ts,
+ * postJson in http.ts, location_lat/lng pre-supply in persist.ts) is
+ * already in place and reusable — none of it depends on NamUs being
+ * live. Don't rip it out when refactoring.
+ *
+ * ─── API shape (probed live, captured here so re-waking doesn't require
+ * re-discovery) ────────────────────────────────────────────────────────
+ *
  *   - Search: POST https://www.namus.gov/api/CaseSets/NamUs/UnidentifiedPersons/Search
- *     Body: { take, projections, predicate }
+ *     Body: { take, skip, projections: ['idFormatted'], predicate: '' }
  *     Returns: { count, results: [{ idFormatted: "UP12345", ... }] }
  *   - Detail: GET https://www.namus.gov/api/CaseSets/NamUs/UnidentifiedPersons/Cases/{numericId}
  *     Returns: full case object (subjectDescription, circumstances,
  *     physicalDescription, investigatingAgencies, images, ...)
+ *   - Total UP records last probed: 15,494
  *
  * Trust weight: 90 — second only to direct agency feeds (95). NamUs is a
  * federal registry with verified agency ownership of each record.

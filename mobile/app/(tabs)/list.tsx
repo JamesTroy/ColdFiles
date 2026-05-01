@@ -197,7 +197,11 @@ export default function ListScreen() {
       {/* Filter chip row.
           flexGrow:0 + flexShrink:0 is load-bearing on Android Fabric — see
           the matching note in (tabs)/index.tsx for the full story.
-          Zero-count chips hide once data lands; matches the Map tab. */}
+          Zero-count chips hide once data lands; matches the Map tab.
+          The "All" chip is unconditional — it's the reset action, not just
+          a filter. Don't wrap it in a conditional even when counts.all
+          could be 0; without it the user is stranded with no way back to
+          a wider view. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
