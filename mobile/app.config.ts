@@ -78,6 +78,26 @@ const config: ExpoConfig = {
     // MapLibre GL Native — open-source map SDK. No API key, no signup, no
     // Google Cloud. Tiles served by openfreemap.org (community-funded OSM).
     '@maplibre/maplibre-react-native',
+    // expo-notifications — push delivery for watch-zone alerts, saved-case
+    // updates, and tip status changes. Requires a native rebuild (NOT OTA).
+    //
+    // TODO(notification-icon): commission a 96×96 monochrome PNG and drop it
+    // at mobile/assets/images/notification-icon.png. Until then we let the
+    // plugin run with no `icon`, which falls back to the app icon — fine for
+    // dev + closed testing, NOT acceptable for Play Store production submission
+    // (Google strips colored icons in the status bar, leaving a grey square).
+    // When the asset exists, change this entry to the array form:
+    //   ['expo-notifications', {
+    //     icon: './assets/images/notification-icon.png',
+    //     color: '#c5a572',
+    //   }]
+    [
+      'expo-notifications',
+      {
+        // icon: './assets/images/notification-icon.png',  // TODO: add asset
+        color: '#c5a572', // tokens.color.accent.amber — splash backdrop accent
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,
