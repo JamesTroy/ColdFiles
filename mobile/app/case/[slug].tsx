@@ -63,6 +63,20 @@ export default function CaseDetailScreen() {
   const c = data.case;
   const [narrativeExpanded, setNarrativeExpanded] = useState(false);
 
+  // Hero swap state — gallery taps promote a media row into the PhotoFrame
+  // slot. Hooks live up here, BEFORE any early returns, so the hook count
+  // stays stable across renders. (A previous version put these after the
+  // loading/error guards, which violated Rules of Hooks once `c` populated
+  // on the second render and broke the screen with a "rendered more hooks
+  // than during the previous render" abort that surfaced as a blank grey
+  // screen.) primaryMediaRow returns null until media loads, which is fine.
+  const defaultHero = useMemo(() => primaryMediaRow(data.media), [data.media]);
+  const [heroId, setHeroId] = useState<string | null>(null);
+  // Reset the promotion when the user navigates to a different case.
+  // Guard against undefined slug during the first render before the route
+  // params resolve.
+  useEffect(() => setHeroId(null), [slug]);
+
   const handleShare = async () => {
     if (!c) return;
     const heroName = displayName(c);
@@ -121,13 +135,8 @@ export default function CaseDetailScreen() {
   );
 
   const facts = buildKeyFacts(c);
-  const defaultHero = useMemo(() => primaryMediaRow(data.media), [data.media]);
-  // Tap-to-promote: gallery thumbnails set heroId, swapping that media row
-  // into the PhotoFrame slot. Falls through to defaultHero on first paint
-  // and whenever the user hasn't promoted anything.
-  const [heroId, setHeroId] = useState<string | null>(null);
-  // Reset the promotion when the user navigates to a different case.
-  useEffect(() => setHeroId(null), [c.slug]);
+  // heroMedia derives from the hooks declared above; falls back to the
+  // primary photo when the user hasn't promoted anything.
   const heroMedia =
     (heroId && data.media.find((m) => m.id === heroId)) || defaultHero;
   const photoCaption = buildPhotoCaption(c, heroMedia);
