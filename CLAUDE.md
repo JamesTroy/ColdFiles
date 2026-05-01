@@ -49,3 +49,31 @@ Routine code edits, scrape config writes, and OTA pushes proceed without
 confirmation per auto-mode. Production database mutations
 (migrations, schema drops, force-pushes, key rotations) require explicit
 user confirmation regardless of mode.
+
+## Dedupe trades silent-wrongful-merges for visible-duplicates-in-list
+
+When two cases match on `lastname_age_sex` only (no Tier-1/2 key — i.e.
+no NamUs ID, no NCIC ID, no `name+state+year`, no `agency_case_number`),
+the persist path does NOT auto-merge. The incoming record lands as its
+own new case + a `dedupe_review_queue` row links the pair for v1.0.2's
+review tooling.
+
+This is a deliberate asymmetry. The cost of a same-case-shown-twice in
+the user's list is a 30-second polish item. The cost of a wrongful merge
+is a takedown email + trust hit + un-merge work under deadline. The
+trade is correct for cold-case data — not an accident, not a bug.
+
+If you're staring at duplicate cases in the list and tempted to "fix the
+dedupe to be smarter" — first check whether the duplicates would have
+auto-merged via `lastname_age_sex` only. If so, the right move is to
+build the v1.0.2 review tooling (consume `dedupe_review_queue`, surface
+candidate pairs to the operator), NOT to weaken the Tier-3 routing.
+Operator-confirmed merges via the review tool are the path forward.
+
+Kill-switch (in case the queue starts filling at unexpected volume):
+`DEDUPE_TIER3_TO_REVIEW=false` env var on either runtime (scrape-cli +
+the ingest-source Edge Function) reverts to the legacy auto-merge path.
+Default-on; flip only as an operational safety valve.
+
+See `supabase/functions/_shared/persist.ts:queueForTier3Review` for the
+implementation.

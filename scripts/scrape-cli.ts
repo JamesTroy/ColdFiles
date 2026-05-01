@@ -120,6 +120,9 @@ async function main() {
           trustWeight: source.trustWeight,
           fetcher,
           mapboxToken: process.env.MAPBOX_ACCESS_TOKEN,
+          // Kill-switch: DEDUPE_TIER3_TO_REVIEW=false reverts to the old
+          // auto-merge path for Tier-3 candidates. Default on.
+          tier3ToReview: process.env.DEDUPE_TIER3_TO_REVIEW !== 'false',
         },
         out,
         stats,

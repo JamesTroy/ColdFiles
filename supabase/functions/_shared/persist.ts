@@ -25,6 +25,19 @@ interface PersistContext {
   fetcher: PoliteFetcher;
   /** Mapbox token. If absent, geocoding is skipped — case ingests with null point. */
   mapboxToken?: string;
+  /**
+   * When true (the default), Tier-3-only matches (`lastname_age_sex` only,
+   * no stronger key) route to dedupe_review_queue instead of auto-merging.
+   * Trades silent wrongful-merges for visible duplicates-in-list — the
+   * right asymmetry for this app, since a same-case-shown-twice is a 30-
+   * second user-reported polish item but a wrongful merge is a takedown
+   * + trust hit.
+   *
+   * Disable (set to false) only as a kill-switch if the queue starts
+   * filling at unexpected volume. The forward path is v1.0.2's review
+   * tooling that consumes `dedupe_review_queue` — see CLAUDE.md.
+   */
+  tier3ToReview?: boolean;
 }
 
 export async function persistRecord(
@@ -37,13 +50,32 @@ export async function persistRecord(
   const payloadHash = await sha256Hex(payloadJson);
 
   // 1. Try to find an existing case via dedupe keys.
-  const existingCaseId = await findCaseByDedupeKeys(ctx.supabase, keys);
+  const match = await findCaseByDedupeKeys(ctx.supabase, keys);
 
   let caseId: string;
-  if (existingCaseId) {
-    await mergeIntoExistingCase(ctx, existingCaseId, record, payloadHash, payloadJson);
-    caseId = existingCaseId;
-    stats.cases_updated += 1;
+  if (match) {
+    // Tier-3-only matches (`lastname_age_sex` matched, no stronger key)
+    // are not auto-merged. Route to the review queue instead — see the
+    // tier3ToReview comment on PersistContext for the why.
+    const tier3Only =
+      match.matched_key_types.length === 1 &&
+      match.matched_key_types[0] === 'lastname_age_sex';
+    const tier3ToReview = ctx.tier3ToReview !== false;
+
+    if (tier3Only && tier3ToReview) {
+      // Insert as a NEW case + queue both case_ids in dedupe_review_queue
+      // for v1.0.2's review tooling. The candidate signal is preserved
+      // with the metadata the candidate generator produced (which keys
+      // matched, which sources, conflict reasons), so future-you doesn't
+      // re-scan the corpus to find these pairs.
+      caseId = await createNewCase(ctx, record, keys, payloadHash, payloadJson);
+      await queueForTier3Review(ctx, match.case_id, caseId, record, match.matched_key_types);
+      stats.cases_new += 1;
+    } else {
+      await mergeIntoExistingCase(ctx, match.case_id, record, payloadHash, payloadJson);
+      caseId = match.case_id;
+      stats.cases_updated += 1;
+    }
   } else {
     caseId = await createNewCase(ctx, record, keys, payloadHash, payloadJson);
     stats.cases_new += 1;
@@ -118,10 +150,19 @@ function joinLocation(record: CaseRecord): string | undefined {
   return joined || undefined;
 }
 
+interface DedupeMatch {
+  /** The existing case the incoming record would merge into. */
+  case_id: string;
+  /** EVERY key type that matched (intersection of generated × existing keys
+   *  on the same case_id). Lets the caller decide based on tier strength —
+   *  e.g. Tier-3-only matches route to review rather than auto-merge. */
+  matched_key_types: string[];
+}
+
 async function findCaseByDedupeKeys(
   supabase: SupabaseClient,
   keys: ReturnType<typeof generateDedupeKeys>,
-): Promise<string | undefined> {
+): Promise<DedupeMatch | undefined> {
   if (!keys.length) return undefined;
   const { data, error } = await supabase
     .from('case_dedupe_keys')
@@ -145,9 +186,98 @@ async function findCaseByDedupeKeys(
         r.key_type === t &&
         keys.some((k) => k.type === t && k.value === r.key_value),
     );
-    if (hit) return hit.case_id;
+    if (!hit) continue;
+    // Found a winning case_id. Now collect ALL key types that hit for that
+    // same case_id — gives the caller the full picture of how strong the
+    // match is (Tier-3-only vs Tier-3+stronger).
+    const matched_key_types = Array.from(
+      new Set(
+        (data ?? [])
+          .filter(
+            (r: { case_id: string; key_type: string; key_value: string }) =>
+              r.case_id === hit.case_id &&
+              keys.some((k) => k.type === r.key_type && k.value === r.key_value),
+          )
+          .map((r: { key_type: string }) => r.key_type),
+      ),
+    );
+    return { case_id: hit.case_id, matched_key_types };
   }
   return undefined;
+}
+
+/**
+ * Tier-3 candidate review path. The incoming record has been inserted as
+ * its own NEW case (caller already did createNewCase); now we link the
+ * pair in dedupe_review_queue so v1.0.2's review tooling has a real corpus
+ * to work against rather than starting from scratch.
+ *
+ * detectConflicts runs and its output is stitched into match_keys.conflicts
+ * so a reviewer can see "Tier-3 hit but conflicts disagree" without re-
+ * deriving the conclusion. Reduces human-review burden when the candidate
+ * is already algorithmically rejected.
+ *
+ * Forward pointer: when v1.0.2 ships review tooling, it consumes pending
+ * rows from dedupe_review_queue and either flips status='merged' (and
+ * collapses the two cases) or status='rejected' (and drops the link).
+ */
+async function queueForTier3Review(
+  ctx: PersistContext,
+  existingCaseId: string,
+  newCaseId: string,
+  record: CaseRecord,
+  matchedKeyTypes: string[],
+): Promise<void> {
+  // Pull the existing case so we can run conflict detection. Cheap — single
+  // row by id, no joins.
+  const { data: existing } = await ctx.supabase
+    .from('cases')
+    .select('*')
+    .eq('id', existingCaseId)
+    .maybeSingle();
+
+  const conflicts = existing
+    ? detectConflicts(existing as Partial<CaseRecord>, record)
+    : [];
+
+  // Canonical ordering — the table check constraint is `case_id_a < case_id_b`.
+  const [a, b] =
+    existingCaseId < newCaseId
+      ? [existingCaseId, newCaseId]
+      : [newCaseId, existingCaseId];
+
+  await ctx.supabase
+    .from('dedupe_review_queue')
+    .insert({
+      case_id_a: a,
+      case_id_b: b,
+      match_keys: {
+        matched_key_types: matchedKeyTypes,
+        // Why this row exists: Tier-3-only candidate, intentionally
+        // routed to review instead of auto-merging.
+        reason: 'tier3_only_no_stronger_match',
+        triggered_source: ctx.source.slug,
+        // Empty when the candidate is algorithmically valid; non-empty
+        // when detectConflicts already rejected the pair (sex mismatch,
+        // year-drift > 2y, kind disagreement). Reviewers can filter
+        // auto-rejects without re-running the conflict logic.
+        conflicts,
+      },
+      // similarity_score left null — we don't compute trigram/embedding
+      // similarity in v1.0.1. Reviewer tooling can backfill once the
+      // similarity model lands.
+      status: 'pending',
+    })
+    // Idempotency: if the same (a, b) pair has already been queued,
+    // don't insert a duplicate row. Migration 09 adds the unique
+    // constraint that backs this; until then it's a no-op upsert.
+    .then((res) => res, (err: unknown) => {
+      // Swallow uniqueness-violation errors silently. Anything else
+      // bubbles via the broader caller error handling.
+      const e = err as { code?: string } | null;
+      if (e?.code === '23505') return;
+      throw err;
+    });
 }
 
 async function mergeIntoExistingCase(

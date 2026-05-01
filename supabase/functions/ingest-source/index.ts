@@ -81,6 +81,11 @@ Deno.serve(async (req) => {
             trustWeight: source.trustWeight,
             fetcher,
             mapboxToken: Deno.env.get('MAPBOX_ACCESS_TOKEN') ?? undefined,
+            // Kill-switch: DEDUPE_TIER3_TO_REVIEW=false reverts to the old
+            // auto-merge path for Tier-3 candidates. Default on. Set as a
+            // function secret in Supabase Dashboard if you need to flip
+            // without a redeploy.
+            tier3ToReview: Deno.env.get('DEDUPE_TIER3_TO_REVIEW') !== 'false',
           },
           out,
           stats,
