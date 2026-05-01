@@ -180,32 +180,56 @@ export class PoliteFetcher {
   ) {}
 
   async get(url: string, init?: SafeFetchOptions): Promise<Response> {
-    const wait = Math.max(0, this.lastRequest + this.rateLimitMs - Date.now());
-    if (wait > 0) await sleep(wait);
-    this.lastRequest = Date.now();
+    // Two retry envelopes layered together:
+    //   - HTTP-level (429 / 503): server told us to back off; we honor it
+    //     and retry indefinitely (Retry-After capped at 10 minutes).
+    //   - Network-level (TypeError "fetch failed", AbortError "operation
+    //     was aborted"): transient connectivity hiccups. Cap at 2 retries
+    //     with exponential backoff (1s, 3s) so we don't hang on a sustained
+    //     outage.
+    // HttpError thrown from safeFetch (SSRF guard, redirect cap, body-size
+    // overflow) is structural, NOT transient — bubble immediately.
+    let networkAttempts = 0;
+    while (true) {
+      const wait = Math.max(0, this.lastRequest + this.rateLimitMs - Date.now());
+      if (wait > 0) await sleep(wait);
+      this.lastRequest = Date.now();
 
-    const res = await safeFetch(url, {
-      ...init,
-      headers: {
-        'User-Agent': this.userAgent,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        ...(init?.headers ?? {}),
-      },
-    });
+      let res: Response;
+      try {
+        res = await safeFetch(url, {
+          ...init,
+          headers: {
+            'User-Agent': this.userAgent,
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            ...(init?.headers ?? {}),
+          },
+        });
+      } catch (err) {
+        if (err instanceof HttpError) throw err;
+        if (networkAttempts >= 2) throw err;
+        const backoffMs = 1000 * Math.pow(3, networkAttempts);
+        networkAttempts += 1;
+        await sleep(backoffMs);
+        continue;
+      }
 
-    if (res.status === 429) {
-      const retryAfter = parseInt(res.headers.get('Retry-After') ?? '60', 10);
-      await sleep(Math.min(retryAfter, 600) * 1000);
-      return this.get(url, init);
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') ?? '60', 10);
+        await sleep(Math.min(retryAfter, 600) * 1000);
+        networkAttempts = 0;
+        continue;
+      }
+
+      if (res.status === 503) {
+        await sleep(60_000);
+        networkAttempts = 0;
+        continue;
+      }
+
+      return res;
     }
-
-    if (res.status === 503) {
-      await sleep(60_000);
-      return this.get(url, init);
-    }
-
-    return res;
   }
 
   async getText(url: string, init?: SafeFetchOptions): Promise<string> {
@@ -248,35 +272,51 @@ export class PoliteFetcher {
     body: unknown,
     init?: SafeFetchOptions,
   ): Promise<T> {
-    const wait = Math.max(0, this.lastRequest + this.rateLimitMs - Date.now());
-    if (wait > 0) await sleep(wait);
-    this.lastRequest = Date.now();
+    // Same dual-envelope retry strategy as get(); see comments there.
+    let networkAttempts = 0;
+    while (true) {
+      const wait = Math.max(0, this.lastRequest + this.rateLimitMs - Date.now());
+      if (wait > 0) await sleep(wait);
+      this.lastRequest = Date.now();
 
-    const res = await safeFetch(url, {
-      ...init,
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: {
-        'User-Agent': this.userAgent,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(init?.headers ?? {}),
-      },
-    });
+      let res: Response;
+      try {
+        res = await safeFetch(url, {
+          ...init,
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: {
+            'User-Agent': this.userAgent,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(init?.headers ?? {}),
+          },
+        });
+      } catch (err) {
+        if (err instanceof HttpError) throw err;
+        if (networkAttempts >= 2) throw err;
+        const backoffMs = 1000 * Math.pow(3, networkAttempts);
+        networkAttempts += 1;
+        await sleep(backoffMs);
+        continue;
+      }
 
-    if (res.status === 429) {
-      const retryAfter = parseInt(res.headers.get('Retry-After') ?? '60', 10);
-      await sleep(Math.min(retryAfter, 600) * 1000);
-      return this.postJson<T>(url, body, init);
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') ?? '60', 10);
+        await sleep(Math.min(retryAfter, 600) * 1000);
+        networkAttempts = 0;
+        continue;
+      }
+      if (res.status === 503) {
+        await sleep(60_000);
+        networkAttempts = 0;
+        continue;
+      }
+      if (!res.ok) {
+        throw new HttpError(`POST ${url} failed: ${res.status}`, res.status);
+      }
+      return (await res.json()) as T;
     }
-    if (res.status === 503) {
-      await sleep(60_000);
-      return this.postJson<T>(url, body, init);
-    }
-    if (!res.ok) {
-      throw new HttpError(`POST ${url} failed: ${res.status}`, res.status);
-    }
-    return (await res.json()) as T;
   }
 }
 
