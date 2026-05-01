@@ -6,15 +6,16 @@ import type { SourceConfig } from '../supabase/functions/_shared/types.ts';
 import { charleyProject } from './charley.ts';
 import { doeNetwork } from './doe_network.ts';
 import { doeNetworkUid } from './doe_network_uid.ts';
+import { fbiWanted } from './fbi_wanted.ts';
 import { namusUp } from './namus.ts';
 
 export const SOURCES: SourceConfig[] = [
   charleyProject,
   doeNetwork,
   doeNetworkUid,
+  fbiWanted,
   namusUp,
   // Week 2: project_cold_case
-  // Week 4: fbi_wanted (api.fbi.gov/wanted/v1/list — homicide + missing)
   // Week 4: lapd_unsolved, lasd_homicide
 ];
 
