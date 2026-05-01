@@ -306,10 +306,25 @@ function stripCore(p: Partial<CaseRecord>): Partial<CaseRecord> {
   return rest;
 }
 
-/** Default external-id derivation: last path segment, stripped of query/fragment. */
+/**
+ * Default external-id derivation. Prefers a `?id=` query param when present —
+ * many sources (Doe Network's `database.php?id=...`, FBI Wanted's pathId
+ * URLs, etc.) put the canonical case ID in the query string rather than the
+ * path. Without this, the path's last segment is the fallback, which for
+ * Doe Network would collapse every case to `database.php` and silently
+ * overwrite case_sources rows on upsert (since the unique constraint is
+ * `(source_id, source_external_id)`).
+ *
+ * Path-based sources (Charley's `/case/jonathan-aujay`) are unaffected —
+ * they don't have an `?id=` param so we fall through to the path segment.
+ *
+ * If `?id=` is empty-string, fall through too — we want a real value.
+ */
 function deriveExternalId(url: string): string {
   try {
     const u = new URL(url);
+    const id = u.searchParams.get('id');
+    if (id && id.length > 0) return id;
     const seg = u.pathname.split('/').filter(Boolean).pop();
     return seg ? decodeURIComponent(seg) : url;
   } catch {
