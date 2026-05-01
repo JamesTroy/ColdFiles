@@ -40,3 +40,11 @@ scraper-fixtures/*.html
 coverage/
 .nyc_output/
 .vercel
+
+# Claude Code workspace (per-machine task lock + scheduling state)
+.claude/
+
+# Stray root eas.json. The real EAS config lives at mobile/eas.json; a `eas`
+# command run from the repo root will spawn a stub here that we don't want
+# tracked.
+/eas.json
