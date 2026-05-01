@@ -16,11 +16,45 @@ import type { CaseKind, CaseRowMapNear } from '../types/database';
 
 import type { QueryResult } from './use-cases-near';
 
+/**
+ * Stable-partition the rows so cases in pinned states sort to the top
+ * while preserving the relative order assigned by the SQL ORDER BY (recency
+ * or chronological). When pinnedStates is null/empty, returns the input
+ * untouched. Pure function — safe to call with any row array shape that
+ * has a `location_state` field.
+ */
+function applyPinnedBias<T extends { location_state: string | null }>(
+  rows: T[],
+  pinnedStates: string[] | null,
+): T[] {
+  if (!pinnedStates || pinnedStates.length === 0) return rows;
+  const pinnedSet = new Set(pinnedStates.map((c) => c.toUpperCase()));
+  const pinned: T[] = [];
+  const rest: T[] = [];
+  for (const r of rows) {
+    if (r.location_state && pinnedSet.has(r.location_state.toUpperCase())) {
+      pinned.push(r);
+    } else {
+      rest.push(r);
+    }
+  }
+  return [...pinned, ...rest];
+}
+
 interface UseCaseListOptions {
   /** Default: recent. 'chronological' walks the dataset oldest-first. */
   order?: 'recent' | 'chronological';
   kinds?: CaseKind[] | null;
   state?: string | null;
+  /**
+   * Optional list of two-letter state codes from useRegionPrefs(). When
+   * provided + non-empty, pinned-state cases sort to the top of the result
+   * while preserving the underlying recency / chronological order within
+   * each group. Cases outside the pinned set are NOT filtered out — pins
+   * are a sort bias, not a hide-the-rest gate. See app/region-prefs.tsx
+   * for the user-facing copy that load-bears this contract.
+   */
+  pinnedStates?: string[] | null;
   limit?: number;
 }
 
@@ -28,6 +62,7 @@ export function useCaseList({
   order = 'recent',
   kinds = null,
   state = null,
+  pinnedStates = null,
   limit = 100,
 }: UseCaseListOptions = {}): QueryResult<CaseRowMapNear[]> {
   const [data, setData] = useState<CaseRowMapNear[]>(() =>
@@ -43,7 +78,8 @@ export function useCaseList({
       let rows = SAMPLE_CASES_MAP;
       if (kinds && kinds.length) rows = rows.filter((r) => kinds.includes(r.kind));
       if (state) rows = rows.filter((r) => r.location_state === state);
-      setData(rows.slice(0, limit));
+      const biased = applyPinnedBias(rows, pinnedStates);
+      setData(biased.slice(0, limit));
       setLoading(false);
       return;
     }
@@ -91,7 +127,7 @@ export function useCaseList({
           lat: null,
           lng: null,
         }));
-        setData(enriched);
+        setData(applyPinnedBias(enriched, pinnedStates));
       }
       setLoading(false);
     });
@@ -99,7 +135,7 @@ export function useCaseList({
     return () => {
       cancelled = true;
     };
-  }, [order, JSON.stringify(kinds), state, limit, refreshKey]);
+  }, [order, JSON.stringify(kinds), state, JSON.stringify(pinnedStates), limit, refreshKey]);
 
   return {
     data,

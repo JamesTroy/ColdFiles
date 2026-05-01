@@ -55,6 +55,7 @@ import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { useCaseList } from '@/lib/hooks/use-case-list';
+import { useRegionPrefs } from '@/lib/hooks/use-region-prefs';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
@@ -107,11 +108,16 @@ export default function ListScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [refreshing, setRefreshing] = useState(false);
 
+  const { pinnedStates } = useRegionPrefs();
+
   // Pulls all cases unfiltered so chip counts can preview selectivity (same
   // pattern as the Map tab). The kind filter is then applied client-side.
+  // Pinned states bias the result order (cases in pinned states sort first
+  // while preserving recency within each group); see use-case-list.ts.
   const { data: rows, loading, error, source, refetch } = useCaseList({
     kinds: null,
     limit: 100,
+    pinnedStates,
   });
 
   const counts = useMemo(() => {

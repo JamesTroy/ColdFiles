@@ -158,6 +158,11 @@ export default function RootLayout() {
           <Stack.Screen name="sign-in" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
           <Stack.Screen name="search" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
           <Stack.Screen name="delete-account" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="data-export" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="diagnostics" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="tip-history" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="region-prefs" options={{ animation: 'slide_from_right' }} />
         </Stack>
           <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
         </ThemeProvider>
