@@ -620,7 +620,11 @@ function LocationFAB({
         {
           position: 'absolute',
           right: 16,
-          bottom: 16,
+          // 96 = MapBottomSheet's peek snap height (see SNAP_POINTS in
+          // map-bottom-sheet.tsx). The original 16px sat behind that
+          // peek and was effectively invisible whenever the user had
+          // already granted location. 112 = peek + 16 breathing room.
+          bottom: 112,
           width: 48,
           height: 48,
           borderRadius: 24,
