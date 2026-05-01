@@ -18,6 +18,7 @@
 
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 
 import { tokens } from '@/constants/theme';
 
@@ -74,6 +75,57 @@ export function useHere(): UseHereResult {
       if (staleTimer.current) clearTimeout(staleTimer.current);
     };
   }, []);
+
+  // Track app state to pause location updates when backgrounded
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      setAppState(nextAppState);
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // When permission is granted, actively watch the user's location so the
+  // dot updates when they move. Pauses when app goes to background.
+  useEffect(() => {
+    let sub: Location.LocationSubscription | null = null;
+    let cancelled = false;
+
+    if (permissionStatus === 'granted' && appState === 'active') {
+      Location.watchPositionAsync(
+        { 
+          accuracy: Location.Accuracy.Balanced, 
+          distanceInterval: 10,
+          timeInterval: 5000 // Ensure we don't spam updates more than once every 5s
+        },
+        (loc) => {
+          if (cancelled) return;
+          setHere((prev) => ({
+            ...prev,
+            lat: loc.coords.latitude,
+            lng: loc.coords.longitude,
+          }));
+        }
+      ).then((s) => {
+        if (cancelled) {
+          s.remove();
+        } else {
+          sub = s;
+        }
+      }).catch(() => {
+        // silent fail for watch
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      if (sub) {
+        sub.remove();
+      }
+    };
+  }, [permissionStatus, appState]);
 
   const requestAndAcquire = useCallback(async (): Promise<HerePermissionStatus> => {
     setAcquiring(true);
