@@ -12,6 +12,7 @@
 
 import * as Clipboard from 'expo-clipboard';
 import { Stack } from 'expo-router';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,6 +25,53 @@ import {
   type NotificationPrefs,
 } from '@/lib/hooks/use-notification-prefs';
 import { usePushToken } from '@/lib/hooks/use-push-token';
+
+// Diagnostic boundary — wraps the screen so a render exception surfaces on
+// device (where the dev console isn't available) instead of bricking the
+// route to a blank dark surface. Strip back to a plain default export once
+// the v1.0.1 grey-screen repro is root-caused.
+class NotificationsErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null; info: ErrorInfo | null }
+> {
+  state: { error: Error | null; info: ErrorInfo | null } = { error: null, info: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    this.setState({ error, info });
+  }
+  render() {
+    if (this.state.error) {
+      const stack = String(this.state.error.stack ?? this.state.error.message ?? this.state.error);
+      return (
+        <View style={{ flex: 1, backgroundColor: tokens.color.bg.base, padding: 16, paddingTop: 64 }}>
+          <ScrollView>
+            <SansBody style={{ color: tokens.color.accent.amber, fontSize: 16, marginBottom: 8 }}>
+              Notifications screen crashed
+            </SansBody>
+            <SansBody style={{ color: tokens.color.text.primary, fontSize: 12, marginBottom: 16 }}>
+              {String(this.state.error.message ?? this.state.error)}
+            </SansBody>
+            <Pressable
+              onPress={() => {
+                void Clipboard.setStringAsync(stack);
+              }}
+            >
+              <SansBody style={{ color: tokens.color.accent.amber, fontSize: 12, marginBottom: 12 }}>
+                Tap to copy stack
+              </SansBody>
+            </Pressable>
+            <SansBody style={{ color: tokens.color.text.secondary, fontSize: 10 }}>
+              {stack}
+            </SansBody>
+          </ScrollView>
+        </View>
+      );
+    }
+    return <>{this.props.children}</>;
+  }
+}
 
 interface ToggleRowDef {
   key: keyof NotificationPrefs;
@@ -49,7 +97,15 @@ const TOGGLES: ToggleRowDef[] = [
   },
 ];
 
-export default function NotificationsScreen() {
+export default function NotificationsScreenWithBoundary() {
+  return (
+    <NotificationsErrorBoundary>
+      <NotificationsScreen />
+    </NotificationsErrorBoundary>
+  );
+}
+
+function NotificationsScreen() {
   // Hooks before early returns — see CLAUDE.md. All four hooks fire on every
   // render regardless of permission/registration state; the conditional UI
   // below branches on state values, never on hook count.
