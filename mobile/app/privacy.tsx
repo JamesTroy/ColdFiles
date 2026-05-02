@@ -44,6 +44,12 @@ export default function PrivacyScreen() {
           ],
         },
         {
+          heading: 'Notifications',
+          body: [
+            'When you turn on notifications, we register a delivery token from your device\'s push service (Apple or Google) so we can send alerts about cases you save, new cases in your watch zones, and tip status updates. We do not log notification content. Tokens are deleted when you delete your account or revoke notification permission in device settings.',
+          ],
+        },
+        {
           heading: 'Takedown',
           body: [
             'Family members, rights holders, and the agencies that own a case can request a case, photo, or specific information be removed or corrected. Email takedown@coldfile.app and we respond within 7 days.',

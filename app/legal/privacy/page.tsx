@@ -20,7 +20,7 @@ export default function PrivacyPage() {
   return (
     <LegalDoc
       title="Privacy Policy"
-      lastUpdated="2026-05-01"
+      lastUpdated="2026-05-02"
       sections={[
         {
           heading: 'Plain-language summary',
@@ -55,6 +55,13 @@ export default function PrivacyPage() {
           heading: 'Crash and stability data',
           body: [
             'Version 1.0 of The Cold File does not include automated crash reporting. If you encounter a crash and want to help us fix it, you can email a description to support@coldfile.app.',
+          ],
+        },
+        {
+          heading: 'Push notifications',
+          body: [
+            'When you turn on notifications, we register a delivery token (provided by Apple Push Notification service or Firebase Cloud Messaging via Expo\'s push relay) so we can send you alerts about cases in your saved list, new cases in your watch zones, and tip status updates. We do not log notification content. Tokens are deleted when you delete your account or revoke notification permission in your device settings. We never sell or share tokens.',
+            'The token itself is a device-bound delivery handle issued by your operating system\'s push service — it is not a device fingerprint, advertising identifier, or behavioral profile. We use it for one purpose only: routing the alerts you opted in to.',
           ],
         },
         {
@@ -108,7 +115,7 @@ export default function PrivacyPage() {
             'Supabase Auth authenticates you if you sign in; it sees your email address.',
             'OpenStreetMap provides map tiles and rendering; it sees the map area you are currently viewing.',
             'Expo / EAS builds and delivers the app; it sees no runtime user data.',
-            'Apple Push Notification service / Firebase Cloud Messaging will deliver push notifications in a future release; not used in version 1.0.',
+            'Apple Push Notification service / Firebase Cloud Messaging deliver push notifications via Expo\'s push relay; they see only the device-bound delivery token and the notification payload we send (no user content beyond what\'s necessary for the alert).',
             'We do not share data with any party that is not on this list, except where required by law (for example, in response to a valid subpoena).',
           ],
         },
@@ -117,6 +124,7 @@ export default function PrivacyPage() {
           body: [
             'Location queries: not retained after the query result is returned.',
             'Tip-routing audit log: retained for 12 months, then automatically deleted. Hashes do not expire earlier because abuse detection benefits from a longer comparison window.',
+            'Push notification tokens: retained while the token is active. Deleted when you delete your account or revoke notification permission in your device settings. Tokens registered without a sign-in (install-bound only) are pruned by an orphan-cleanup job that runs on a recurring schedule.',
             'Account information (email, saved cases): retained until you delete your account. After deletion, removed from our active database within 7 days; backup copies purged within 30 days.',
             'Email correspondence with us: retained for as long as necessary to resolve your message, and for 2 years after that for our records.',
             'Takedown correspondence: retained for 2 years to document our good-faith handling of requests.',
