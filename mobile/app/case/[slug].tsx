@@ -12,8 +12,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, View } from 'react-native';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CaseLocationMap } from '@/components/cf/case-location-map';
@@ -210,6 +210,9 @@ export default function CaseDetailScreen() {
                 is all status='open' so the branch is never visible. */}
             <ColdPill text={coldText} />
           </View>
+
+          <ColdTimeGravity case={c} />
+          <AnniversaryNote case={c} />
         </View>
 
         {receipt ? (
@@ -868,6 +871,134 @@ function isFamilySharedSource(
   if (slug === 'doe_network' && kind === 'missing') return true;
   return false;
 }
+
+/**
+ * Cold-time gravity — quiet editorial line below the pills, registering
+ * the weight of how long the case has been cold.
+ *
+ * The ColdPill above this surfaces the same fact in chip register
+ * ("23y cold"); this surface translates that fact into narrative
+ * weight ("Missing for 23 years, 4 months."). Different register, same
+ * data — pills are for scanning, this line is for reading.
+ *
+ * Verb selected by case kind so the line reads as honest to the case
+ * type, not generic. Only renders when:
+ *   - incident_date is present and exact/approximate quality (suspect
+ *     and unknown qualities skip — we don't want to claim "23 years
+ *     missing" off a date the source itself flagged as unreliable),
+ *   - elapsed time is at least one year (the pill already filters this
+ *     so the gravity line doesn't add new information for fresh cases).
+ */
+function ColdTimeGravity({ case: c }: { case: CaseRowFull }): ReactElement | null {
+  if (!c.incident_date) return null;
+  if (
+    c.incident_date_quality === 'suspect' ||
+    c.incident_date_quality === 'unknown'
+  ) {
+    return null;
+  }
+  const incidentDate = new Date(c.incident_date);
+  const now = new Date();
+  const totalMonths =
+    (now.getFullYear() - incidentDate.getFullYear()) * 12 +
+    (now.getMonth() - incidentDate.getMonth());
+  if (totalMonths < 12) return null;
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+
+  const verb = COLD_VERB_BY_KIND[c.kind];
+  const yearWord = years === 1 ? 'year' : 'years';
+  const monthWord = months === 1 ? 'month' : 'months';
+  const span =
+    months === 0
+      ? `${years} ${yearWord}`
+      : `${years} ${yearWord}, ${months} ${monthWord}`;
+
+  return (
+    <Text
+      style={{
+        marginTop: 14,
+        fontFamily: tokens.font.serif,
+        fontSize: 14,
+        lineHeight: 14 * 1.45,
+        fontStyle: 'italic',
+        color: tokens.color.text.secondary,
+        includeFontPadding: false,
+      }}
+    >
+      {verb} for {span}.
+    </Text>
+  );
+}
+
+const COLD_VERB_BY_KIND: Record<CaseRowFull['kind'], string> = {
+  homicide: 'Unsolved',
+  suspicious_death: 'Unsolved',
+  missing: 'Missing',
+  unidentified: 'Unidentified',
+  unclaimed: 'Unidentified',
+};
+
+/**
+ * Anniversary note — single editorial sentence shown on the case detail
+ * when today's calendar date matches the incident_date's month and day.
+ * Once a year per case. Computed at render against the case's
+ * incident_date — no scheduled job, no notification, no banner.
+ *
+ * Quality gate: only renders for incident_date_quality 'exact'. The
+ * 'year_only' and 'approximate' qualities have day-of-month set to 01
+ * by convention (see parseDate in supabase/functions/_shared/normalize.ts),
+ * so without this gate every case with year-only data would falsely fire
+ * its anniversary every Jan 1, and every Month-YYYY case would fire on
+ * the 1st of its month. We don't claim an anniversary off a date the
+ * source never gave us.
+ *
+ * Verb mapping follows ColdTimeGravity so the two lines read as a
+ * coherent pair on the rare anniversary day:
+ *   "Missing for 41 years."           ← cold-time (always)
+ *   "Today marks 41 years missing."   ← anniversary (today only)
+ */
+function AnniversaryNote({ case: c }: { case: CaseRowFull }): ReactElement | null {
+  if (!c.incident_date) return null;
+  if (c.incident_date_quality !== 'exact') return null;
+  const incidentDate = new Date(c.incident_date);
+  const now = new Date();
+  if (
+    incidentDate.getMonth() !== now.getMonth() ||
+    incidentDate.getDate() !== now.getDate()
+  ) {
+    return null;
+  }
+  const years = now.getFullYear() - incidentDate.getFullYear();
+  if (years < 1) return null;
+
+  const yearWord = years === 1 ? 'year' : 'years';
+  const adjective = ANNIVERSARY_ADJECTIVE_BY_KIND[c.kind];
+
+  return (
+    <Text
+      style={{
+        marginTop: 6,
+        fontFamily: tokens.font.serif,
+        fontSize: 14,
+        lineHeight: 14 * 1.45,
+        fontStyle: 'italic',
+        color: tokens.color.text.primary,
+        includeFontPadding: false,
+      }}
+    >
+      Today marks {years} {yearWord} {adjective}.
+    </Text>
+  );
+}
+
+const ANNIVERSARY_ADJECTIVE_BY_KIND: Record<CaseRowFull['kind'], string> = {
+  homicide: 'unsolved',
+  suspicious_death: 'unsolved',
+  missing: 'missing',
+  unidentified: 'unidentified',
+  unclaimed: 'unidentified',
+};
 
 function sourceChipsFor(sources: CaseSourceRow[]): { slug: string; url: string }[] {
   return sources.map((s) => {
