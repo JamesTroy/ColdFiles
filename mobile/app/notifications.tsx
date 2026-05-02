@@ -28,10 +28,10 @@ export default function NotifPrefsScreen() {
           marginBottom: 12,
         }}
       >
-        DIAG v6
+        DIAG v7
       </Text>
       <Text style={{ color: '#fff', fontSize: 16, marginBottom: 16 }}>
-        Notifications (renamed → /notif-prefs)
+        Notifications (path back to /notifications, min content)
       </Text>
       <Text style={{ color: '#aaa', fontSize: 13, lineHeight: 20 }}>
         If you can read this, the OTA bundle landed and the route registration

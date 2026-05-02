@@ -160,7 +160,7 @@ export default function RootLayout() {
           <Stack.Screen name="delete-account" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="data-export" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="diagnostics" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="notif-prefs" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="tip-history" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="region-prefs" options={{ animation: 'slide_from_right' }} />
         </Stack>
