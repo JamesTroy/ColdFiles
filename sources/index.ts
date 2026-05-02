@@ -8,6 +8,7 @@ import { doeNetwork } from './doe_network.ts';
 import { doeNetworkUid } from './doe_network_uid.ts';
 import { fbiWanted } from './fbi_wanted.ts';
 import { namusUp } from './namus.ts';
+import { projectColdCase } from './project_cold_case.ts';
 
 export const SOURCES: SourceConfig[] = [
   charleyProject,
@@ -15,8 +16,11 @@ export const SOURCES: SourceConfig[] = [
   doeNetworkUid,
   fbiWanted,
   namusUp,
-  // Week 2: project_cold_case
-  // Week 4: lapd_unsolved, lasd_homicide
+  projectColdCase,
+  // Week 4: lapd_unsolved, lasd_homicide (per LASD coverage probe on
+  // 2026-05-02, LASD's public homicide bureau corpus is too thin to
+  // justify a scraper — ~3-4 cold-case bulletins on lasd.org. Postponed
+  // pending a different LE-direct source decision.)
 ];
 
 export const SOURCE_BY_SLUG: Record<string, SourceConfig> = Object.fromEntries(
