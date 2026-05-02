@@ -43,7 +43,7 @@ import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
-import { useCasesNear } from '@/lib/hooks/use-cases-near';
+import { useCasesInBbox, type CaseBounds } from '@/lib/hooks/use-cases-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
 import { useWatchZones } from '@/lib/hooks/use-watch-zones';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
@@ -164,28 +164,34 @@ export default function MapScreen() {
     return SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? 999;
   }, []);
 
-  // Closed-testing radius: 5000mi effectively returns all seeded cases for
-  // any tester anywhere in the continental US. v1.0.0 ships ~50 alphabetical
-  // cases nationwide (no LA-specific scraper yet); a small radius would show
-  // empty for most testers because the seed isn't geographically dense.
-  // Restore "cases near you" semantics in v1.0.1 once the LA-county scraper
-  // and broader source coverage land.
-  // Query unfiltered so chip counts can preview selectivity (spec §3.5 — show
-  // counts on every chip, not just the active one). The kind filter is applied
-  // client-side from the same result set, which is cheap because the RPC
-  // already caps at 5000 and the kind set is closed (4 values).
+  // Viewport-bounded query: as the user pans/zooms the map, onRegionChange
+  // fires and we re-query the cases_in_bbox RPC for up to 100 cases inside
+  // the new viewport. The 5000mi-radius "show everything" pattern was a
+  // closed-testing crutch that's no longer needed now that the corpus is
+  // geographically dense (Doe + Charley + PCC across all 50 states).
+  //
+  // Query unfiltered so chip counts can preview selectivity (spec §3.5 —
+  // show counts on every chip, not just the active one). The kind filter
+  // is applied client-side from the same result set; the RPC caps at 100
+  // and the kind set is closed (4 values), so the per-render cost is
+  // negligible.
+  //
+  // Initial-frame note: bounds is null on the very first paint (Leaflet
+  // hasn't reported its initial region yet). The hook holds the previous
+  // (empty) data + loading=false until the WebView's first onRegionChange
+  // lands; that fires synchronously after Leaflet's map.on('load') so
+  // there's no perceptible delay.
+  const [bounds, setBounds] = useState<CaseBounds | null>(null);
   const {
     data: casesAll,
     loading,
     error,
     refetch,
     source,
-  } = useCasesNear({
-    lat: here.lat,
-    lng: here.lng,
-    radiusMiles: 5000,
+  } = useCasesInBbox({
+    bounds,
     kinds: null,
-    limit: 5000,
+    limit: 100,
   });
 
   const counts = useMemo(() => {
@@ -341,6 +347,7 @@ export default function MapScreen() {
             here={here}
             zones={zoneOverlays}
             zonesVisible={zonesVisible}
+            onRegionChange={setBounds}
           />
         )}
         {zoneOverlays.length > 0 ? (
@@ -501,6 +508,7 @@ function LeafletRenderer({
   here,
   zones,
   zonesVisible,
+  onRegionChange,
 }: {
   cases: CaseRowMapNear[];
   selectedSlug: string | null;
@@ -508,6 +516,7 @@ function LeafletRenderer({
   here: { lat: number; lng: number; fresh: boolean };
   zones: { id: string; geojson: { type: 'Polygon'; coordinates: [number, number][][] }; label: string | null }[];
   zonesVisible: boolean;
+  onRegionChange?: (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => void;
 }) {
   const markers: LeafletMarker[] = useMemo(() => {
     return cases
@@ -537,6 +546,7 @@ function LeafletRenderer({
       zones={zones}
       zonesVisible={zonesVisible}
       onMarkerPress={onMarkerPress}
+      onRegionChange={onRegionChange}
     />
   );
 }
