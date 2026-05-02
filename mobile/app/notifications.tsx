@@ -1,87 +1,35 @@
 /**
- * Notifications screen — TEMPORARILY REPLACED with a minimal diagnostic.
+ * Notifications screen — ABSOLUTE MINIMUM diagnostic.
  *
- * v1.0.1 on Pixel 10 Pro XL renders this route to a blank dark surface.
- * An ErrorBoundary wrapped around the prior body did not fire, which means
- * the failure is at module-load time — almost certainly the transitive
- * `import * as Notifications from 'expo-notifications'` inside usePushToken.
+ * Bisecting a render failure on Pixel 10 Pro XL Android 16. Previous attempts:
+ *   v1: full screen → grey (module-level import throws)
+ *   v2: ErrorBoundary around full screen → grey (boundary didn't catch)
+ *   v3: stub w/ screen-shell primitives + tokens → crash on navigate
+ *   v4 (this): only react + react-native, hardcoded colors, no aliases.
  *
- * This stub strips every expo-notifications coupling so we can confirm:
- *   - If THIS renders normally → root cause is the expo-notifications
- *     module-load on Android 16. Fix by deferring the import (dynamic import
- *     inside the registration callback, not at top-level).
- *   - If THIS still greys out → cause is upstream of the screen file
- *     (route registration, layout, native init). Different fix path.
+ * If v4 crashes too: cause is upstream — route registration, _layout.tsx
+ * stack screen entry, or a native module side effect that runs whenever
+ * any tab pushes to /notifications. Look there.
  *
- * Restore the toggle UI once the diagnosis lands.
+ * If v4 renders: add back imports one tier at a time:
+ *   tier 1: tokens, useSafeAreaInsets
+ *   tier 2: PushScreenHeader, Card, SansBody (screen-shell primitives)
+ *   tier 3: useNotificationPrefs (AsyncStorage hook)
+ *   tier 4: usePushToken (expo-notifications consumer — the chief suspect)
  */
 
-import { Stack } from 'expo-router';
-import { Pressable, ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { Card, PushScreenHeader } from '@/components/cf/screen-shell';
-import { InfoText, SansBody } from '@/components/cf/text';
-import { tokens } from '@/constants/theme';
+import { Text, View } from 'react-native';
 
 export default function NotificationsScreen() {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <PushScreenHeader title="Notifications" subtitle="DIAGNOSTIC" />
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
-        <View
-          style={{
-            marginHorizontal: 16,
-            marginBottom: 12,
-            backgroundColor: tokens.color.bg.infoTint,
-            borderLeftWidth: 2,
-            borderLeftColor: tokens.color.you.here,
-            paddingVertical: 10,
-            paddingHorizontal: 12,
-          }}
-        >
-          <InfoText>
-            Diagnostic build. The full notifications screen is temporarily
-            disabled while we root-cause a v1.0.1 render issue on Android 16.
-          </InfoText>
-        </View>
-
-        <Card>
-          <View style={{ paddingHorizontal: 13, paddingVertical: 13 }}>
-            <SansBody style={{ fontSize: 13.5, marginBottom: 4 }}>
-              Push notifications
-            </SansBody>
-            <SansBody
-              style={{ fontSize: 12, color: tokens.color.text.secondary }}
-            >
-              Coming back online shortly. If you can read this, the screen
-              shell renders fine — the issue is isolated to the push-token
-              hook&apos;s import path.
-            </SansBody>
-          </View>
-        </Card>
-
-        <Pressable
-          onPress={() => {}}
-          accessibilityRole="button"
-          accessibilityLabel="No-op diagnostic button"
-          style={{
-            marginHorizontal: 16,
-            paddingVertical: 14,
-            paddingHorizontal: 12,
-            borderRadius: 8,
-            backgroundColor: tokens.color.bg.elev1,
-            borderWidth: 0.5,
-            borderColor: tokens.color.border.subtle,
-            alignItems: 'center',
-          }}
-        >
-          <SansBody style={{ fontSize: 13 }}>OK</SansBody>
-        </Pressable>
-      </ScrollView>
+    <View style={{ flex: 1, backgroundColor: '#000', padding: 50, paddingTop: 100 }}>
+      <Text style={{ color: '#fff', fontSize: 24, marginBottom: 16 }}>
+        Notifications (diagnostic v4)
+      </Text>
+      <Text style={{ color: '#aaa', fontSize: 14 }}>
+        If you can read this, the route renders fine and the bug is in a
+        component or hook the original screen pulled in.
+      </Text>
     </View>
   );
 }
