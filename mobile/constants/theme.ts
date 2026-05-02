@@ -176,8 +176,14 @@ export const tokens = {
   pin: {
     /** stroke = max(1.5, round(diameter / 8)) */
     strokeForDiameter: (d: number): number => Math.max(1.5, Math.round(d / 8)),
-    /** inner dot is 40% of outer diameter for ring-plus-dot pins (Missing) */
-    innerDotRatio: 0.4,
+    /**
+     * Inner-dot ratio for the ring_dot pin (Missing kind). Bumped 0.4 → 0.5
+     * 2026-05-02 because the 0.4 pass produced a 7px dot on an 18px ring,
+     * which read as a "pinprick" indistinguishable from a tiny filled
+     * homicide pin at scroll speed. 0.5 = 9px on 18px outer = clearly a
+     * ring-with-centered-dot.
+     */
+    innerDotRatio: 0.5,
     selected: { haloScale: 1.6, haloAlpha: 0.5 },
     recent: {
       ringScale: 1.4,

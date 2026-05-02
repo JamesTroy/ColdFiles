@@ -51,6 +51,9 @@ export function Pin({
   const shape = PIN_SHAPE_BY_KIND[kind];
   const color = PIN_COLOR_BY_KIND[kind];
   const stroke = tokens.pin.strokeForDiameter(diameter);
+  // innerDotRatio is 0.5 in tokens — bumped from 0.4 because at 18px the
+  // smaller ratio rendered a pinprick that's hard to distinguish from a
+  // tiny filled homicide pin at scroll speed.
   const inner = diameter * tokens.pin.innerDotRatio;
 
   // Compute halo + recent geometry on the same SVG so layering is correct.
@@ -113,16 +116,19 @@ export function Pin({
 
       {shape === 'open_ring' && (
         <>
-          {/* 10% alpha cream fill so the open-ring pin reads as a lens
-              rather than a hole on low-contrast tiles. The shape (open
-              ring) still encodes kind; this just keeps the inside from
-              being pure-transparent against water + dim park tiles. */}
+          {/* 25% alpha cream fill so the open-ring pin reads as a tinted
+              lens rather than a hole on low-contrast tiles. 10% (the
+              earlier conservative pass) wasn't enough — the pin still
+              disappeared into water + dim-park tiles. 25% lands as "this
+              is a cream-tinted pin with an open-ring stroke" while
+              keeping the open-ring grammar (the stroke still encodes
+              kind; the fill just surfaces the pin's interior). */}
           <Circle
             cx={cx}
             cy={cy}
             r={diameter / 2 - stroke / 2}
             fill={color}
-            fillOpacity={0.10}
+            fillOpacity={0.25}
           />
           <Circle
             cx={cx}

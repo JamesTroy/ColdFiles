@@ -432,7 +432,12 @@ function buildLeafletHtml(
         var color = PALETTE[opts.kind] || PALETTE.homicide;
         var shape = SHAPE[opts.kind] || 'filled';
         var stroke = strokeForDiameter(diameter);
-        var inner = diameter * 0.4;
+        // Inner-dot ratio: 50% on the ring_dot pin (missing). The 40% the
+        // pin renderer originally used produced a 7px dot on an 18px ring,
+        // which read as a "pinprick" indistinguishable from a tiny filled
+        // homicide pin at scroll speed. 50% lands at 9px — clearly a "ring
+        // with a centered dot", which is the design-system grammar.
+        var inner = diameter * 0.5;
         var haloD = opts.selected ? diameter * TOKENS.haloScale : 0;
         var recAlpha = recentAlphaFor(opts.recentDays);
         var recD = recAlpha > 0 ? diameter * TOKENS.recentScale : 0;
@@ -477,15 +482,16 @@ function buildLeafletHtml(
         if (shape === 'filled') {
           parts.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + (diameter / 2) + '" fill="' + color + '" />');
         } else if (shape === 'open_ring') {
-          // Doe pins (open ring) get a 10% alpha cream fill so they read as a
-          // lens rather than a hole on low-contrast tiles. Without the fill,
-          // an 18px ring with a 2px stroke is mostly transparent — the pin
-          // disappears into water + dim-park tiles. Maintains the open-ring
-          // grammar (shape still encodes kind); just makes the inside not
-          // pure-transparent.
+          // Doe pins (open ring) get a 25% alpha cream fill so they read as a
+          // tinted lens rather than a hole on low-contrast tiles. The earlier
+          // 10% pass was too conservative — the pin still disappeared into
+          // water and dim-park tiles. 25% reads as "this is a cream-tinted
+          // pin with an open-ring stroke" while keeping the open-ring shape
+          // grammar (the stroke still encodes the kind, the fill just
+          // surfaces the pin's interior).
           parts.push(
             '<circle cx="' + cx + '" cy="' + cy + '" r="' + (diameter / 2 - stroke / 2) + '" ' +
-            'fill="' + color + '" fill-opacity="0.10" />'
+            'fill="' + color + '" fill-opacity="0.25" />'
           );
           parts.push(
             '<circle cx="' + cx + '" cy="' + cy + '" r="' + (diameter / 2 - stroke / 2) + '" ' +
