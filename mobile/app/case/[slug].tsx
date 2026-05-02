@@ -35,7 +35,7 @@ import {
 } from '@/components/cf/text';
 import { TrustDisclosureCallout, TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
 import { tokens } from '@/constants/theme';
-import { displayName, formatDateMonthDay, formatPlace } from '@/lib/format';
+import { displayName, formatDateLedger, formatDateMonthDay, formatPlace } from '@/lib/format';
 import { useCaseDetail } from '@/lib/hooks/use-case-detail';
 import { useFreshReceiptCount } from '@/lib/hooks/use-fresh-receipt';
 import { useIsSaved } from '@/lib/hooks/use-saved-cases';
@@ -545,7 +545,7 @@ function LastSeenBlock({ c }: { c: CaseRowFull }) {
   if (!hasAny) return null;
 
   const dateLine = c.last_seen_date
-    ? formatDateMonthDay(c.last_seen_date)
+    ? formatDateLedger(c.last_seen_date)
     : null;
   const placeLine = c.last_seen_text;
 
@@ -751,7 +751,10 @@ function buildKeyFacts(c: CaseRowFull): KeyFact[] {
   if (c.incident_date) {
     out.push({
       label: 'DATE',
-      value: formatDateMonthDay(c.incident_date),
+      // Ledger format ("May 1 · 1985") so the year reads as a distinct
+      // unit rather than getting lost behind a comma — the year is the
+      // emotional content on a cold-case date.
+      value: formatDateLedger(c.incident_date),
       mono: true,
     });
   } else if (c.incident_date_text) {

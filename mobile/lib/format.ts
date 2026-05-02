@@ -81,6 +81,25 @@ export function formatDateMonthDay(iso: string | null): string {
   return `${months[m - 1]} ${d}, ${y}`;
 }
 
+/**
+ * "Oct 13 · 1985" — ledger format for cold-case dates where the year
+ * is the emotional content and should read as a distinct unit. The
+ * mid-dot separator gives the year breathing room compared to the
+ * comma'd "Oct 13, 1985" form, where at-a-glance reading can register
+ * "Oct 13" as a recent date and miss the year entirely.
+ *
+ * Use for case incident_date and last_seen_date in case-detail
+ * surfaces. Keep formatDateMonthDay (comma) for recent / current-year
+ * dates like tip submission timestamps.
+ */
+export function formatDateLedger(iso: string | null): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map((s) => parseInt(s, 10));
+  if (!y || !m || !d) return iso;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[m - 1]} ${d} · ${y}`;
+}
+
 /** "Claremont, CA" from city + state. */
 export function formatPlace(c: { location_city: string | null; location_state: string | null }): string {
   return [c.location_city, c.location_state].filter(Boolean).join(', ');
