@@ -166,7 +166,7 @@ export default function MeScreen() {
         {/* Card 4 — Help / Notifications / About */}
         <Card>
           <NavRow label="Help / contact" onPress={handleSupportEmail} />
-          <NavRow label="Notifications" onPress={() => router.push('/notifications')} />
+          <NavRow label="Notifications" onPress={() => router.push('/notif-prefs' as never)} />
           <NavRow label="Pinned regions" onPress={() => router.push('/region-prefs')} />
           <NavRow label="About · mission" onPress={() => router.push('/about')} />
           <NavRow label="Privacy policy" onPress={() => router.push('/privacy')} />
