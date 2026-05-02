@@ -121,7 +121,6 @@ export function CFTabBar({ state, navigation }: BottomTabBarProps): ReactElement
               style={{
                 color: tint,
                 fontFamily: tokens.font.mono,
-                fontWeight: '500',
                 fontSize: 11,
                 letterSpacing: 11 * tokens.tracking.chip,
                 textAlign: 'center',

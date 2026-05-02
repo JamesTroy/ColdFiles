@@ -55,23 +55,17 @@ export function AmberCTA({ label, onPress, loading, style }: AmberCTAProps) {
       {loading ? (
         <ActivityIndicator color="#1a1408" />
       ) : (
-        // Inlined Text instead of <SansMedium> to bypass cf/text's
-        // `includeFontPadding: false` (Android Fabric mishandles it inside
-        // Pressable, occasionally collapsing text height to 0). fontWeight
-        // '500' is the system-font fallback if Inter_500Medium fails to
-        // register on a particular device build.
-        //
-        // No explicit lineHeight: previous versions set lineHeight to
-        // fontSize × 1.4 which interacted badly with numberOfLines:1 on
-        // Fabric and clipped the glyphs. Letting RN derive line height
-        // from the font metrics renders reliably.
+        // Do not specify fontWeight alongside fontFamily on Android Fabric
+        // (Pixel 10 Pro XL repro): Inter_500Medium already encodes weight
+        // 500, and asking the renderer to apply weight 500 on top of it
+        // fails resolution and renders the glyphs invisible — the button
+        // shows as an amber slab with no label. Only set fontFamily.
         <Text
           numberOfLines={1}
           allowFontScaling
           style={{
             color: '#1a1408',
             fontFamily: tokens.font.sansMedium,
-            fontWeight: '500',
             fontSize: tokens.size.body,
             letterSpacing: tokens.size.body * tokens.tracking.label,
             textAlign: 'center',

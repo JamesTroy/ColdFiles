@@ -225,7 +225,6 @@ export default function OnboardingScreen() {
               style={{
                 color: tokens.color.text.secondary,
                 fontFamily: tokens.font.sans,
-                fontWeight: '400',
                 fontSize: tokens.size.body,
                 textAlign: 'center',
               }}
