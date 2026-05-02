@@ -220,16 +220,19 @@ async function buildEnvelope(
   let caseTitle: string | null = null;
 
   if (body.case_id) {
+    // Schema column names are `victim_first_name` / `victim_last_name`
+    // (per migrations/01_schema.sql); selecting `first_name` / `last_name`
+    // would error on first invocation and the entire fan-out would fail.
     const { data: caseRow } = await supabase
       .from('cases')
-      .select('slug, last_name, first_name')
+      .select('slug, victim_first_name, victim_last_name')
       .eq('id', body.case_id)
       .is('deleted_at', null)
       .maybeSingle();
     if (caseRow) {
       caseSlug = (caseRow as { slug?: string | null }).slug ?? null;
-      const last = (caseRow as { last_name?: string | null }).last_name;
-      const first = (caseRow as { first_name?: string | null }).first_name;
+      const last = (caseRow as { victim_last_name?: string | null }).victim_last_name;
+      const first = (caseRow as { victim_first_name?: string | null }).victim_first_name;
       // Title shape mirrors the case-row glance pattern. Falls back to "a case"
       // when names are absent (Doe network) — never leaks a placeholder Doe ID.
       if (last || first) {
