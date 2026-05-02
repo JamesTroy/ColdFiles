@@ -540,16 +540,24 @@ function AliasesRow({ aliases }: { aliases: string[] | null }) {
  */
 function LastSeenBlock({ c }: { c: CaseRowFull }) {
   if (c.kind !== 'missing') return null;
+  // For missing-kind cases the source's "missing since" data goes into
+  // `incident_date` (every active extractor maps the primary date that
+  // way). `last_seen_date` is a parallel column that no current source
+  // populates — so we fall back to incident_date for the date line of
+  // this block. The editorial "Last seen on May 1, 1985" framing is the
+  // moment that earns the prose register, even though the same date
+  // also appears as the bare DATE row in the key-facts table above.
+  // v1.0.x: dual-write incident_date → last_seen_date in persist.ts to
+  // make this fallback unnecessary.
+  const lastSeenDate = c.last_seen_date ?? c.incident_date ?? null;
   const hasAny =
-    c.last_seen_date ||
+    lastSeenDate ||
     c.last_seen_text ||
     c.last_seen_clothing ||
     c.last_seen_circumstances;
   if (!hasAny) return null;
 
-  const dateLine = c.last_seen_date
-    ? formatDateLedger(c.last_seen_date)
-    : null;
+  const dateLine = lastSeenDate ? formatDateLedger(lastSeenDate) : null;
   const placeLine = c.last_seen_text;
 
   return (
