@@ -33,6 +33,7 @@ import type {
 import {
   parseDate,
   parseSex,
+  parseState,
   splitName,
   stripHtml,
   truncateNarrative,
@@ -138,6 +139,66 @@ function bucketKind(item: FbiItem): CaseKind | null {
 }
 
 /**
+ * Cold-enough filter for FBI Wanted ingest.
+ *
+ * The FBI Wanted feed is a *current alerts* board, not a cold-case
+ * archive. It carries notices ranging from decades-old ViCAP cases to
+ * bulletins issued days ago. Ingesting recent bulletins as if they were
+ * cold cases would:
+ *   1. Pollute the corpus's editorial premise (The Cold File is for
+ *      cold cases — families of victims and survivors expect that
+ *      framing). A 2-week-old active investigation read as a "cold
+ *      case" is jarring.
+ *   2. Ship records with weak dedupe keys — Wanted bulletins are
+ *      sometimes posted before NamUs / state clearinghouse records
+ *      land for the same case, so we'd duplicate.
+ *
+ * Threshold: incident_date must be >= 5 years old. The 5-year bar is
+ * Project: Cold Case's published cold-case definition, the same one
+ * used in the v1.0.x cold-pill rendering. Cases without a parseable
+ * date in the FBI description are skipped — without a date we can't
+ * make the cold-case claim.
+ *
+ * Required-field gate: cases need a parseable location_state AND
+ * (for kind != 'unidentified') a victim name, so dedupe keys actually
+ * generate. Without state + name, every re-scrape would create a fresh
+ * row instead of UPDATE-ing the existing one.
+ */
+function isColdEnoughForIngest(
+  item: FbiItem,
+  kind: CaseKind | null,
+): boolean {
+  if (!kind) return false;
+  const desc = parseDescription(item.description);
+
+  // Required: parseable date.
+  if (!desc.date) return false;
+  const incidentMs = Date.parse(desc.date);
+  if (Number.isNaN(incidentMs)) return false;
+
+  // Required: at least 5 years cold.
+  const FIVE_YEARS_MS = 5 * 365.25 * 24 * 60 * 60 * 1000;
+  if (Date.now() - incidentMs < FIVE_YEARS_MS) return false;
+
+  // Required: parseable state for dedupe (location_state participates
+  // in the name_state_year dedupe key).
+  const cityState = splitCityState(desc.locationText);
+  if (!cityState.state) return false;
+
+  // For named kinds, require a parseable victim name in the title.
+  // Unidentified cases use the anonymous "Unidentified Female / Male"
+  // titles by design — no name expected.
+  if (kind === 'homicide' || kind === 'missing') {
+    const titleClean = (item.title ?? '')
+      .split(/\s*[-–—]\s*/)[0]
+      ?.trim();
+    if (!titleClean || titleClean.length < 3) return false;
+  }
+
+  return true;
+}
+
+/**
  * Parse the description blob — typically "City, State\\nMonth Day, Year" —
  * into a location + date pair.
  */
@@ -170,7 +231,18 @@ function parseDescription(desc: string | undefined): {
   };
 }
 
-/** "City, ST" → { city, state } where state is parseable as 2-letter US. */
+/**
+ * "City, State" → { city, state } where state is normalized to a
+ * 2-letter US code. The FBI feed uses full state names ("California",
+ * "Virginia") in description blobs, not the 2-letter codes the
+ * downstream schema expects. Run the trailing token through
+ * `parseState` (handles "California", "CA", "calif.", etc.) so the
+ * dedupe key (name_state_year) generates correctly.
+ *
+ * Returns state undefined when the trailing token isn't a recognizable
+ * US state — typically international locations like "Mannheim, Germany"
+ * which the cold-case-cold-enough filter then drops.
+ */
 function splitCityState(loc: string | undefined): {
   city?: string;
   state?: string;
@@ -179,11 +251,7 @@ function splitCityState(loc: string | undefined): {
   const parts = loc.split(',').map((s) => s.trim()).filter(Boolean);
   if (parts.length === 0) return {};
   const last = parts[parts.length - 1];
-  // 2-letter US state OR full state name. parseState handles both.
-  // Actually only handle 2-letter for safety; full state names get
-  // stuffed into location_text only.
-  const stateMatch = last.match(/^[A-Z]{2}$/);
-  const state = stateMatch ? stateMatch[0] : undefined;
+  const state = parseState(last);
   const city = state ? parts.slice(0, -1).join(', ') : parts.join(', ');
   return { city: city || undefined, state };
 }
@@ -218,8 +286,11 @@ export const fbiWanted: SourceConfig = {
           // Skip captured / resolved cases — the case is no longer cold.
           if (item.status === 'captured') continue;
           // Bucket-filter at discovery to avoid the per-case detail fetch
-          // for items we'd skip anyway.
-          if (bucketKind(item) === null) continue;
+          // for items we'd skip anyway. Plus the cold-enough filter so
+          // we don't pollute a cold-case corpus with current alerts.
+          const itemKind = bucketKind(item);
+          if (itemKind === null) continue;
+          if (!isColdEnoughForIngest(item, itemKind)) continue;
           urls.push(`${DETAIL_BASE}/${item.uid}`);
           if (urls.length >= target) break;
         }
@@ -237,6 +308,12 @@ export const fbiWanted: SourceConfig = {
       if (!item) return { raw: { empty: true } };
       const kind = bucketKind(item);
       if (!kind) return { raw: { skipped: 'wrong bucket' } };
+      // Defense in depth: discovery already filters by isColdEnoughForIngest,
+      // but if a stale URL slips through (e.g. cached, or a future trigger
+      // path bypasses discovery), bail before constructing the case record.
+      if (!isColdEnoughForIngest(item, kind)) {
+        return { raw: { skipped: 'not cold enough' } };
+      }
 
       const desc = parseDescription(item.description);
       const cityState = splitCityState(desc.locationText);
