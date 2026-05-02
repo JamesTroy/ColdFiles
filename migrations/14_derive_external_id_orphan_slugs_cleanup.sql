@@ -1,0 +1,50 @@
+-- Migration 14 — clean up `cases` rows with orphan slugs from the
+-- pre-fix deriveExternalId bug.
+--
+-- Background:
+--   Before commit 570847b ("fix(scrape): deriveExternalId prefers ?id=
+--   query param + cleanup migration"), the URL-to-external-id derivation
+--   for Doe Network sources collapsed every URL down to its last path
+--   segment — `database.php` for UID and `mpdatabase.php` for MP — instead
+--   of using the `?id=...` query parameter. Migration 10 cleaned up the
+--   downstream `case_sources` rows that this corruption produced (where
+--   source_external_id was the literal script name).
+--
+--   Migration 10 did NOT, however, clean up the `cases` rows themselves.
+--   Those rows have slugs that include the literal script name as a
+--   suffix — e.g. `unidentified-fl-1982-database-php` — because the slug
+--   builder concatenates the (corrupted) external ID. These orphan
+--   cases rows survived migration 10 and are now visible to users on
+--   the case detail surface.
+--
+--   They also stack with real cases on the same incident_date / state,
+--   which is what surfaced this — a date-accuracy investigation found
+--   eleven `1982-03-28` Florida unidentified-remains records, ten of
+--   which are legitimate (a discovery-date cluster) plus one orphan
+--   `unidentified-fl-1982-database-php` from the killed scrape.
+--
+-- Pattern match instead of explicit slugs:
+--   Migration 13 used explicit slug names because the two cases there
+--   were specific orphans surfaced by persist-error logs. The
+--   deriveExternalId orphans are a *class* of corrupted rows — pattern-
+--   matching on the slug suffix is correct because no legitimate Doe
+--   Network record would have a literal script name as its external ID
+--   (real IDs are like `1268UMFL`, never `database.php`).
+--
+-- Cascade:
+--   `cases` foreign-key relationships (case_sources, case_dedupe_keys,
+--   case_media, dedupe_review_queue) all use ON DELETE CASCADE per
+--   migration 01. Single DELETE handles cleanup of every related row.
+--
+-- After applying:
+--   Run a fresh `npm run scrape -- --source=doe_network --limit=500
+--   --concurrency=8` and the same for `--source=doe_network_uid`. The
+--   scraper will re-create each affected case cleanly using the now-
+--   fixed deriveExternalId path. Each affected case lands as new=N+1
+--   with all its keys + sources + media intact.
+--
+-- Idempotent: re-running after the rows are already gone is a no-op.
+
+delete from public.cases
+where slug like '%-database-php'
+   or slug like '%-mpdatabase-php';
