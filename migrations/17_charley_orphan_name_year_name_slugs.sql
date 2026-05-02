@@ -1,0 +1,43 @@
+-- Migration 17 — clean up Charley orphan slugs of the name-year-name pattern.
+--
+-- Background:
+--   The Charley re-run on 2026-05-02 surfaced a class of orphan rows whose
+--   slug has the victim's name repeated on both sides of the year, e.g.:
+--     giannina-maria-colonna-aponte-1974-giannina-maria-colonna-aponte
+--     john-colonna-aponte-1974-john-colonna-aponte
+--     yeritza-aponte-soto-2001-yeritza-aponte-soto
+--     diane-marie-aviles-colon-1999-diane-marie-aviles-colon
+--
+--   This is fallout from an old slug-derivation bug — the slug builder
+--   concatenated `<name>-<year>-<external_id>`, but at the time, the
+--   external_id was being set to the name itself (rather than the
+--   source-side stable ID). Result: slug ends up doubled.
+--
+--   The new ingest path generates correct slugs (Charley's external_id
+--   is now its sitemap path slug, distinct from the name). Re-ingesting
+--   the same case creates a NEW row with the correct slug; the old
+--   doubled-slug row stays as an orphan and trips the cases_slug_key
+--   unique constraint when other re-runs try to write the corrected slug
+--   for unrelated cases.
+--
+-- Detection:
+--   Postgres regex with a backreference: ^([a-z0-9-]+)-\d{4}-\1$ matches
+--   any slug where the trailing segment is identical to the leading
+--   segment, with a 4-digit year between. No legitimate Charley slug has
+--   that shape — real slugs are <name>-<year>-<charley-slug-id>, where
+--   the charley-slug-id is a numeric or short-token ID, not the full name.
+--
+-- Cascade:
+--   `cases` foreign-key relationships (case_sources, case_dedupe_keys,
+--   case_media, dedupe_review_queue) all use ON DELETE CASCADE per
+--   migration 01. Single DELETE handles cleanup of every related row.
+--
+-- After applying:
+--   Future Charley re-runs no longer hit the slug-conflict persist errors
+--   for these specific cases. The corrected slug rows (already in the DB
+--   from the re-ingest path) remain intact.
+--
+-- Idempotent: re-running after the rows are gone is a no-op.
+
+delete from public.cases
+where slug ~ '^([a-z0-9-]+)-\d{4}-\1$';
