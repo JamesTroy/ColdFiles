@@ -45,6 +45,20 @@ export async function persistRecord(
   record: CaseRecord,
   stats: RunStats,
 ): Promise<void> {
+  // Normalize: for missing-kind cases the source's "missing since" date
+  // typically lands in incident_date (Charley, Doe MP, PCC, etc. all map
+  // their primary date that way), but the schema also has a parallel
+  // last_seen_date column that no current extractor populates. Dual-write
+  // here so both columns carry the same value for missing cases. Removes
+  // the UI fallback the case-detail LastSeenBlock currently uses, and
+  // gives any future RPC/query that joins on last_seen_date specifically
+  // (e.g., a "missing-since-decade" filter) clean data without the
+  // fallback chain. Mutating the input record is fine — persist.ts is
+  // the terminal stage.
+  if (record.kind === 'missing' && !record.last_seen_date && record.incident_date) {
+    record.last_seen_date = record.incident_date;
+  }
+
   const keys = generateDedupeKeys(record);
   const payloadJson = JSON.stringify({ ...record, photos: record.photos.map((p) => p.url) });
   const payloadHash = await sha256Hex(payloadJson);
