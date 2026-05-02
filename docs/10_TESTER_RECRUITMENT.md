@@ -49,11 +49,11 @@ actually use a tool like this.
 - Feedback welcome but not required — bugs, missing sources, anything
 
 **What the app does today:**
-- ~2,700 cases from Doe Network, FBI Wanted, Charley Project, LASD homicide bureau
+- ~3,700 cases from Doe Network, Charley Project, Project: Cold Case, LASD homicide bureau
 - Map + list with case-type / state / date filters
 - Per-case detail with photo, key facts, narrative, agency contact
 - Tip submission deep-links to the agency's official channel
-- Save cases you're following; "watch zones" for new cases in your area (v1.0.1)
+- Save cases you're following; opt-in push notifications for saved-case updates and new cases in watch zones (v1.0.1)
 
 **What it doesn't do:**
 - No ads, no in-app purchases, no premium tier
@@ -97,9 +97,9 @@ some of the defensive framing.
 ```
 I'm a solo developer building **The Cold File**, a free Android app
 that consolidates unsolved homicide, missing-person, and
-unidentified-person cases from public sources (Doe Network, FBI
-Wanted, Charley Project, LASD) into one searchable map and list.
-~2,700 cases at last count and growing.
+unidentified-person cases from public sources (Doe Network, Charley
+Project, Project: Cold Case, LASD) into one searchable map and list.
+~3,700 cases at last count and growing.
 
 When you submit a tip through the app, it deep-links to the agency
 that owns the case — the app never reads or stores tip content. No
