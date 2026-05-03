@@ -4,6 +4,24 @@ A short, dated record of architecture and product calls that shaped the build. N
 
 ---
 
+## 2026-05-03 — FBI Wanted retired; Solve the Case never built
+
+**Decision:** The federal-source plan in the original strategy doc and in `docs/02_SCRAPER_ARCHITECTURE.md` listed FBI Wanted (trust 85) and Solve the Case (trust 60) as part of the ingestion fleet. Neither runs today.
+
+**Why:**
+
+- **FBI Wanted (retired)** — migration 15 deactivated the source after operator review. The corpus turned out to be dominated by tip-line bulletins (Civil Disorder, Building Damage, Allegiant Airlines, etc.) rather than the unsolved-homicide-victim posters the dataset name implied. Editorially mis-fit for the cold-case track. The TS extractor stays in `sources/fbi_wanted.ts` with a `RETIRED — DO NOT RE-ACTIVATE` header block so historical case_sources rows attributed to FBI Wanted remain attributable. The next investment in homicide coverage is LASD homicide bureau / agency-direct, not re-activating this source. See the `feedback_fbi_wanted_editorial_misfit` memory note.
+- **Solve the Case (never built)** — scoped in the original strategy as a supplementary fifth source. Never reached an extractor. Deferred indefinitely; no current plan to ship.
+
+**What's actually live:** Four federal-tier sources — `charley_project`, `doe_network` (missing), `doe_network_uid` (unidentified), `project_cold_case`. Plus NamUs wired but dormant pending API access (see `sources/namus.ts` for the wake-up procedure).
+
+**Implications:**
+
+- Trust-weight tables and source enumerations elsewhere in the docs need to track this. `docs/02_SCRAPER_ARCHITECTURE.md` updated alongside this entry.
+- The `fbi_wanted` and `solve_the_case` slugs are NOT free for reuse — `fbi_wanted` has live case_sources rows that will lose attribution if the slug is recycled.
+
+---
+
 ## 2026-04-28 — V1 ships the SVG MapCanvas; real basemap deferred
 
 **Decision:** The home-tab map and the Watch Zone polygon both render against the SVG `MapCanvas` placeholder for V1. Real basemap (MapLibre / Mapbox / Google) is deferred to a follow-up.

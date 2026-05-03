@@ -14,7 +14,7 @@ Per-agency tip-routing data and verification log. The design layer (`docs/04_DES
 | Day 2 — Research | **In progress** | Verify P3 portals; find non-P3 agency tip pages |
 | Day 3 — Callbacks | **Blocked on day 2** | Submit one test tip per route; log replies |
 
-The order matters: tip routing has external dependencies (PIO callbacks, P3 affiliate sites that change), so it's the long pole. Data quality (`docs/03_DATA_QUALITY_REPORT.md`) is internal — fits in the dead time between day-2 / day-3 callbacks.
+The order matters: tip routing has external dependencies (PIO callbacks, P3 affiliate sites that change), so it's the long pole. Data quality work is internal and fits in the dead time between day-2 / day-3 callbacks.
 
 ---
 

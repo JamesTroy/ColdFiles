@@ -45,10 +45,10 @@ import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
 import { useWatchZones, type WatchZone } from '@/lib/hooks/use-watch-zones';
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
-import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
+import type { CaseKind, CaseRowMapBbox } from '@/lib/types/database';
 
 interface CasesInside {
-  rows: CaseRowMapNear[];
+  rows: CaseRowMapBbox[];
   loading: boolean;
 }
 
@@ -87,7 +87,7 @@ export default function ZoneDetailScreen() {
       .then(({ data }) => {
         if (cancelled) return;
         setCasesInside({
-          rows: (data ?? []) as CaseRowMapNear[],
+          rows: (data ?? []) as CaseRowMapBbox[],
           loading: false,
         });
       });
@@ -278,7 +278,7 @@ function ZoneMapPreview({
   casesInside,
 }: {
   vertices: PolygonVertex[];
-  casesInside: CaseRowMapNear[];
+  casesInside: CaseRowMapBbox[];
 }) {
   const pins: InsidePin[] = useMemo(
     () =>
@@ -512,7 +512,7 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
-function ZoneCaseRow({ row }: { row: CaseRowMapNear }) {
+function ZoneCaseRow({ row }: { row: CaseRowMapBbox }) {
   return (
     <Pressable
       onPress={() =>
@@ -543,7 +543,7 @@ function ZoneCaseRow({ row }: { row: CaseRowMapNear }) {
 
 /* ---------------- helpers ---------------- */
 
-function displayName(row: CaseRowMapNear): string {
+function displayName(row: CaseRowMapBbox): string {
   if (row.victim_name) return row.victim_name;
   if (row.kind === 'unidentified' || row.kind === 'unclaimed') return 'Unidentified';
   return 'Name not released';
