@@ -56,7 +56,7 @@ actually use a tool like this.
 - Feedback welcome but not required — bugs, missing sources, anything
 
 **What the app does today:**
-- ~3,600 cases from Doe Network, Charley Project, Project: Cold Case, LASD homicide bureau
+- ~3,100 cases from Doe Network, Charley Project, Project: Cold Case, LASD homicide bureau
 - Map + list with case-type / state / date filters
 - Per-case detail with photo, key facts, narrative, agency contact
 - Tip submission deep-links to the agency's official channel
@@ -107,7 +107,7 @@ I'm a solo developer building **The Cold File**, a free Android app
 that consolidates unsolved homicide, missing-person, and
 unidentified-person cases from public sources (Doe Network, Charley
 Project, Project: Cold Case, LASD) into one searchable map and list.
-~3,600 cases at last count and growing.
+~3,100 cases at last count and growing.
 
 When you submit a tip through the app, it deep-links to the agency
 that owns the case — the app never reads or stores tip content. No

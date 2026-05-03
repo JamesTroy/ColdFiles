@@ -17,6 +17,7 @@
  * region-prefs. Keep them centralized.
  */
 
+import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { Alert, ScrollView, View } from 'react-native';
@@ -181,7 +182,7 @@ export default function MeScreen() {
             color={tokens.color.text.secondary}
             style={{ lineHeight: 18 }}
           >
-            THE COLD FILE · v1.0.0{'\n'}MATTE BLACK DEV LLC · VENTURA, CA
+            {`THE COLD FILE · v${Constants.expoConfig?.version ?? '1.0.2'}\nMATTE BLACK DEV LLC · VENTURA, CA`}
           </MonoLabel>
         </View>
       </ScrollView>

@@ -101,8 +101,8 @@ export default function NotificationsScreen() {
           }}
         >
           <InfoText>
-            Push delivery activates with watch zones in v1.0.1. Toggles are saved now so they apply
-            automatically when sending begins.
+            Tap below to register this device for push alerts. Per-category toggles let you opt in
+            and out of each kind independently.
           </InfoText>
         </View>
 
