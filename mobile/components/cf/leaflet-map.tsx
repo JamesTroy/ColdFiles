@@ -107,21 +107,49 @@ export function LeafletMap({
     [],
   );
 
-  const markersJson = JSON.stringify(markers);
+  // markersKey is a stable identity for the marker set. We re-push markers
+  // only when this changes — NOT on every re-render or on incidental order
+  // changes from the cases-in-bbox refetch. Re-pushing markers calls
+  // clearLayers() under the hood, which collapses any open cluster
+  // spiderfy: the user taps a "2" cluster → it spiderfies into 2 pins →
+  // the bbox shifts slightly during the animation → React refetches →
+  // markers re-push → spiderfy collapses → user is back to the "2" dot
+  // before they can tap a pin. Stable key fixes that.
+  const markersKey = useMemo(
+    () =>
+      markers
+        .map((m) => `${m.id}|${m.lat.toFixed(5)}|${m.lng.toFixed(5)}|${m.kind}|${m.selected ? 1 : 0}|${m.recentDays ?? ''}`)
+        .sort()
+        .join(','),
+    [markers],
+  );
+  const markersJson = useMemo(() => JSON.stringify(markers), [markers]);
   const hereJson = JSON.stringify(here ?? null);
   const zonesJson = JSON.stringify(zones);
 
+  // Only re-push markers when the stable key changes. The other channels
+  // (here / zones) are independent and can update freely.
   useEffect(() => {
     if (!ready) return;
     webRef.current?.injectJavaScript(`
       try {
         window.__cf_setMarkers && window.__cf_setMarkers(${markersJson});
+      } catch (e) {}
+      true;
+    `);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, markersKey]);
+
+  useEffect(() => {
+    if (!ready) return;
+    webRef.current?.injectJavaScript(`
+      try {
         window.__cf_setHere && window.__cf_setHere(${hereJson});
         window.__cf_setZones && window.__cf_setZones(${zonesJson}, ${zonesVisible ? 'true' : 'false'});
       } catch (e) {}
       true;
     `);
-  }, [ready, markersJson, hereJson, zonesJson, zonesVisible]);
+  }, [ready, hereJson, zonesJson, zonesVisible]);
 
   // Auto-pan the map to the user once we have a real location fix.
   //
