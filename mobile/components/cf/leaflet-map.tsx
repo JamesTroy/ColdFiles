@@ -684,30 +684,25 @@ function buildLeafletHtml(
       // fan out around the cluster center in a stable animation that
       // doesn't depend on bbox math. spiderfyDistanceMultiplier widens
       // the fan so 6+ pins remain tappable without overlap.
+      // disableClusteringAtZoom:13 means once the user zooms in past
+      // street-level (zoom 13 ~= city), pins render individually with
+      // no clustering at all. Spiderfy was unreliable in earlier
+      // releases — the click animation would visibly flash and snap
+      // back. Skipping clustering entirely at moderate zoom is a
+      // simpler UX: zoom in to disambiguate, never tap a cluster.
+      // Below zoom 13 (regional / country view), clustering still
+      // applies so the map doesn't render thousands of pins.
+      // Tap-to-zoom on remaining clusters: the parent map jumps to
+      // the cluster's bounds, naturally crossing the zoom-13 threshold
+      // and surfacing the individual pins.
       var markerLayer = L.markerClusterGroup({
         showCoverageOnHover: false,
-        spiderfyOnMaxZoom: true,
-        zoomToBoundsOnClick: false,
-        spiderfyDistanceMultiplier: 1.6,
+        zoomToBoundsOnClick: true,
+        disableClusteringAtZoom: 13,
         maxClusterRadius: 50,
         chunkedLoading: true,
         iconCreateFunction: clusterIconFor,
       }).addTo(map);
-
-      // Force spiderfy on every cluster click regardless of zoom level.
-      // Default behavior with zoomToBoundsOnClick:true was zooming in
-      // first, then maybe spiderfying — a multi-step animation where the
-      // zoom-in's moveend triggered a bbox refetch mid-flight, which then
-      // re-rendered markers and read to the user as "spiderfy snapped
-      // back to the cluster dot." With zoom disabled and an explicit
-      // spiderfy() call, every cluster tap is a single deterministic
-      // animation: pins fan out, stay fanned out until the user taps
-      // one or taps elsewhere on the map.
-      markerLayer.on('clusterclick', function (e) {
-        if (e && e.layer && typeof e.layer.spiderfy === 'function') {
-          e.layer.spiderfy();
-        }
-      });
       var hereMarker = null;
 
       // Trigger the press animation on a marker's icon. Removing the class
