@@ -30,6 +30,7 @@ import { Pressable, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 
 import { tokens } from '@/constants/theme';
+import { interleaveByKind } from '@/lib/interleave-by-kind';
 import type { CaseRowMapBbox } from '@/lib/types/database';
 
 import { CaseRow } from './case-row';
@@ -54,6 +55,15 @@ interface MapBottomSheetProps {
   selectedSlug: string | null;
   /** Slug-to-days helper for fresh dot rendering. */
   daysFor: (row: CaseRowMapBbox) => number;
+  /**
+   * When true, round-robin interleave the rows by kind so the top of
+   * the list shows variety. Set true when no kind filter is active —
+   * a recency-driven sort (which is what the bottom-sheet uses) would
+   * otherwise let whichever kind was most-recently rescraped dominate
+   * the visible window. False when a specific kind chip is active —
+   * pure recency is what the user asked for in that case.
+   */
+  mixByKind?: boolean;
   /**
    * Optional shared value the parent reads to drive header collapse, etc.
    * gorhom writes the current snap progress (0=peek, 1=mid, 2=full,
@@ -92,6 +102,7 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
       totalCount,
       selectedSlug,
       daysFor,
+      mixByKind = false,
       animatedIndex,
       onWatchHere,
       watchHereDisabled = false,
@@ -114,10 +125,19 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
     // List always renders, sorted by recency. Selection just highlights
     // the matching row — the in-map popup is the single-case affordance,
     // so the sheet doesn't need a "selection mode" anymore.
+    //
+    // When mixByKind is true (no kind filter), round-robin interleave
+    // by kind AFTER recency-sorting. Within-kind ordering is preserved,
+    // so the top of the list shows variety while item N of kind K still
+    // appears in monotonically-N order. Without this, a Doe rescrape
+    // that pegs ~1500 unidentified cases' recency in the last few hours
+    // makes the entire visible window read as unidentified-only — the
+    // user-facing trap that motivated this fix. See lib/interleave-by-kind.
     const ordered = useMemo(() => {
       if (cases.length === 0) return cases;
-      return [...cases].sort((a, b) => daysFor(a) - daysFor(b));
-    }, [cases, daysFor]);
+      const byRecency = [...cases].sort((a, b) => daysFor(a) - daysFor(b));
+      return mixByKind ? interleaveByKind(byRecency) : byRecency;
+    }, [cases, daysFor, mixByKind]);
 
     const renderItem = useCallback(
       ({ item }: { item: CaseRowMapBbox }) => {
