@@ -59,6 +59,21 @@ export async function persistRecord(
     record.last_seen_date = record.incident_date;
   }
 
+  // Flatten the parsed agency_hint onto the record so both the insert
+  // path (which reads explicit fields) and the merge path (which goes
+  // through stripUnknownColumns) write primary_agency_name_raw +
+  // primary_agency_phone_raw. The agency_hint object itself is dropped
+  // by stripUnknownColumns since it's not a column. Step 1 of the
+  // tier-2 routing spike — see migration 24 for context.
+  if (record.agency_hint) {
+    if (record.agency_hint.name && !record.primary_agency_name_raw) {
+      record.primary_agency_name_raw = record.agency_hint.name;
+    }
+    if (record.agency_hint.phone && !record.primary_agency_phone_raw) {
+      record.primary_agency_phone_raw = record.agency_hint.phone;
+    }
+  }
+
   const keys = generateDedupeKeys(record);
   const payloadJson = JSON.stringify({ ...record, photos: record.photos.map((p) => p.url) });
   const payloadHash = await sha256Hex(payloadJson);
@@ -406,6 +421,12 @@ async function createNewCase(
     has_photo: record.photos.some((p) => p.kind.startsWith('photo')),
     has_sketch: record.photos.some((p) => p.kind === 'sketch_victim' || p.kind === 'sketch_poi'),
     has_reconstruction: record.photos.some((p) => p.kind === 'reconstruction'),
+    // agency_hint extracted by the source's parser. Stored as raw text;
+    // no FK to agencies yet. Migration 24 added these columns; the
+    // routing path stays on tier-3 fallback until step 2 lands a
+    // matching layer with a confidence threshold.
+    primary_agency_name_raw: record.agency_hint?.name ?? null,
+    primary_agency_phone_raw: record.agency_hint?.phone ?? null,
   };
 
   const { data: inserted, error: insErr } = await ctx.supabase
@@ -466,6 +487,9 @@ function stripUnknownColumns(rec: Partial<CaseRecord>): Record<string, unknown> 
     'last_seen_text','last_seen_date','last_seen_clothing','last_seen_circumstances',
     'narrative','narrative_short','case_number_primary','ncic_number','namus_number',
     'reward_amount_usd','reward_text',
+    // agency_hint extracted by source parsers gets flattened onto the
+    // record at the top of persistRecord (see the dual-write block).
+    'primary_agency_name_raw','primary_agency_phone_raw',
   ]);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(rec)) {

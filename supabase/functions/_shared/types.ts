@@ -127,6 +127,14 @@ export interface CaseRecord {
   reward_text?: string;
 
   agency_hint?: AgencyHint;
+  /**
+   * Raw agency name/phone written to cases.primary_agency_name_raw /
+   * primary_agency_phone_raw. Filled by persistRecord at ingest time
+   * from agency_hint — sources don't set these directly. Step 1 of
+   * the tier-2 routing spike (migration 24).
+   */
+  primary_agency_name_raw?: string;
+  primary_agency_phone_raw?: string;
   photos: ExtractedPhoto[];
 
   /** Everything we extracted, kept verbatim for re-scoring when we improve the parser. */
