@@ -73,16 +73,26 @@ export function useWatchZones(): UseWatchZonesResult {
     setError(null);
 
     const supabase = getSupabase();
-    supabase.rpc('list_my_watch_zones').then(({ data, error: rpcError }) => {
-      if (cancelled) return;
-      if (rpcError) {
-        setError(new Error(rpcError.message));
-        setZones([]);
-      } else {
-        setZones((data ?? []) as WatchZone[]);
-      }
-      setLoading(false);
-    });
+    supabase.rpc('list_my_watch_zones').then(
+      ({ data, error: rpcError }) => {
+        if (cancelled) return;
+        if (rpcError) {
+          setError(new Error(rpcError.message));
+          setZones([]);
+        } else {
+          setZones((data ?? []) as WatchZone[]);
+        }
+        setLoading(false);
+      },
+      (err: unknown) => {
+        // Network rejection — PostgREST errors are delivered via the
+        // success arm; this rejection arm catches the underlying fetch
+        // failing.
+        if (cancelled) return;
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setLoading(false);
+      },
+    );
 
     return () => {
       cancelled = true;

@@ -72,51 +72,74 @@ export function useCaseDetail(slug: string | undefined): QueryResult<CaseDetailB
       .is('deleted_at', null)
       .maybeSingle();
 
-    caseQuery.then(async ({ data: caseRow, error: caseError }) => {
-      if (cancelled) return;
-      if (caseError) {
-        setError(new Error(caseError.message));
+    caseQuery.then(
+      async ({ data: caseRow, error: caseError }) => {
+        if (cancelled) return;
+        if (caseError) {
+          setError(new Error(caseError.message));
+          setData(EMPTY);
+          setLoading(false);
+          return;
+        }
+        if (!caseRow) {
+          setData(EMPTY);
+          setLoading(false);
+          return;
+        }
+
+        const caseId = (caseRow as { id: string }).id;
+
+        try {
+          // 2) Sources + 3) Media in parallel.
+          const [sourcesResult, mediaResult] = await Promise.all([
+            supabase
+              .from('case_sources')
+              .select(
+                'id, case_id, source_id, source_external_id, source_url, trust_weight, last_ingested_at, source:sources ( id, slug, name, kind, base_url, attribution_html )',
+              )
+              .eq('case_id', caseId)
+              // Trust-weight ordering — leftmost chip is the most authoritative source.
+              // Tiebreak on last_ingested_at desc per docs/04_DESIGN_SYSTEM.md.
+              .order('trust_weight', { ascending: false })
+              .order('last_ingested_at', { ascending: false }),
+            supabase
+              .from('case_media')
+              .select(
+                'id, case_id, kind, url, source_url, caption, is_primary, display_warning, source_id',
+              )
+              .eq('case_id', caseId)
+              .order('is_primary', { ascending: false }),
+          ]);
+
+          if (cancelled) return;
+          setData({
+            case: caseRow as unknown as CaseRowFull,
+            sources: ((sourcesResult.data as unknown as CaseSourceRow[]) ?? []),
+            media: ((mediaResult.data as unknown as CaseMediaRow[]) ?? []),
+          });
+        } catch (err) {
+          // Sources/media parallel fetch rejected — keep the case row
+          // but surface the partial-load state. Without this catch,
+          // loading sticks at true and the screen shows a permanent
+          // spinner over the case the user already successfully loaded.
+          if (cancelled) return;
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setData({
+            case: caseRow as unknown as CaseRowFull,
+            sources: [],
+            media: [],
+          });
+        }
+        setLoading(false);
+      },
+      (err: unknown) => {
+        // Outer rejection — case lookup itself failed at the network layer.
+        if (cancelled) return;
+        setError(err instanceof Error ? err : new Error(String(err)));
         setData(EMPTY);
         setLoading(false);
-        return;
-      }
-      if (!caseRow) {
-        setData(EMPTY);
-        setLoading(false);
-        return;
-      }
-
-      const caseId = (caseRow as { id: string }).id;
-
-      // 2) Sources + 3) Media in parallel.
-      const [sourcesResult, mediaResult] = await Promise.all([
-        supabase
-          .from('case_sources')
-          .select(
-            'id, case_id, source_id, source_external_id, source_url, trust_weight, last_ingested_at, source:sources ( id, slug, name, kind, base_url, attribution_html )',
-          )
-          .eq('case_id', caseId)
-          // Trust-weight ordering — leftmost chip is the most authoritative source.
-          // Tiebreak on last_ingested_at desc per docs/04_DESIGN_SYSTEM.md.
-          .order('trust_weight', { ascending: false })
-          .order('last_ingested_at', { ascending: false }),
-        supabase
-          .from('case_media')
-          .select(
-            'id, case_id, kind, url, source_url, caption, is_primary, display_warning, source_id',
-          )
-          .eq('case_id', caseId)
-          .order('is_primary', { ascending: false }),
-      ]);
-
-      if (cancelled) return;
-      setData({
-        case: caseRow as unknown as CaseRowFull,
-        sources: ((sourcesResult.data as unknown as CaseSourceRow[]) ?? []),
-        media: ((mediaResult.data as unknown as CaseMediaRow[]) ?? []),
-      });
-      setLoading(false);
-    });
+      },
+    );
 
     return () => {
       cancelled = true;

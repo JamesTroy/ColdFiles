@@ -65,16 +65,23 @@ export function useCasesNear({
         filter_status: status ?? ['open'],
         result_limit: limit,
       })
-      .then(({ data: rows, error: rpcError }) => {
-        if (cancelled) return;
-        if (rpcError) {
-          setError(new Error(rpcError.message));
-          setData([]);
-        } else {
-          setData((rows ?? []) as CaseRowMapNear[]);
-        }
-        setLoading(false);
-      });
+      .then(
+        ({ data: rows, error: rpcError }) => {
+          if (cancelled) return;
+          if (rpcError) {
+            setError(new Error(rpcError.message));
+            setData([]);
+          } else {
+            setData((rows ?? []) as CaseRowMapNear[]);
+          }
+          setLoading(false);
+        },
+        (err: unknown) => {
+          if (cancelled) return;
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setLoading(false);
+        },
+      );
 
     return () => {
       cancelled = true;

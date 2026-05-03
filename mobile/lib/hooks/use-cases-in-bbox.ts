@@ -82,21 +82,33 @@ export function useCasesInBbox({
         filter_status: status ?? ['open'],
         result_limit: limit,
       })
-      .then(({ data: rows, error: rpcError }) => {
-        if (cancelled) return;
-        if (rpcError) {
-          // Hold previous data on error rather than blanking the map.
-          // The most common failure mode is statement_timeout on very
-          // wide bboxes — user has zoomed out beyond what the server
-          // can answer in 8s. Replacing pins with [] empties the map;
-          // keeping them lets the user pan/zoom back and recover.
-          setError(new Error(rpcError.message));
-        } else {
-          setData((rows ?? []) as CaseRowMapNear[]);
-          setError(null);
-        }
-        setLoading(false);
-      });
+      .then(
+        ({ data: rows, error: rpcError }) => {
+          if (cancelled) return;
+          if (rpcError) {
+            // Hold previous data on error rather than blanking the map.
+            // The most common failure mode is statement_timeout on very
+            // wide bboxes — user has zoomed out beyond what the server
+            // can answer in 8s. Replacing pins with [] empties the map;
+            // keeping them lets the user pan/zoom back and recover.
+            setError(new Error(rpcError.message));
+          } else {
+            setData((rows ?? []) as CaseRowMapNear[]);
+            setError(null);
+          }
+          setLoading(false);
+        },
+        (err: unknown) => {
+          // Network-level rejection (DNS, abort, offline). PostgREST
+          // errors resolve with { error } via the success arm above;
+          // this rejection arm handles the underlying fetch failing.
+          // Without it, loading sticks at true and the spinner never
+          // clears.
+          if (cancelled) return;
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setLoading(false);
+        },
+      );
 
     return () => {
       cancelled = true;

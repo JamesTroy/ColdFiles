@@ -102,35 +102,42 @@ export function useCaseList({
     if (kinds && kinds.length) query = query.in('kind', kinds);
     if (state) query = query.eq('location_state', state);
 
-    query.then(({ data: rows, error: queryError }) => {
-      if (cancelled) return;
-      if (queryError) {
-        setError(new Error(queryError.message));
-        setData([]);
-      } else {
-        // Backfill fields cases_within_radius would compute but a direct table
-        // read doesn't.
-        const enriched: CaseRowMapNear[] = (rows ?? []).map((r) => ({
-          ...(r as Omit<
-            CaseRowMapNear,
-            | 'primary_agency_name'
-            | 'primary_photo_url'
-            | 'distance_miles'
-            | 'recency_alpha'
-            | 'lat'
-            | 'lng'
-          >),
-          primary_agency_name: null,
-          primary_photo_url: null,
-          distance_miles: null,
-          recency_alpha: null,
-          lat: null,
-          lng: null,
-        }));
-        setData(applyPinnedBias(enriched, pinnedStates));
-      }
-      setLoading(false);
-    });
+    query.then(
+      ({ data: rows, error: queryError }) => {
+        if (cancelled) return;
+        if (queryError) {
+          setError(new Error(queryError.message));
+          setData([]);
+        } else {
+          // Backfill fields cases_within_radius would compute but a direct table
+          // read doesn't.
+          const enriched: CaseRowMapNear[] = (rows ?? []).map((r) => ({
+            ...(r as Omit<
+              CaseRowMapNear,
+              | 'primary_agency_name'
+              | 'primary_photo_url'
+              | 'distance_miles'
+              | 'recency_alpha'
+              | 'lat'
+              | 'lng'
+            >),
+            primary_agency_name: null,
+            primary_photo_url: null,
+            distance_miles: null,
+            recency_alpha: null,
+            lat: null,
+            lng: null,
+          }));
+          setData(applyPinnedBias(enriched, pinnedStates));
+        }
+        setLoading(false);
+      },
+      (err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setLoading(false);
+      },
+    );
 
     return () => {
       cancelled = true;

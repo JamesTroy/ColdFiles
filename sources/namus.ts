@@ -88,6 +88,7 @@ import {
   extractPhone,
   parseDate,
   parseSex,
+  parseState,
   splitName,
   truncateNarrative,
 } from '../supabase/functions/_shared/normalize.ts';
@@ -366,7 +367,12 @@ export const namusUp: SourceConfig = {
         location_text: locationText,
         location_city: circ.address?.city,
         location_county: lookupName(circ.address?.county),
-        location_state: circ.address?.state?.displayName,
+        // NamUs returns full state names (e.g. "California"); every other
+        // source writes 2-letter codes via parseState. The dedupe key
+        // `name_state_year` is keyed on codes — leaving the full name
+        // here would create a parallel set of unjoinable rows the next
+        // time NamUs reactivates. parseState handles both forms.
+        location_state: parseState(circ.address?.state?.displayName ?? ''),
         location_zip: circ.address?.zipCode,
         location_lat: typeof lat === 'number' ? lat : undefined,
         location_lng: typeof lon === 'number' ? lon : undefined,

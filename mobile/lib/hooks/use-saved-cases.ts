@@ -152,49 +152,66 @@ export function useSavedCases(): {
     // pull supabase-js for designer-mode-only sessions.
     let cancelled = false;
     setLoading(true);
-    import('../supabase').then(({ getSupabase }) => {
-      if (cancelled) return;
-      const supabase = getSupabase();
-      supabase
-        .from('cases')
-        .select(
-          'id, slug, kind, status, victim_name, victim_age, incident_date, location_text, location_city, location_state, narrative_short, has_photo',
-        )
-        .in('slug', slugs)
-        .is('deleted_at', null)
-        .then(({ data }) => {
-          if (cancelled) return;
-          // Preserve the user's saved-order, not the database order.
-          const bySlug = new Map(
-            (data ?? []).map((r) => [
-              (r as { slug: string }).slug,
-              r as Omit<
-                CaseRowMapNear,
-                | 'primary_agency_name'
-                | 'primary_photo_url'
-                | 'distance_miles'
-                | 'recency_alpha'
-                | 'lat'
-                | 'lng'
-              >,
-            ]),
+    import('../supabase').then(
+      ({ getSupabase }) => {
+        if (cancelled) return;
+        const supabase = getSupabase();
+        supabase
+          .from('cases')
+          .select(
+            'id, slug, kind, status, victim_name, victim_age, incident_date, location_text, location_city, location_state, narrative_short, has_photo',
+          )
+          .in('slug', slugs)
+          .is('deleted_at', null)
+          .then(
+            ({ data }) => {
+              if (cancelled) return;
+              // Preserve the user's saved-order, not the database order.
+              const bySlug = new Map(
+                (data ?? []).map((r) => [
+                  (r as { slug: string }).slug,
+                  r as Omit<
+                    CaseRowMapNear,
+                    | 'primary_agency_name'
+                    | 'primary_photo_url'
+                    | 'distance_miles'
+                    | 'recency_alpha'
+                    | 'lat'
+                    | 'lng'
+                  >,
+                ]),
+              );
+              const ordered = slugs
+                .map((slug) => bySlug.get(slug))
+                .filter((r) => r != null)
+                .map((r) => ({
+                  ...r,
+                  primary_agency_name: null,
+                  primary_photo_url: null,
+                  distance_miles: null,
+                  recency_alpha: null,
+                  lat: null,
+                  lng: null,
+                })) as CaseRowMapNear[];
+              setRows(ordered);
+              setLoading(false);
+            },
+            () => {
+              // Inner rejection (network failure on the cases query).
+              // Keep prior rows; just clear loading so the spinner doesn't
+              // lock the saved-cases screen.
+              if (cancelled) return;
+              setLoading(false);
+            },
           );
-          const ordered = slugs
-            .map((slug) => bySlug.get(slug))
-            .filter((r) => r != null)
-            .map((r) => ({
-              ...r,
-              primary_agency_name: null,
-              primary_photo_url: null,
-              distance_miles: null,
-              recency_alpha: null,
-              lat: null,
-              lng: null,
-            })) as CaseRowMapNear[];
-          setRows(ordered);
-          setLoading(false);
-        });
-    });
+      },
+      () => {
+        // Outer rejection — the dynamic supabase import failed (rare,
+        // typically in test or designer-mode lab conditions).
+        if (cancelled) return;
+        setLoading(false);
+      },
+    );
     return () => {
       cancelled = true;
     };
