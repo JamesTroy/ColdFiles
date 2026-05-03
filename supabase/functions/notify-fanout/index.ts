@@ -37,6 +37,15 @@ interface NotifyPayload {
   case_id?: string;
   tip_id?: string;
   zone_id?: string;
+  /**
+   * Optional recipient scoping. When set, fan-out is restricted to
+   * push_tokens rows matching these user_ids (plus the existing pref filter).
+   * Used by watch_zone_hit producer trigger to target only the zone's owner
+   * instead of broadcasting to every device. Anonymous/install-only tokens
+   * (user_id IS NULL) are always excluded when user_ids is set, since the
+   * producer determined the recipient set by user identity.
+   */
+  user_ids?: string[];
 }
 
 interface PushToken {
@@ -180,23 +189,21 @@ async function selectTokensForKind(
   body: NotifyPayload,
   prefKey: string,
 ): Promise<PushToken[]> {
-  // Single read: every token whose pref is not explicitly false. Deeper
-  // recipient scoping (watch-zone owners only, saved-case owners only) is
-  // intentionally deferred — the producer side is what enforces "this user
-  // cares about this case." The fan-out function trusts the producer's
-  // payload + only filters by the user's coarse pref toggle.
-  //
-  // TODO(scoping): when triggers ship, narrow by user_id matching watch-zone
-  // owner / saved-case owner. For now the producer needs to call this
-  // function once per recipient (or once with a list of user_ids — extend
-  // payload before that ticket).
-  const query = supabase
+  // Two-axis filter:
+  //   - per-device:  prefs[prefKey] is not explicitly false (default-true)
+  //   - per-user:    user_ids array, if provided
+  // When user_ids is set, anon/install-only tokens (user_id IS NULL) are
+  // excluded — the producer scoped by identity, so devices with no identity
+  // weren't on the recipient list. When user_ids is omitted, fan-out is
+  // broadcast (legacy behavior) — convenient for smoke tests.
+  let query = supabase
     .from('push_tokens')
     .select('expo_push_token, user_id, install_id, prefs')
-    // `prefs->prefKey != false` would be the SQL; PostgREST expresses it via
-    // .or() with explicit null/true cases since JSONB doesn't have a
-    // built-in "default-true" coercion in the .filter() DSL.
     .or(`prefs->>${prefKey}.is.null,prefs->>${prefKey}.eq.true`);
+
+  if (body.user_ids && body.user_ids.length > 0) {
+    query = query.in('user_id', body.user_ids);
+  }
 
   const { data, error } = await query;
   if (error) {

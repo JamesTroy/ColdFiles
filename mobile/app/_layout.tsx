@@ -19,6 +19,7 @@ import { Newsreader_500Medium } from '@expo-google-fonts/newsreader';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { router, Stack, usePathname } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -40,6 +41,20 @@ import { useOnboarding } from '@/lib/hooks/use-onboarding';
 // paint.
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* ignore — already hidden in some lifecycles */
+});
+
+// Foreground notification handler. Without this, Android suppresses system
+// notifications while our app is in the foreground (background notifications
+// still display via FCM's own logic). With it, the OS shows the banner +
+// plays sound + adds badge regardless of foreground/background state. Set
+// at module load — runs once on bundle eval.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
 });
 
 export const unstable_settings = {
