@@ -45,7 +45,7 @@ import { useCasesInBbox, type CaseBounds } from '@/lib/hooks/use-cases-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
 import { useWatchZones } from '@/lib/hooks/use-watch-zones';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
-import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
+import type { CaseKind, CaseRowMapBbox } from '@/lib/types/database';
 
 const ZONE_SOFT_CAP = 25;
 const ZONES_VISIBLE_KEY = 'cf:zones_visible:v1';
@@ -160,7 +160,7 @@ export default function MapScreen() {
   const handleClearSelection = useCallback(() => setSelectedSlug(null), []);
 
   // Stepwise recency_alpha → days, mirroring use across the list tab.
-  const daysFor = useCallback((c: CaseRowMapNear) => {
+  const daysFor = useCallback((c: CaseRowMapBbox) => {
     if (c.recency_alpha != null) {
       if (c.recency_alpha >= 0.99) return 1;
       if (c.recency_alpha >= 0.49) return 7;
@@ -525,7 +525,7 @@ function NativeRenderer({
   onMarkerPress,
   here,
 }: {
-  cases: CaseRowMapNear[];
+  cases: CaseRowMapBbox[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
   here: { lat: number; lng: number; fresh: boolean };
@@ -570,7 +570,7 @@ function LeafletRenderer({
   zonesVisible,
   onRegionChange,
 }: {
-  cases: CaseRowMapNear[];
+  cases: CaseRowMapBbox[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
   onMarkerOpen?: (id: string) => void;

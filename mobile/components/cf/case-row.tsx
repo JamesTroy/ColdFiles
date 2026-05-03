@@ -31,14 +31,14 @@ import Svg, { Ellipse, Rect } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
 import { kindLine } from '@/lib/format';
-import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
+import type { CaseKind, CaseRowMapBbox } from '@/lib/types/database';
 
 import { MonoLabel, SansMedium, SerifTitle } from './text';
 
 export const FRESH_DAY_LIMIT = 10;
 
 export interface CaseRowProps {
-  row: CaseRowMapNear;
+  row: CaseRowMapBbox;
   onPress: () => void;
   /** Days since last_changed_at. Drives the fresh-dot prefix. */
   daysSinceUpdate?: number | null;
@@ -184,7 +184,7 @@ function stripeColor(kind: CaseKind): string {
   return tokens.color.pin.homicide; // homicide + suspicious_death
 }
 
-function displayName(row: CaseRowMapNear): string {
+function displayName(row: CaseRowMapBbox): string {
   if (row.victim_name) return row.victim_name;
   if (row.kind === 'unidentified' || row.kind === 'unclaimed') return 'Unidentified person';
   return 'Name not released';

@@ -8,8 +8,10 @@
  * which re-queries up to `limit` cases inside the new viewport. The user
  * scrolls the map → the list of cases follows.
  *
- * Returns the same row shape as useCasesNear so the existing pin
- * renderer + bottom sheet keep working unchanged.
+ * Returns CaseRowMapBbox — the strict-subset row shape produced by the
+ * cases_in_bbox RPC (see migration 29 for the column list, including the
+ * incident_date/location_city/location_state additions that drive the
+ * bottom-sheet kindLine subtitle).
  *
  * Bounds null → no query fires (first-frame state before the WebView's
  * Leaflet has reported its initial region). The WebView posts an initial
@@ -22,7 +24,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { SAMPLE_CASES_MAP } from '../sample-data';
 import { getSupabase, isSupabaseConfigured } from '../supabase';
-import type { CaseKind, CaseRowMapNear, CaseStatus } from '../types/database';
+import type { CaseKind, CaseRowMapBbox, CaseStatus } from '../types/database';
 import type { QueryResult } from '../types/hooks';
 
 export interface CaseBounds {
@@ -44,8 +46,8 @@ export function useCasesInBbox({
   kinds = null,
   status = null,
   limit = 100,
-}: UseCasesInBboxOptions): QueryResult<CaseRowMapNear[]> {
-  const [data, setData] = useState<CaseRowMapNear[]>(() =>
+}: UseCasesInBboxOptions): QueryResult<CaseRowMapBbox[]> {
+  const [data, setData] = useState<CaseRowMapBbox[]>(() =>
     isSupabaseConfigured() ? [] : applySampleFilters(SAMPLE_CASES_MAP, kinds, status),
   );
   const [loading, setLoading] = useState<boolean>(isSupabaseConfigured() && !!bounds);
@@ -93,7 +95,7 @@ export function useCasesInBbox({
             // keeping them lets the user pan/zoom back and recover.
             setError(new Error(rpcError.message));
           } else {
-            setData((rows ?? []) as CaseRowMapNear[]);
+            setData((rows ?? []) as CaseRowMapBbox[]);
             setError(null);
           }
           setLoading(false);
@@ -134,10 +136,10 @@ export function useCasesInBbox({
 }
 
 function applySampleFilters(
-  rows: CaseRowMapNear[],
+  rows: CaseRowMapBbox[],
   kinds: CaseKind[] | null,
   status: CaseStatus[] | null,
-): CaseRowMapNear[] {
+): CaseRowMapBbox[] {
   return rows.filter((r) => {
     if (kinds && kinds.length && !kinds.includes(r.kind)) return false;
     if (status && status.length && !status.includes(r.status)) return false;
