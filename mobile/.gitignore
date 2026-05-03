@@ -34,11 +34,12 @@ yarn-error.*
 .env
 .env*.local
 
-# Firebase / Google Services config — per-environment credentials. Not a hard
-# secret (API key is restricted to package + SHA-1) but still scoped to the
-# current Firebase project and shouldn't ride into git.
-google-services.json
-GoogleService-Info.plist
+# google-services.json IS committed despite being a credential — Firebase
+# Android API keys are restricted to package name + SHA-1 fingerprint per
+# Google's security model, so leaking the key doesn't grant access outside
+# the app. Committing it is what EAS Build needs (it only uploads
+# git-tracked files), and it's what most public Expo projects do.
+# GoogleService-Info.plist (iOS) follows the same model when we ship there.
 
 # typescript
 *.tsbuildinfo

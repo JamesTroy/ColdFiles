@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "833989747689",
+    "project_id": "coldfiles",
+    "storage_bucket": "coldfiles.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:833989747689:android:d563f15805c1ce6bb0a178",
+        "android_client_info": {
+          "package_name": "com.matteblackdev.coldfile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTV7gWVyMr07FoM9BNkG-Rv_z7D8BSBwA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
