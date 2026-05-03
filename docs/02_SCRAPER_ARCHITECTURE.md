@@ -141,13 +141,17 @@ Resolution rules:
 When two sources disagree on a field, the higher trust weight wins. Equal weights — keep current (stability).
 
 Trust weights (initial):
-- **NamUs:** 90 (federal, vetted)
-- **Investigating agency direct (LAPD, LASD):** 95 — they own the case
+- **NamUs:** 90 (federal, vetted) — wired but dormant pending API access; see `sources/namus.ts`
+- **Investigating agency direct (LAPD, LASD):** 95 — they own the case (deferred — no live agency-direct source today)
 - **Charley Project:** 75 — researched but not authoritative
-- **Doe Network:** 70 — researched, sometimes outdated
+- **Doe Network (missing):** 70 — researched, sometimes outdated
+- **Doe Network (unidentified):** 70 — sibling source, same posture as the missing track
 - **Project: Cold Case:** 50 — known data quality issues
-- **Solve the Case:** 60 — supplementary
-- **Media reports:** 40 — useful for narrative color, low for facts
+- **Media reports:** 40 — useful for narrative color, low for facts (no live source today)
+
+Sources retired or never built (kept here as a back-pointer so the trust-weight conversation stays honest):
+- **FBI Wanted:** retired in migration 15 — editorially mis-fit for the cold-case track; corpus was tip-line bulletins not unsolved-homicide posters. See `docs/00_DECISIONS.md` (2026-05-03 entry) and the `feedback_fbi_wanted_editorial_misfit` memory note.
+- **Solve the Case:** never built — scoped in the original strategy as a supplementary fifth source but no extractor was written. Deferred indefinitely.
 
 The narrative field is special: instead of merge-by-trust, store all source narratives and pick the longest from the highest-trust source for display. Show others as "Read more from [source]" links.
 

@@ -5,7 +5,7 @@ Map-first directory of cold cases (unsolved homicides, long-term missing, uniden
 **Owner:** Matte Black Dev LLC
 **Distribution:** Android (Google Play) primary, iOS later. Public web at `coldfile.app`.
 **Stack:**
-- **Mobile (Play Store / App Store):** Expo (React Native) + Supabase JS + Mapbox native + Expo Notifications (FCM) + EAS Build *(BarkPark Mobile shape)*
+- **Mobile (Play Store / App Store):** Expo (React Native) + Supabase JS + MapLibre / Leaflet WebView (basemap path is the V1 SVG `MapCanvas` placeholder; see `docs/00_DECISIONS.md` 2026-04-28 entry) + Expo Notifications (FCM) + EAS Build *(BarkPark Mobile shape)*
 - **Web (`coldfile.app`):** Next.js App Router — marketing site + read-only case viewer + shareable case URLs for SEO and press
 - **Backend (shared):** Supabase (Postgres 15 + PostGIS + RLS) + Supabase Edge Functions (Deno) + Mapbox geocoding
 - **Payments:** Google Play Billing (mobile premium) + Stripe (web premium)
@@ -50,14 +50,16 @@ coldfile/
 4. **Dedupe is the moat.** A single `cases` row backed by N `case_sources`. Trust-weighted field merge handles conflicts.
 5. **Tip routing, not tip ownership.** All tips go directly to the agency's existing public infrastructure.
 
-## Build sequence (six weeks to LA County beta)
+## Build sequence (original six-week plan — historical)
 
-- **Week 1:** Schema + shared utilities (fetcher, extractor, dedupe) ← *you are here*
-- **Week 2:** Charley Project, Doe Network, Project: Cold Case scrapers
-- **Week 3:** NamUs + photo cache + geocode + spatial RPCs
-- **Week 4:** LAPD + LASD scrapers + tip-routing
-- **Week 5:** Expo mobile app — list + map + case detail screens, Mapbox native, Expo Notifications. Next.js web — marketing + shareable case URLs.
-- **Week 6:** Privacy/Terms/Takedown + launch — TestFlight-equivalent (Internal Testing on Play Console) → Play Store closed track → public
+The project shipped against this rough plan. Most lanes are now beyond the original scope; this section is preserved as a build-history reference, not a current roadmap. Live status lives in the merged-PR / commit history and in `docs/00_DECISIONS.md`.
+
+- **Week 1:** Schema + shared utilities (fetcher, extractor, dedupe).
+- **Week 2:** Charley Project, Doe Network, Project: Cold Case scrapers.
+- **Week 3:** NamUs (later deferred to dormant pending API access) + photo cache + geocode + spatial RPCs.
+- **Week 4:** LAPD + LASD scrapers (deferred — agency-direct is the next investment, not yet built) + tip-routing.
+- **Week 5:** Expo mobile app — list + map + case detail screens + Expo Notifications. Next.js web — marketing + shareable case URLs.
+- **Week 6:** Privacy/Terms/Takedown + launch — Internal Testing on Play Console → closed testing → public.
 
 ## Local dev
 

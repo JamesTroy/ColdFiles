@@ -597,7 +597,16 @@ export const tokens = {
     expandStaggerMs: 200,
   },
   map: {
-    /** Custom Mapbox Studio style. Stripped: water + primary roads + county lines only. */
+    /**
+     * Basemap style URL for the native renderer. The original spec called
+     * for a custom Mapbox Studio style (water + primary roads + county
+     * lines only). The mobile basemap has since flipped to MapLibre +
+     * OpenFreeMap public tiles (no API key, no Mapbox account); see the
+     * `2026-04-28` entry in `docs/00_DECISIONS.md` for the V1 SVG-canvas
+     * placeholder and the path back to a real basemap. This token is
+     * deferred until the upstream MapLibre Fabric measurement bug is
+     * fixed and `isNativeMapAvailable()` flips to true.
+     */
     styleUrl: 'mapbox://styles/mapbox/dark-v11',
     /** Debounce between viewport pan/zoom and the cases_in_bbox refetch. */
     viewportDebounceMs: 200,
