@@ -26,9 +26,14 @@
 -- Requirements:
 --   - extension "pg_net" must be enabled (Supabase enables by default)
 --   - extension "postgis" must be enabled (already required by location_point)
---   - The Edge Function endpoint + service-role key are read from custom
---     GUCs set via `alter database ... set ...`. Setting these is a
---     one-time admin step — see the bottom of this file.
+--   - extension "supabase_vault" must be enabled (Supabase enables by default
+--     — verify under Database → Extensions if vault.* is missing)
+--   - One Vault secret named 'service_role_key' must be created — see the
+--     one-time admin block at the bottom of this file.
+--
+-- The endpoint URL is hardcoded since it's tied to the project ref and is
+-- not a secret. The service-role key is read from Supabase Vault on each
+-- trigger fire — Vault handles encryption at rest.
 --
 -- Idempotent: drops and recreates the function + trigger.
 
@@ -40,8 +45,11 @@ security definer
 set search_path = public
 as $$
 declare
+  -- The function endpoint is tied to the project ref and not a secret.
+  -- Hardcoded so the trigger has nothing to look up except the secret key.
+  v_endpoint constant text := 'https://gzfndxabaispgcotklni.supabase.co/functions/v1/notify-fanout';
   v_user_id     uuid;
-  v_endpoint    text;
+  v_secret      text;
   v_auth_header text;
   v_request_id  bigint;
 begin
@@ -50,22 +58,25 @@ begin
     return new;
   end if;
 
-  -- Read endpoint + service-role key from database settings. Set these
-  -- via `alter database postgres set ...` — see bottom of this file.
-  -- If they're missing, log once and bail without erroring (don't break
-  -- ingest).
+  -- Read service-role key from Supabase Vault. If the secret hasn't been
+  -- created yet (first-deploy of this trigger before admin step),
+  -- raise a warning and bail — don't break ingest.
   begin
-    v_endpoint := current_setting('app.notify_fanout_url', true);
-    v_auth_header := 'Bearer ' || current_setting('app.service_role_key', true);
+    select decrypted_secret into v_secret
+    from vault.decrypted_secrets
+    where name = 'service_role_key'
+    limit 1;
   exception when others then
-    raise warning 'notify_watch_zone_hit: missing app.notify_fanout_url or app.service_role_key GUCs';
+    raise warning 'notify_watch_zone_hit: vault.decrypted_secrets read failed (vault extension installed?)';
     return new;
   end;
 
-  if v_endpoint is null or v_endpoint = '' then
-    raise warning 'notify_watch_zone_hit: app.notify_fanout_url not set';
+  if v_secret is null or v_secret = '' then
+    raise warning 'notify_watch_zone_hit: vault secret "service_role_key" not set';
     return new;
   end if;
+
+  v_auth_header := 'Bearer ' || v_secret;
 
   -- Find every distinct user with a watch_zone polygon containing this
   -- case's location AND with notify_new_cases=true. Distinct because a
@@ -105,18 +116,32 @@ create trigger cases_watch_zone_hit_trigger
   execute function public.notify_watch_zone_hit();
 
 -- ─────────────────────────────────────────────────────────────────────────
--- One-time admin setup (run separately, NOT on every migration apply):
+-- One-time admin setup (run separately AFTER applying this migration):
 --
---   alter database postgres
---     set "app.notify_fanout_url" = 'https://<project-ref>.supabase.co/functions/v1/notify-fanout';
---   alter database postgres
---     set "app.service_role_key" = '<service_role_jwt>';
+-- Step 1. Create the Vault secret with the service-role JWT.
+--   In the Supabase Dashboard: Project Settings → Vault → New secret.
+--   Name: service_role_key
+--   Secret: <paste the service_role JWT from your repo's .env>
 --
--- After running these, reload the role's settings so existing connections
--- pick them up:
---   select pg_reload_conf();
+--   OR via SQL editor:
+--     select vault.create_secret(
+--       '<service_role_jwt>',  -- the secret value
+--       'service_role_key',    -- the name this trigger looks up
+--       'notify-fanout caller key for watch_zone_hit triggers'
+--     );
 --
--- The service-role key is rotation-sensitive — when Supabase rotates it,
--- update both the GUC above AND the Edge Function's SUPABASE_SERVICE_ROLE_KEY
--- env var. Both must agree or trigger calls will start returning 401.
+-- Step 2. Verify the trigger reads it:
+--     select decrypted_secret is not null
+--     from vault.decrypted_secrets
+--     where name = 'service_role_key';
+--   → should return true
+--
+-- Rotation: if Supabase rotates the service-role key (or you rotate it
+-- via Settings → API), update the Vault secret AND the Edge Function's
+-- SUPABASE_SERVICE_ROLE_KEY env var. Both must agree or trigger calls
+-- start returning 401:
+--     select vault.update_secret(
+--       (select id from vault.decrypted_secrets where name = 'service_role_key'),
+--       '<new_service_role_jwt>'
+--     );
 -- ─────────────────────────────────────────────────────────────────────────
