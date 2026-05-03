@@ -83,10 +83,15 @@ export function useCasesInBbox({
       .then(({ data: rows, error: rpcError }) => {
         if (cancelled) return;
         if (rpcError) {
+          // Hold previous data on error rather than blanking the map.
+          // The most common failure mode is statement_timeout on very
+          // wide bboxes — user has zoomed out beyond what the server
+          // can answer in 8s. Replacing pins with [] empties the map;
+          // keeping them lets the user pan/zoom back and recover.
           setError(new Error(rpcError.message));
-          setData([]);
         } else {
           setData((rows ?? []) as CaseRowMapNear[]);
+          setError(null);
         }
         setLoading(false);
       });
