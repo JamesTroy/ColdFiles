@@ -56,6 +56,7 @@ import { MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { useCaseList } from '@/lib/hooks/use-case-list';
 import { useRegionPrefs } from '@/lib/hooks/use-region-prefs';
+import { interleaveByKind } from '@/lib/interleave-by-kind';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
 
@@ -132,7 +133,15 @@ export default function ListScreen() {
 
   const filtered = useMemo(() => {
     const allowed = KIND_FILTER[filter];
-    if (!allowed) return rows;
+    if (!allowed) {
+      // filter='all' — round-robin interleave by kind so the top of the
+      // list shows variety. Without this, whichever kind dominates the
+      // current incident_date-DESC slice (currently mostly missing-class
+      // cases after the NULLS LAST fix; previously homicide-class via
+      // null-date front-loading) drowns out the corpus mix until the
+      // user scrolls. See lib/interleave-by-kind.ts for the contract.
+      return interleaveByKind(rows);
+    }
     return rows.filter((r) => allowed.includes(r.kind));
   }, [rows, filter]);
 

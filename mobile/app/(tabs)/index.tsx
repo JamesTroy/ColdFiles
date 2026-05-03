@@ -519,6 +519,7 @@ export default function MapScreen() {
         totalCount={totalCount}
         selectedSlug={selectedSlug}
         daysFor={daysFor}
+        mixByKind={filter === 'all'}
         animatedIndex={sheetIndex}
         onWatchHere={() => router.push('/watch-zone')}
         watchHereDisabled={zones.length >= ZONE_SOFT_CAP}

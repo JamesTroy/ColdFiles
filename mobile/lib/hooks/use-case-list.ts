@@ -96,7 +96,17 @@ export function useCaseList({
       )
       .is('deleted_at', null)
       .eq('status', 'open')
-      .order('incident_date', { ascending: order === 'chronological' })
+      // nullsFirst:false puts the ~120 null-incident_date homicides
+      // (project_cold_case rarely populates a specific date) at the END
+      // of the list rather than the top. Without this PostgreSQL's
+      // default for DESC is NULLS FIRST and the entire first screen of
+      // the list reads as "all homicide, no dates." Dated cases come
+      // first in either order direction; null-dated cases land at the
+      // end where they don't dominate the user's first impression.
+      .order('incident_date', {
+        ascending: order === 'chronological',
+        nullsFirst: false,
+      })
       .limit(limit);
 
     if (kinds && kinds.length) query = query.in('kind', kinds);
