@@ -228,13 +228,19 @@ export const doeNetworkUid: SourceConfig = {
       // a reconstruction. Default to photo_victim; flip to reconstruction
       // when reconstruction_text is populated.
       const isReconstruction = !!stripHtml(fields.reconstruction_text ?? '').trim();
+      // Doe Network returns a "No Image Available" placeholder JPG in the
+      // images array for cases without a real photo. Three known variants
+      // (No_Image_Available_male.jpg / _female.jpg / _infant.jpg) — filter
+      // by URL so the placeholder bytes don't get mirrored into Storage and
+      // served as a victim photo. Audit found 1,154 cases (~30% of has_photo)
+      // were displaying the placeholder before this fix.
       const photos: ExtractedPhoto[] = images
         .filter((img) => img.img_reference)
         .map((img) => ({
           url: imgSrc(img.img_reference ?? '') ?? '',
           kind: isReconstruction ? ('reconstruction' as const) : ('photo_victim' as const),
         }))
-        .filter((p) => p.url);
+        .filter((p) => p.url && !p.url.includes('No_Image_Available'));
 
       const narrative = stripHtml(fields.circumstances_of_discovery ?? '');
       const narrativeShort =
