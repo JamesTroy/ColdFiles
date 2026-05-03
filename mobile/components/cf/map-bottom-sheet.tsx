@@ -44,6 +44,12 @@ export interface MapBottomSheetHandle {
 
 interface MapBottomSheetProps {
   cases: CaseRowMapBbox[];
+  /**
+   * Total undeleted cases across the corpus (not just in the current
+   * viewport). Drives the "X TRACKED" headline. Null while the count is
+   * loading on first paint.
+   */
+  totalCount: number | null;
   /** Currently selected case (from a pin tap). Highlights the matching row. */
   selectedSlug: string | null;
   /** Slug-to-days helper for fresh dot rendering. */
@@ -83,6 +89,7 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
   function MapBottomSheet(
     {
       cases,
+      totalCount,
       selectedSlug,
       daysFor,
       animatedIndex,
@@ -138,11 +145,12 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
       () => (
         <ListHeaderInner
           count={cases.length}
+          totalCount={totalCount}
           onWatchHere={onWatchHere}
           watchHereDisabled={watchHereDisabled}
         />
       ),
-      [cases.length, onWatchHere, watchHereDisabled],
+      [cases.length, totalCount, onWatchHere, watchHereDisabled],
     );
 
     return (
@@ -185,41 +193,88 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
 );
 
 /**
- * Sheet header — count on the left, optional WATCH chip on the right.
- * Stays mounted at the top of the list; visible at every snap point.
+ * Sheet header — two rows.
+ *   Row 1: "{count} IN VIEW · {totalCount} TRACKED" + optional WATCH chip.
+ *   Row 2: legend caption explaining the orange fresh-dot prefix that
+ *          appears next to recently-updated case names. The dot itself
+ *          is set on individual rows from `recency_alpha` (last_changed_at
+ *          driven, see migration 22). The legend makes the otherwise-mute
+ *          signal legible — without it, end users see a colored mark with
+ *          no key.
+ *
+ * The "{totalCount} TRACKED" half leads with corpus size as the headline
+ * metric, intentionally NOT a per-day delta. Cold-case ingest is mostly
+ * merge-into-existing on steady-state days; a velocity headline would
+ * read zero on a healthy day. See the feedback_ingest_metric_axis
+ * memory note for context.
  */
 function ListHeaderInner({
   count,
+  totalCount,
   onWatchHere,
   watchHereDisabled,
 }: {
   count: number;
+  totalCount: number | null;
   onWatchHere?: () => void;
   watchHereDisabled: boolean;
 }) {
+  const inView = `${count.toLocaleString()} IN VIEW`;
+  const tracked = totalCount != null ? `${totalCount.toLocaleString()} TRACKED` : null;
+  const headline = tracked ? `${inView} · ${tracked}` : inView;
+
   return (
     <View
       style={{
         paddingHorizontal: 16,
         paddingTop: 4,
-        paddingBottom: 12,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        paddingBottom: 10,
         borderBottomWidth: 0.5,
         borderBottomColor: tokens.color.border.subtle,
       }}
     >
-      <MonoLabel
-        size={tokens.size.monoLabel}
-        tracking={tokens.tracking.label}
-        color={tokens.color.text.secondary}
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
       >
-        {count.toLocaleString()} {count === 1 ? 'CASE' : 'CASES'} IN VIEW
-      </MonoLabel>
-      {onWatchHere ? (
-        <WatchChip onPress={onWatchHere} disabled={watchHereDisabled} />
-      ) : null}
+        <MonoLabel
+          size={tokens.size.monoLabel}
+          tracking={tokens.tracking.label}
+          color={tokens.color.text.secondary}
+        >
+          {headline}
+        </MonoLabel>
+        {onWatchHere ? (
+          <WatchChip onPress={onWatchHere} disabled={watchHereDisabled} />
+        ) : null}
+      </View>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          marginTop: 6,
+        }}
+      >
+        <View
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: tokens.color.accent.amberHot,
+          }}
+        />
+        <MonoLabel
+          size={11}
+          tracking={tokens.tracking.label}
+          color={tokens.color.text.disabled}
+        >
+          UPDATED IN LAST 10 DAYS
+        </MonoLabel>
+      </View>
     </View>
   );
 }

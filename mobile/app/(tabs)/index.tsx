@@ -41,6 +41,7 @@ import {
 import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
+import { useCaseCount } from '@/lib/hooks/use-case-count';
 import { useCasesInBbox, type CaseBounds } from '@/lib/hooks/use-cases-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
 import { useWatchZones } from '@/lib/hooks/use-watch-zones';
@@ -255,6 +256,14 @@ export default function MapScreen() {
     // growth makes the per-call payload meaningful (~10k+).
     limit: 6000,
   });
+
+  // Headline corpus-size stat for the bottom-sheet header. Cached at
+  // module scope inside the hook (5min TTL) so this is a no-op on
+  // re-renders. See feedback_ingest_metric_axis memory note for why
+  // total-cases is the right headline metric (steady-state inflow is
+  // mostly merge-into-existing, not net-new — a velocity headline would
+  // false-zero on a healthy day).
+  const { total: totalCount } = useCaseCount();
 
   const counts = useMemo(() => {
     const c = { all: casesAll.length, homicide: 0, missing: 0, unidentified: 0 };
@@ -507,6 +516,7 @@ export default function MapScreen() {
       <MapBottomSheet
         ref={sheetRef}
         cases={cases}
+        totalCount={totalCount}
         selectedSlug={selectedSlug}
         daysFor={daysFor}
         animatedIndex={sheetIndex}
