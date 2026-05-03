@@ -746,10 +746,25 @@ function buildLeafletHtml(
       // keeps water + roads + boundaries. The Cold File pins carry the
       // visual weight; the basemap is forensic chart, not destination map.
       // Free, no API key, subdomain-rotated for performance.
+      // keepBuffer 8 (default 2) — Leaflet retains 8 tile-rings outside
+      // the visible viewport instead of discarding aggressively. Eats a
+      // bit more memory in exchange for far less white-tile flashing
+      // when the user pans, which is the dominant 'lag' experience on
+      // a WebView-backed map. Combined with the subdomain rotation
+      // ({s} = a/b/c/d) over Carto's CDN, tile latency for a
+      // freshly-revealed area drops to near-zero in cached regions.
+      // updateWhenIdle false (default) keeps tiles streaming during pan,
+      // which is what we want — the 'lag' isn't from waiting for
+      // pan-end, it's from tiles not being ready.
+      // crossOrigin true lets the browser tile cache deduplicate
+      // requests across pans/zooms.
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
         subdomains: 'abcd',
         attribution: '© OpenStreetMap contributors, © CARTO',
+        keepBuffer: 8,
+        updateWhenIdle: false,
+        crossOrigin: true,
       }).addTo(map);
 
       // Region change → debounced postMessage so the consumer can refetch.
