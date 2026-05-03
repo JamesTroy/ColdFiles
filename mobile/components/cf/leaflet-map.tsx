@@ -695,11 +695,16 @@ function buildLeafletHtml(
       // Tap-to-zoom on remaining clusters: the parent map jumps to
       // the cluster's bounds, naturally crossing the zoom-13 threshold
       // and surfacing the individual pins.
+      // Tightened cluster radius (50 → 30 px) plus disableClusteringAtZoom
+      // means jittered coincident pins separate at zoom 13+. With the
+      // 0.003° jitter applied React-side, group members at the same
+      // source coordinate land ~330-660m apart, which exceeds 30 px at
+      // any zoom 13+. Combined: no spiderfy, no spiral, no snap-back.
       var markerLayer = L.markerClusterGroup({
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
         disableClusteringAtZoom: 13,
-        maxClusterRadius: 50,
+        maxClusterRadius: 30,
         chunkedLoading: true,
         iconCreateFunction: clusterIconFor,
       }).addTo(map);

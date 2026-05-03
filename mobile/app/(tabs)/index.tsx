@@ -545,12 +545,17 @@ function LeafletRenderer({
       if (group && group.length > 1) {
         const idx = group.findIndex((g) => g.slug === c.slug);
         if (idx > 0) {
-          // Spread on a small ring around the shared point. 90m radius,
-          // angles split evenly per group member. Deterministic so the
-          // same case always lands at the same offset across renders.
+          // Spread on a ring around the shared point. ~330m radius
+          // (0.003°) so adjacent pins are ~330-660m apart depending
+          // on group size. At zoom 13+ this puts pins well outside
+          // markercluster's 30px radius (combined with the dropped
+          // maxClusterRadius below), so the cluster never forms in
+          // the first place — no spiderfy, no spiral, no snap-back.
+          // Deterministic by group index so a case always lands at
+          // the same offset across renders.
           const angle = (idx / group.length) * Math.PI * 2;
-          lat += Math.cos(angle) * 0.0008;
-          lng += Math.sin(angle) * 0.0008;
+          lat += Math.cos(angle) * 0.003;
+          lng += Math.sin(angle) * 0.003;
         }
       }
       return {
