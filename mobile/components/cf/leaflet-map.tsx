@@ -698,36 +698,86 @@ function buildLeafletHtml(
         }, 260);
       }
 
+      // markerById tracks live Leaflet markers keyed by case slug. Used by
+      // __cf_setMarkers to do an incremental diff (add new, remove gone)
+      // instead of clearLayers/addLayers — clearLayers collapses any open
+      // markercluster spiderfy, which manifests as the user-visible
+      // bug of "tap cluster, spiderfy starts, snaps back to cluster
+      // before the user can tap a pin."
+      var markerById = Object.create(null);
+
+      function buildMarker(m) {
+        // Bumped from 14/16 → 18/22 for legibility against dimmed OSM tiles.
+        var diameter = m.selected ? 22 : 18;
+        var svg = pinSvg({
+          kind: m.kind,
+          diameter: diameter,
+          selected: !!m.selected,
+          recentDays: m.recentDays,
+        });
+        var icon = L.divIcon({
+          className: 'cf-pin',
+          html: svg.html,
+          iconSize: [svg.size, svg.size],
+          iconAnchor: [svg.size / 2, svg.size / 2],
+        });
+        var id = m.id;
+        var marker = L.marker([m.lat, m.lng], { icon: icon, keyboard: false });
+        marker._cfId = id;
+        marker._cfKey =
+          id + '|' + m.lat.toFixed(5) + '|' + m.lng.toFixed(5) +
+          '|' + m.kind + '|' + (m.selected ? 1 : 0) +
+          '|' + (m.recentDays == null ? '' : m.recentDays);
+        marker.on('click', function () {
+          pressFlash(marker);
+          postMessage({ type: 'marker', id: id });
+        });
+        return marker;
+      }
+
       window.__cf_setMarkers = function (list) {
-        markerLayer.clearLayers();
         if (!Array.isArray(list)) return;
-        var batch = [];
+
+        // Build a quick lookup of incoming markers by id and by full key.
+        var nextById = Object.create(null);
         for (var i = 0; i < list.length; i++) {
-          var m = list[i];
-          // Bumped from 14/16 → 18/22 for legibility against dimmed OSM tiles.
-          var diameter = m.selected ? 22 : 18;
-          var svg = pinSvg({
-            kind: m.kind,
-            diameter: diameter,
-            selected: !!m.selected,
-            recentDays: m.recentDays,
-          });
-          var icon = L.divIcon({
-            className: 'cf-pin',
-            html: svg.html,
-            iconSize: [svg.size, svg.size],
-            iconAnchor: [svg.size / 2, svg.size / 2],
-          });
-          (function (id) {
-            var marker = L.marker([m.lat, m.lng], { icon: icon, keyboard: false });
-            marker.on('click', function () {
-              pressFlash(marker);
-              postMessage({ type: 'marker', id: id });
-            });
-            batch.push(marker);
-          })(m.id);
+          if (list[i] && list[i].id) nextById[list[i].id] = list[i];
         }
-        if (batch.length) markerLayer.addLayers(batch);
+
+        // Remove markers that aren't in the incoming list, plus markers
+        // whose visual props changed (so the new icon ships).
+        var toRemove = [];
+        for (var id in markerById) {
+          var existing = markerById[id];
+          var incoming = nextById[id];
+          if (!incoming) {
+            toRemove.push(existing);
+            delete markerById[id];
+            continue;
+          }
+          var newKey =
+            incoming.id + '|' + incoming.lat.toFixed(5) + '|' + incoming.lng.toFixed(5) +
+            '|' + incoming.kind + '|' + (incoming.selected ? 1 : 0) +
+            '|' + (incoming.recentDays == null ? '' : incoming.recentDays);
+          if (existing._cfKey !== newKey) {
+            toRemove.push(existing);
+            delete markerById[id];
+          }
+        }
+        if (toRemove.length) markerLayer.removeLayers(toRemove);
+
+        // Add new markers (those not currently mapped, plus the ones we
+        // just removed because their key changed).
+        var toAdd = [];
+        for (var j = 0; j < list.length; j++) {
+          var m = list[j];
+          if (!m || !m.id) continue;
+          if (markerById[m.id]) continue;
+          var built = buildMarker(m);
+          markerById[m.id] = built;
+          toAdd.push(built);
+        }
+        if (toAdd.length) markerLayer.addLayers(toAdd);
       };
 
       window.__cf_setHere = function (here) {
