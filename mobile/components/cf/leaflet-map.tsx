@@ -673,14 +673,41 @@ function buildLeafletHtml(
         }
       };
 
+      // Cluster click behavior: always spiderfy, never zoom-to-bounds.
+      // The default (zoomToBoundsOnClick: true + spiderfyOnMaxZoom: true)
+      // creates a noticeable dance where the map zooms in, then either
+      // spiderfies or doesn't depending on whether the children are still
+      // clustered post-zoom. The transition reads as "tapped cluster,
+      // pins flash, snaps back to cluster" because the zoom-in animation
+      // can re-cluster mid-flight as the bbox refetch lands new data.
+      // Forcing spiderfy on every click skips the zoom entirely — pins
+      // fan out around the cluster center in a stable animation that
+      // doesn't depend on bbox math. spiderfyDistanceMultiplier widens
+      // the fan so 6+ pins remain tappable without overlap.
       var markerLayer = L.markerClusterGroup({
         showCoverageOnHover: false,
         spiderfyOnMaxZoom: true,
-        zoomToBoundsOnClick: true,
+        zoomToBoundsOnClick: false,
+        spiderfyDistanceMultiplier: 1.6,
         maxClusterRadius: 50,
         chunkedLoading: true,
         iconCreateFunction: clusterIconFor,
       }).addTo(map);
+
+      // Force spiderfy on every cluster click regardless of zoom level.
+      // Default behavior with zoomToBoundsOnClick:true was zooming in
+      // first, then maybe spiderfying — a multi-step animation where the
+      // zoom-in's moveend triggered a bbox refetch mid-flight, which then
+      // re-rendered markers and read to the user as "spiderfy snapped
+      // back to the cluster dot." With zoom disabled and an explicit
+      // spiderfy() call, every cluster tap is a single deterministic
+      // animation: pins fan out, stay fanned out until the user taps
+      // one or taps elsewhere on the map.
+      markerLayer.on('clusterclick', function (e) {
+        if (e && e.layer && typeof e.layer.spiderfy === 'function') {
+          e.layer.spiderfy();
+        }
+      });
       var hereMarker = null;
 
       // Trigger the press animation on a marker's icon. Removing the class
