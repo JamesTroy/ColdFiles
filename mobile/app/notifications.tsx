@@ -154,10 +154,28 @@ function PermissionBlock({ status, token, loading, onRequest, onDisable }: Permi
   }
 
   if (status === 'granted') {
-    // Last-6-chars peek of the token is a debug aid — long-press copies the
-    // full token to the clipboard for support tickets. Mono is used so the
-    // chars line up the same width as the rest of the case-file IDs in app.
-    const tail = token ? token.slice(-6) : '';
+    // When permission is already granted at OS level but our local state
+    // doesn't have a token yet (cold launch after permission was granted),
+    // show a "Refresh token" CTA that calls requestAndRegister — that path
+    // is idempotent and re-issues the Expo token + re-runs the backend
+    // registration without re-prompting the OS.
+    if (!token) {
+      return (
+        <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
+          <AmberCTA
+            label="Register push token"
+            onPress={onRequest}
+            loading={loading}
+          />
+          <SansBody
+            style={{ fontSize: 11.5, color: tokens.color.text.secondary, marginTop: 8 }}
+          >
+            OS permission is granted. Tap to (re-)issue the Expo push token and register
+            this device with the server.
+          </SansBody>
+        </View>
+      );
+    }
     return (
       <View
         style={{
@@ -169,55 +187,55 @@ function PermissionBlock({ status, token, loading, onRequest, onDisable }: Permi
           borderWidth: 0.5,
           borderRadius: 6,
           backgroundColor: tokens.color.bg.elev1,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
+          gap: 10,
         }}
       >
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: tokens.color.status.resolved,
-            }}
-          />
-          <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: tokens.color.status.resolved,
+              }}
+            />
             <SansBody style={{ fontSize: 13.5 }}>Notifications on</SansBody>
-            {tail ? (
-              <Pressable
-                onLongPress={() => {
-                  if (token) {
-                    void Clipboard.setStringAsync(token);
-                  }
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Copy push token"
-                accessibilityHint="Long-press to copy the full Expo push token to the clipboard."
-                hitSlop={4}
-              >
-                <Mono
-                  size={11}
-                  style={{ color: tokens.color.text.secondary, marginTop: 2 }}
-                >
-                  …{tail}
-                </Mono>
-              </Pressable>
-            ) : null}
           </View>
+          <Pressable
+            onPress={onDisable}
+            accessibilityRole="button"
+            accessibilityLabel="Disable notifications"
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <SansBody style={{ fontSize: 12.5, color: tokens.color.text.secondary }}>
+              Disable
+            </SansBody>
+          </Pressable>
         </View>
         <Pressable
-          onPress={onDisable}
+          onPress={() => {
+            void Clipboard.setStringAsync(token);
+          }}
           accessibilityRole="button"
-          accessibilityLabel="Disable notifications"
-          hitSlop={8}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          accessibilityLabel="Tap to copy push token"
+          hitSlop={4}
+          style={({ pressed }) => ({
+            paddingVertical: 8,
+            paddingHorizontal: 10,
+            borderRadius: 4,
+            backgroundColor: pressed ? tokens.color.bg.base : 'transparent',
+            borderWidth: 0.5,
+            borderColor: tokens.color.border.subtle,
+          })}
         >
-          <SansBody style={{ fontSize: 12.5, color: tokens.color.text.secondary }}>
-            Disable
-          </SansBody>
+          <Mono size={10} style={{ color: tokens.color.text.secondary }}>
+            TAP TO COPY TOKEN
+          </Mono>
+          <Mono size={11} style={{ color: tokens.color.text.primary, marginTop: 4 }}>
+            {token}
+          </Mono>
         </Pressable>
       </View>
     );
