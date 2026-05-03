@@ -1,6 +1,10 @@
 import { LegalDocScreen } from '@/components/cf/legal-doc';
+import { SourceHealthList } from '@/components/cf/source-health-list';
+import { useSourceHealth } from '@/lib/hooks/use-source-health';
 
 export default function AboutScreen() {
+  const { sources, loading } = useSourceHealth();
+
   return (
     <LegalDocScreen
       title="About"
@@ -15,10 +19,17 @@ export default function AboutScreen() {
         {
           heading: 'How it works',
           body: [
-            'We aggregate cases from publicly available federal, state, and local public records — currently The Charley Project, The Doe Network, the FBI\'s public Wanted bulletin, and the Los Angeles County Sheriff\'s Department homicide bureau. The current source list may expand over time.',
+            'We aggregate cases from publicly available federal, state, and local public records — currently The Charley Project, The Doe Network, and Project: Cold Case. The current source list may expand over time.',
             'The map and list show cases near you. Tap a case for the full file. If you think you know something, the per-case CTA routes you directly to the agency\'s existing tip channel — Crime Stoppers, agency form, or agency phone — pre-filled with the case identifier. The Cold Files never sees what you submit.',
             'We never read or store your tip. The agency does.',
           ],
+        },
+        {
+          heading: 'Source status',
+          body: [
+            'When each source was last checked. "Checked" means the ingest pipeline ran against the source and re-confirmed or updated its records — it does not mean every case was changed. A source may stay healthy and produce few new cases on any given day.',
+          ],
+          extra: <SourceHealthList sources={sources} loading={loading} />,
         },
         {
           heading: "Why we don't store tips",
