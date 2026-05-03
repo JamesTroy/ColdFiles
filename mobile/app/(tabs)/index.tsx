@@ -250,7 +250,13 @@ export default function MapScreen() {
   } = useCasesInBbox({
     bounds: fetchBounds,
     kinds: null,
-    limit: 100,
+    // Limit must scale with the bbox-expansion factor (2.25× area).
+    // 250 ≈ 100 × 2.25 + a small headroom so the visible viewport
+    // doesn't go pin-starved when the expanded bbox spans a dense
+    // region (e.g. LA at low zoom). The render path can handle 250+
+    // markers comfortably — the cluster group clusters anything past
+    // the viewport, and the React diff is keyed on slug.
+    limit: 250,
   });
 
   const counts = useMemo(() => {
