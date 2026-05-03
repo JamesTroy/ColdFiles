@@ -13,7 +13,7 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'The Cold Files',
   slug: 'coldfile',
-  version: '1.0.2',
+  version: '1.0.3',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'coldfile',
@@ -53,7 +53,7 @@ const config: ExpoConfig = {
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
     edgeToEdgeEnabled: true,
-    versionCode: 3,
+    versionCode: 4,
     // Android 14+ predictive back gesture. Recommended now, expected required
     // for API 36 targets. Enable so the system can render the predictive
     // animation; per-screen `gestureEnabled: false` still works on screens
