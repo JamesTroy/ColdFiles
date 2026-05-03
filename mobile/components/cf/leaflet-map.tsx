@@ -851,21 +851,21 @@ function buildLeafletHtml(
       // 0.003° jitter applied React-side, group members at the same
       // source coordinate land ~330-660m apart, which exceeds 30 px at
       // any zoom 13+. Combined: no spiderfy, no spiral, no snap-back.
-      // spiderfyOnMaxZoom: false + disableClusteringAtZoom: 11 means
-      // tapping a cluster ALWAYS does zoom-to-bounds, and there's no
-      // spiderfy animation anywhere in the app. Past zoom 11 (city
-      // view), clusters disappear entirely and pins render individually.
-      // The user always lands in a no-cluster state to interact with
-      // pins. This sidesteps the entire layer-add/remove → spider-
-      // close cascade we've been chasing — there's no spider to close.
-      // Trade-off: dense areas (LA County) require an extra zoom
-      // step to disambiguate. Acceptable; that's how every modern
-      // map app works.
+      // No spiderfy. Clusters disable at zoom 14 — needs to be high
+      // enough that the React-side ~330m jitter on coincident pins
+      // resolves to enough pixels for non-overlapping pin icons.
+      //   zoom 11: 0.003° ≈ ~4 px → pins overlap heavily
+      //   zoom 13: 0.003° ≈ ~17 px → pin icons (18-22 px) still touch
+      //   zoom 14: 0.003° ≈ ~35 px → pins clearly separated
+      // 14 is the right floor for the disable threshold.
+      // zoomToBoundsOnClick is left on so cluster taps zoom in to fit
+      // the cluster's bounds. With clusters disabled at 14, that zoom
+      // typically crosses the threshold and surfaces individual pins.
       var markerLayer = L.markerClusterGroup({
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
         spiderfyOnMaxZoom: false,
-        disableClusteringAtZoom: 11,
+        disableClusteringAtZoom: 14,
         maxClusterRadius: 30,
         chunkedLoading: true,
         iconCreateFunction: clusterIconFor,
