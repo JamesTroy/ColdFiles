@@ -133,20 +133,30 @@ export function LeafletMap({
   // the bbox shifts slightly during the animation → React refetches →
   // markers re-push → spiderfy collapses → user is back to the "2" dot
   // before they can tap a pin. Stable key fixes that.
+  // markersKey deliberately omits `selected`. Selection state mutates in
+  // place via __cf_setSelectedMarker, never via marker remove+add — that
+  // path lets the user tap a pin in an open spiderfy without closing the
+  // spider. Including `selected` here would re-push the marker on every
+  // tap, fire layeradd/layerremove on the cluster group, and snap the
+  // pins back to the cluster dot before the popup could surface.
   const markersKey = useMemo(
     () =>
       markers
-        .map((m) => `${m.id}|${m.lat.toFixed(5)}|${m.lng.toFixed(5)}|${m.kind}|${m.selected ? 1 : 0}|${m.recentDays ?? ''}`)
+        .map((m) => `${m.id}|${m.lat.toFixed(5)}|${m.lng.toFixed(5)}|${m.kind}|${m.recentDays ?? ''}`)
         .sort()
         .join(','),
     [markers],
   );
   const markersJson = useMemo(() => JSON.stringify(markers), [markers]);
+  const selectedMarkerId = useMemo(
+    () => markers.find((m) => m.selected)?.id ?? null,
+    [markers],
+  );
   const hereJson = JSON.stringify(here ?? null);
   const zonesJson = JSON.stringify(zones);
 
   // Only re-push markers when the stable key changes. The other channels
-  // (here / zones) are independent and can update freely.
+  // (here / zones / selection) are independent and can update freely.
   useEffect(() => {
     if (!ready) return;
     webRef.current?.injectJavaScript(`
@@ -157,6 +167,21 @@ export function LeafletMap({
     `);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, markersKey]);
+
+  // Selection channel — push the currently-selected marker id into the
+  // WebView. The dedicated function mutates icons in place (setIcon),
+  // not via remove+add, so an open spiderfy isn't disturbed by tapping
+  // a pin inside it.
+  useEffect(() => {
+    if (!ready) return;
+    webRef.current?.injectJavaScript(`
+      try {
+        window.__cf_setSelectedMarker &&
+          window.__cf_setSelectedMarker(${selectedMarkerId == null ? 'null' : JSON.stringify(selectedMarkerId)});
+      } catch (e) {}
+      true;
+    `);
+  }, [ready, selectedMarkerId]);
 
   useEffect(() => {
     if (!ready) return;
@@ -845,10 +870,14 @@ function buildLeafletHtml(
 
       function buildMarker(m) {
         // Bumped from 14/16 → 18/22 for legibility against dimmed OSM tiles.
-        var diameter = m.selected ? 22 : 18;
+        // Build the icon at the un-selected baseline. Selection state is
+        // applied via setIcon in __cf_setSelectedMarker — keeping it out
+        // of the diff key prevents tap-to-select from triggering a
+        // remove+add cycle on the cluster group, which would close any
+        // open spiderfy and snap pins back to the cluster dot.
         var svg = pinSvg({
           kind: m.kind,
-          diameter: diameter,
+          diameter: m.selected ? 22 : 18,
           selected: !!m.selected,
           recentDays: m.recentDays,
         });
@@ -861,9 +890,14 @@ function buildLeafletHtml(
         var id = m.id;
         var marker = L.marker([m.lat, m.lng], { icon: icon, keyboard: false });
         marker._cfId = id;
+        marker._cfKind = m.kind;
+        marker._cfRecentDays = m.recentDays;
+        // _cfKey deliberately excludes 'selected'. Selection mutations
+        // ride a separate channel (setIcon, not remove+add) so the
+        // open-spider state survives a tap on a pin in the spider.
         marker._cfKey =
           id + '|' + m.lat.toFixed(5) + '|' + m.lng.toFixed(5) +
-          '|' + m.kind + '|' + (m.selected ? 1 : 0) +
+          '|' + m.kind +
           '|' + (m.recentDays == null ? '' : m.recentDays);
 
         // Bind in-map popup with the case-file preview. HTML is hand-built
@@ -925,7 +959,7 @@ function buildLeafletHtml(
           }
           var newKey =
             incoming.id + '|' + incoming.lat.toFixed(5) + '|' + incoming.lng.toFixed(5) +
-            '|' + incoming.kind + '|' + (incoming.selected ? 1 : 0) +
+            '|' + incoming.kind +
             '|' + (incoming.recentDays == null ? '' : incoming.recentDays);
           if (existing._cfKey !== newKey) {
             toRemove.push(existing);
@@ -946,6 +980,51 @@ function buildLeafletHtml(
           toAdd.push(built);
         }
         if (toAdd.length) markerLayer.addLayers(toAdd);
+      };
+
+      // Tracks the currently-selected slug so we know which marker to
+      // un-style when selection moves to a new one. null = no selection.
+      var selectedMarkerId = null;
+
+      // Mutate selection state in place via setIcon — does NOT fire
+      // layeradd/layerremove. Lets the user tap a pin in an open
+      // spiderfy without the spider closing under them.
+      window.__cf_setSelectedMarker = function (slug) {
+        // Demote the previous selection back to its baseline icon.
+        if (selectedMarkerId && selectedMarkerId !== slug) {
+          var prev = markerById[selectedMarkerId];
+          if (prev) {
+            var prevSvg = pinSvg({
+              kind: prev._cfKind,
+              diameter: 18,
+              selected: false,
+              recentDays: prev._cfRecentDays,
+            });
+            prev.setIcon(L.divIcon({
+              className: 'cf-pin',
+              html: prevSvg.html,
+              iconSize: [prevSvg.size, prevSvg.size],
+              iconAnchor: [prevSvg.size / 2, prevSvg.size / 2],
+            }));
+          }
+        }
+        // Promote the new selection. slug == null clears.
+        if (slug && markerById[slug]) {
+          var next = markerById[slug];
+          var nextSvg = pinSvg({
+            kind: next._cfKind,
+            diameter: 22,
+            selected: true,
+            recentDays: next._cfRecentDays,
+          });
+          next.setIcon(L.divIcon({
+            className: 'cf-pin',
+            html: nextSvg.html,
+            iconSize: [nextSvg.size, nextSvg.size],
+            iconAnchor: [nextSvg.size / 2, nextSvg.size / 2],
+          }));
+        }
+        selectedMarkerId = slug || null;
       };
 
       // Tracks the last-rendered fresh state so we only swap the icon
