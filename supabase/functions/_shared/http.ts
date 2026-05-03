@@ -47,23 +47,27 @@ export function assertSafeUrl(url: string): URL {
       throw new HttpError(`disallowed IPv4: ${host}`, 0);
     }
   }
-  // IPv6 literal — block loopback + link-local + ULA. URL hostname strips brackets.
-  if (host.includes(':')) {
-    const lower = host.toLowerCase();
+  // IPv6 literal — block loopback + link-local + ULA.
+  // WHATWG URL keeps brackets on `.hostname` for IPv6 ([::1] not ::1), so
+  // strip them before comparing. An earlier comment claimed the brackets
+  // were stripped; that was wrong and the IPv6 guard was inert until tests
+  // caught it.
+  if (host.startsWith('[') && host.endsWith(']')) {
+    const lower = host.slice(1, -1).toLowerCase();
     if (
       lower === '::1' ||
       lower === '::' ||
       lower.startsWith('fe80:') ||
       lower.startsWith('fc') ||
-      lower.startsWith('fd')
+      lower.startsWith('fd') ||
+      // IPv4-mapped IPv6 (::ffff:0.0.0.0/96). WHATWG URL normalizes the
+      // dotted-quad tail to hex (e.g. ::ffff:127.0.0.1 → ::ffff:7f00:1),
+      // so a substring check on the prefix catches both forms. Public web
+      // servers don't legitimately use v4-mapped IPv6, so blanket-blocking
+      // this range is safer than reconstructing the IPv4 octets.
+      lower.startsWith('::ffff:')
     ) {
       throw new HttpError(`disallowed IPv6: ${host}`, 0);
-    }
-    // IPv4-mapped IPv6 — re-check the v4 portion.
-    const mapped = lower.match(/::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-    if (mapped) {
-      const inner = `${mapped[1]}.${mapped[2]}.${mapped[3]}.${mapped[4]}`;
-      assertSafeUrl(`http://${inner}`);
     }
   }
   // Common internal-DNS gotchas. Cheap belt-and-suspenders; won't catch a
@@ -362,10 +366,16 @@ export async function fetchRobots(
 }
 
 export function parseRobots(text: string, ourUserAgent: string): RobotsRules {
+  // RFC 9309 §2.2.1: only the most specific matching group applies. If our
+  // UA matches an explicit group, the wildcard group is ignored entirely;
+  // otherwise we use the wildcard group. Two-pass: collect star + exact
+  // separately, then return whichever applies.
   const lines = text.split(/\r?\n/);
-  let active = false;
-  let activeIsExact = false;
-  const rules: RobotsRules = { allow: [], disallow: [] };
+  const star: RobotsRules = { allow: [], disallow: [] };
+  const exact: RobotsRules = { allow: [], disallow: [] };
+  let exactSeen = false;
+  type Bucket = 'star' | 'exact' | null;
+  let bucket: Bucket = null;
 
   for (const raw of lines) {
     const line = raw.replace(/#.*$/, '').trim();
@@ -377,28 +387,29 @@ export function parseRobots(text: string, ourUserAgent: string): RobotsRules {
 
     if (key === 'user-agent') {
       const isStar = value === '*';
-      const isUs = ourUserAgent.toLowerCase().includes(value.toLowerCase()) && value !== '';
+      const isUs = value !== '' && ourUserAgent.toLowerCase().includes(value.toLowerCase());
       if (isUs) {
-        active = true;
-        activeIsExact = true;
-      } else if (isStar && !activeIsExact) {
-        active = true;
+        bucket = 'exact';
+        exactSeen = true;
+      } else if (isStar) {
+        bucket = 'star';
       } else {
-        active = false;
+        bucket = null;
       }
       continue;
     }
-    if (!active) continue;
+    if (!bucket) continue;
+    const target = bucket === 'exact' ? exact : star;
 
-    if (key === 'allow') rules.allow.push(value);
-    else if (key === 'disallow' && value !== '') rules.disallow.push(value);
+    if (key === 'allow') target.allow.push(value);
+    else if (key === 'disallow' && value !== '') target.disallow.push(value);
     else if (key === 'crawl-delay') {
       const n = parseFloat(value);
-      if (!Number.isNaN(n)) rules.crawlDelaySec = n;
+      if (!Number.isNaN(n)) target.crawlDelaySec = n;
     }
   }
 
-  return rules;
+  return exactSeen ? exact : star;
 }
 
 /** True if `path` is allowed by `rules`. Longest-prefix-wins. */

@@ -21,29 +21,14 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-import { STATE_CLEARINGHOUSES } from '../_shared/state-routes.ts';
+import { resolveTipRoute } from '../_shared/tip-route.ts';
+import type { ResolvedRoute, TipRouteAgency } from '../_shared/tip-route.ts';
 
 interface RequestBody {
   case_id?: string;
   content_hash?: string | null;
   user_agent_summary?: string | null;
 }
-
-interface ResolvedRoute {
-  agency_id: string | null;
-  agency_name: string;
-  route_kind: 'crime_stoppers_p3' | 'agency_form' | 'agency_phone' | 'fbi_tip' | 'namus_form' | 'email';
-  tip_url: string | null;
-  tip_phone: string | null;
-}
-
-const FBI_FALLBACK: ResolvedRoute = {
-  agency_id: null,
-  agency_name: 'FBI Tip Line',
-  route_kind: 'fbi_tip',
-  tip_url: 'https://tips.fbi.gov',
-  tip_phone: null,
-};
 
 // Rate limits per ip_hash. Tuned for closed testing first; revisit before
 // public launch. The minute window catches replay attacks; the hour window
@@ -204,62 +189,15 @@ async function resolveRoute(
   if (error) throw error;
   if (!data) throw new Error('case not found');
 
-  // Tier 1: case-level override.
-  if (data.tip_route_kind && (data.tip_url || data.tip_phone)) {
-    return {
-      agency_id: (data.primary_agency as { id?: string } | null)?.id ?? null,
-      agency_name:
-        (data.primary_agency as { name?: string } | null)?.name ??
-        'the investigating agency',
-      route_kind: data.tip_route_kind as ResolvedRoute['route_kind'],
-      tip_url: data.tip_url ?? null,
-      tip_phone: data.tip_phone ?? null,
-    };
-  }
-
-  // Tier 2: agency default.
-  const agency = data.primary_agency as
-    | {
-        id: string;
-        name: string;
-        short_name: string | null;
-        tip_route_kind: ResolvedRoute['route_kind'] | null;
-        tip_url: string | null;
-        phone_tip: string | null;
-      }
-    | null;
-
-  if (agency?.tip_route_kind && (agency.tip_url || agency.phone_tip)) {
-    return {
-      agency_id: agency.id,
-      agency_name: agency.name,
-      route_kind: agency.tip_route_kind,
-      tip_url: agency.tip_url,
-      tip_phone: agency.phone_tip,
-    };
-  }
-
-  // Tier 2.5: state clearinghouse fallback when no agency FK is set.
-  // The Charley aggregator doesn't carry agency identity strongly enough
-  // to FK most rows, but it does give us location_state. Routing to the
-  // state's missing-persons clearinghouse beats sending every case to the
-  // FBI tip line.
-  const state = (data as { location_state?: string | null }).location_state;
-  if (state) {
-    const ch = STATE_CLEARINGHOUSES[state];
-    if (ch && (ch.tip_url || ch.tip_phone)) {
-      return {
-        agency_id: null,
-        agency_name: ch.name,
-        route_kind: ch.route_kind,
-        tip_url: ch.tip_url,
-        tip_phone: ch.tip_phone,
-      };
-    }
-  }
-
-  // Tier 3: FBI fallback.
-  return FBI_FALLBACK;
+  return resolveTipRoute(
+    {
+      tip_route_kind: (data as { tip_route_kind: ResolvedRoute['route_kind'] | null }).tip_route_kind,
+      tip_url: (data as { tip_url: string | null }).tip_url,
+      tip_phone: (data as { tip_phone: string | null }).tip_phone,
+      location_state: (data as { location_state: string | null }).location_state,
+    },
+    data.primary_agency as TipRouteAgency | null,
+  );
 }
 
 async function hashIp(req: Request): Promise<string> {
