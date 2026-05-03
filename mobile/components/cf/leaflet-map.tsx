@@ -1151,6 +1151,29 @@ function buildLeafletHtml(
       setTimeout(function () { window.__cf_invalidate(); }, 100);
       setTimeout(function () { window.__cf_invalidate(); }, 500);
 
+      // Seed the parent with the initial viewport so cases_in_bbox can
+      // fire without waiting for a user gesture. Leaflet does NOT fire
+      // moveend for the L.map() constructor's center/zoom — only for
+      // subsequent movements — so without this seed the parent stays
+      // at fetchBounds === null and no pins paint until the user pans.
+      // Mirrors the moveend handler's payload shape exactly.
+      var b0 = map.getBounds();
+      var c0 = map.getCenter();
+      postMessage({
+        type: 'region',
+        bounds: {
+          minLng: b0.getWest(),
+          minLat: b0.getSouth(),
+          maxLng: b0.getEast(),
+          maxLat: b0.getNorth(),
+        },
+        center: {
+          lat: c0.lat,
+          lng: c0.lng,
+          zoomLevel: map.getZoom(),
+        },
+      });
+
       postMessage({ type: 'ready' });
     })();
   </script>

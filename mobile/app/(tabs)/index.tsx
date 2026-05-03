@@ -183,8 +183,9 @@ export default function MapScreen() {
   // Initial-frame note: bounds is null on the very first paint (Leaflet
   // hasn't reported its initial region yet). The hook holds the previous
   // (empty) data + loading=false until the WebView's first onRegionChange
-  // lands; that fires synchronously after Leaflet's map.on('load') so
-  // there's no perceptible delay.
+  // lands. LeafletMap explicitly posts an initial `region` message right
+  // before `ready` (Leaflet doesn't fire moveend for the L.map()
+  // constructor's center/zoom), so the null-bounds window is one render.
   // Two layers of bbox state:
   //   visibleBounds: what Leaflet just reported as the viewport
   //   fetchBounds:   the bbox we passed to the RPC; deliberately wider

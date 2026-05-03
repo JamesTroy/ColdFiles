@@ -12,8 +12,10 @@
  * renderer + bottom sheet keep working unchanged.
  *
  * Bounds null → no query fires (first-frame state before the WebView's
- * Leaflet has reported its initial region). Once Leaflet paints, the
- * map-tab effect populates bounds and the query lands.
+ * Leaflet has reported its initial region). The WebView posts an initial
+ * `region` message right before `ready` (see leaflet-map.tsx near the
+ * bottom of the baked HTML), so bounds populates within the same task
+ * tick the WebView mounts in — the null-bounds window is one render long.
  */
 
 import { useCallback, useEffect, useState } from 'react';
