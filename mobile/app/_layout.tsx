@@ -30,6 +30,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BrandSplash } from '@/components/cf/brand-splash';
 import { tokens } from '@/constants/theme';
 import { useAuthCallback } from '@/lib/hooks/use-auth-callback';
+import { useNotificationRouter } from '@/lib/hooks/use-notification-router';
 import { useOnboarding } from '@/lib/hooks/use-onboarding';
 
 // Native splash stays up until JS mounts. We then immediately call
@@ -104,6 +105,14 @@ export default function RootLayout() {
   // a session, because supabase-js is configured with detectSessionInUrl
   // false (correct for RN — see lib/supabase.ts).
   useAuthCallback();
+
+  // Routes a tapped push notification to /case/[slug]. Handles both warm-
+  // resume (listener fires) and cold-launch (getLastNotificationResponseAsync
+  // replay, deferred to useEffect after root mount per the hook's comment).
+  // Without this, watch_zone_hit alerts open the app to whatever route was
+  // last visited, silently dropping data.case_slug. Becomes load-bearing
+  // the moment v1.0.2 push delivery lands.
+  useNotificationRouter();
 
   // Hide the native splash as soon as JS mounts — don't wait for fonts.
   // Our BrandSplash overlay covers the screen from this point so there's
