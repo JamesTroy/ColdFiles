@@ -88,6 +88,61 @@ grant execute on function public.smoke_pgnet_recent(timestamptz) to service_role
 
 
 -- ─────────────────────────────────────────────────────────────────────
+-- Queue-side diagnostic. When _http_response stays empty for too long,
+-- this RPC tells us whether the trigger ever made it to pg_net at all.
+--
+-- Column-agnostic across pg_net versions: probes by table name only,
+-- returns total rows + max(id). The smoke caller compares max(id) to
+-- a baseline captured before the trigger fired — any growth means a
+-- request was queued or a response arrived after the trigger.
+--
+-- Returns multiple rows (one per known table) so the caller can read
+-- both the queue and response sides without a second round-trip.
+-- ─────────────────────────────────────────────────────────────────────
+create or replace function public.smoke_pgnet_queue_count()
+returns table (
+  source text,
+  row_count bigint,
+  max_id bigint
+)
+language plpgsql
+security definer
+set search_path = public, net
+as $$
+declare
+  v_count bigint;
+  v_max   bigint;
+begin
+  -- net.http_request_queue (pg_net 0.7+, in-flight requests).
+  begin
+    execute 'select count(*), coalesce(max(id), 0) from net.http_request_queue'
+      into v_count, v_max;
+    source := 'http_request_queue';
+    row_count := v_count;
+    max_id := v_max;
+    return next;
+  exception when undefined_table then
+    null;
+  end;
+
+  -- net._http_response (responses received).
+  begin
+    execute 'select count(*), coalesce(max(id), 0) from net._http_response'
+      into v_count, v_max;
+    source := '_http_response';
+    row_count := v_count;
+    max_id := v_max;
+    return next;
+  exception when undefined_table then
+    null;
+  end;
+end $$;
+
+revoke all on function public.smoke_pgnet_queue_count() from public, anon, authenticated;
+grant execute on function public.smoke_pgnet_queue_count() to service_role;
+
+
+-- ─────────────────────────────────────────────────────────────────────
 -- Bulk artifact cleanup, by ID list.
 -- The script captures every UUID it created into a manifest. On EXIT
 -- (including SIGINT mid-run) it calls this RPC to delete those rows.
