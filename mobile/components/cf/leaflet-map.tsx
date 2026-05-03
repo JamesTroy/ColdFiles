@@ -948,24 +948,60 @@ function buildLeafletHtml(
         if (toAdd.length) markerLayer.addLayers(toAdd);
       };
 
+      // Tracks the last-rendered fresh state so we only swap the icon
+      // when fresh actually changes — most __cf_setHere calls are pure
+      // position updates (GPS samples) and shouldn't touch the DOM.
+      var hereFreshState = false;
+
       window.__cf_setHere = function (here) {
-        if (hereMarker) {
-          map.removeLayer(hereMarker);
-          hereMarker = null;
+        // Null payload = clear the dot. Use removeLayer here only for
+        // genuine teardown (rare in practice — useHere never sends null
+        // post-init). The frequent path is the position update below.
+        if (!here) {
+          if (hereMarker) {
+            map.removeLayer(hereMarker);
+            hereMarker = null;
+          }
+          return;
         }
-        if (!here) return;
+
         var built = hereHtml(!!here.fresh);
-        var icon = L.divIcon({
-          className: '',
-          html: built.html,
-          iconSize: [built.size, built.size],
-          iconAnchor: [built.size / 2, built.size / 2],
-        });
-        hereMarker = L.marker([here.lat, here.lng], {
-          icon: icon,
-          interactive: false,
-          keyboard: false,
-        }).addTo(map);
+        if (!hereMarker) {
+          // First fix per WebView mount. Lazy-create.
+          var icon = L.divIcon({
+            className: '',
+            html: built.html,
+            iconSize: [built.size, built.size],
+            iconAnchor: [built.size / 2, built.size / 2],
+          });
+          hereMarker = L.marker([here.lat, here.lng], {
+            icon: icon,
+            interactive: false,
+            keyboard: false,
+          }).addTo(map);
+          hereFreshState = !!here.fresh;
+          return;
+        }
+
+        // Subsequent fix — mutate in place. Avoids removeLayer/addLayer,
+        // which fires layeradd/layerremove events that markercluster's
+        // global listeners interpret as "user did something" and use to
+        // close any open spiderfy. That's been the root cause of the
+        // "tap cluster → spiral fans out → snaps back" report on the
+        // Pixel: GPS jitter cadence (every few seconds) raced the
+        // spiderfy animation and dismissed it before the user could
+        // tap a pin.
+        hereMarker.setLatLng([here.lat, here.lng]);
+        if (hereFreshState !== !!here.fresh) {
+          var icon2 = L.divIcon({
+            className: '',
+            html: built.html,
+            iconSize: [built.size, built.size],
+            iconAnchor: [built.size / 2, built.size / 2],
+          });
+          hereMarker.setIcon(icon2);
+          hereFreshState = !!here.fresh;
+        }
       };
 
       window.__cf_setCenter = function (c) {
