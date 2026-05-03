@@ -16,7 +16,7 @@ export default function AboutScreen() {
           heading: 'How it works',
           body: [
             'We aggregate cases from publicly available federal, state, and local public records — currently The Charley Project, The Doe Network, the FBI\'s public Wanted bulletin, and the Los Angeles County Sheriff\'s Department homicide bureau. The current source list may expand over time.',
-            'The map and list show cases near you. Tap a case for the full file. If you have information, "Submit a tip" routes you to the agency\'s existing tip channel — Crime Stoppers, agency form, or agency phone.',
+            'The map and list show cases near you. Tap a case for the full file. If you think you know something, the per-case CTA routes you directly to the agency\'s existing tip channel — Crime Stoppers, agency form, or agency phone — pre-filled with the case identifier. The Cold Files never sees what you submit.',
             'We never read or store your tip. The agency does.',
           ],
         },

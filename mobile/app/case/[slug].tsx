@@ -344,7 +344,7 @@ export default function CaseDetailScreen() {
             <ReceiptCTA onPress={() => router.push(`/tip/${c.slug}`)} />
           ) : (
             <AmberCTA
-              label="Submit a tip"
+              label="I think I know something"
               onPress={() => router.push(`/tip/${c.slug}`)}
             />
           )}

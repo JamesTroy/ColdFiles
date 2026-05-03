@@ -180,7 +180,7 @@ export default function TipModalScreen() {
         >
           <View>
             <SerifTitle size="h2" style={{ fontSize: 19 }}>
-              Submit a tip
+              Tell the agency
             </SerifTitle>
             <SansBody
               style={{
