@@ -22,7 +22,14 @@ import { Mono, MonoLabel, NarrativeText, SerifTitle } from './text';
 
 export interface DocSection {
   heading?: string;
-  body: string[];
+  body?: string[];
+  /**
+   * Optional custom content rendered after the body paragraphs. Used
+   * sparingly — currently only the About screen uses this to render the
+   * per-source health table. Most legal/policy screens are pure prose
+   * and pass nothing here.
+   */
+  extra?: ReactElement;
 }
 
 export interface LegalDocProps {
@@ -104,14 +111,19 @@ export function LegalDocScreen({
                 {section.heading}
               </MonoLabel>
             ) : null}
-            {section.body.map((paragraph, j) => (
+            {(section.body ?? []).map((paragraph, j) => (
               <NarrativeText
                 key={j}
-                style={{ marginBottom: j < section.body.length - 1 ? 12 : 0 }}
+                style={{ marginBottom: j < (section.body?.length ?? 0) - 1 ? 12 : 0 }}
               >
                 {paragraph}
               </NarrativeText>
             ))}
+            {section.extra ? (
+              <View style={{ marginTop: section.body && section.body.length > 0 ? 12 : 0 }}>
+                {section.extra}
+              </View>
+            ) : null}
           </View>
         ))}
 
