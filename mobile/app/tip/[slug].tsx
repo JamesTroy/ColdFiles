@@ -56,10 +56,17 @@ import {
 
 type ModalPhase = 'idle' | 'anticipating' | 'fallback';
 
+// Generic fallback shown in the modal before the Edge Function resolves the
+// actual destination at submit time. The previous label was "LA Crime
+// Stoppers" — fine for sample data but misleading for any non-LA case (e.g.
+// a NY case showing "LA Crime Stoppers" pre-submit, then opening a
+// different URL on actual route resolution). The honest framing: tell the
+// user we route to the right agency for this case, and let the resolved
+// destination surface in the deep link / FallbackBar after submit.
 const FALLBACK_ROUTE: SampleTipRoute = {
-  id: 'la-crime-stoppers',
-  agency: { name: 'LA Crime Stoppers', short_name: 'LA Crime Stoppers' },
-  meta: 'Anonymous · reward eligible',
+  id: 'agency-routing',
+  agency: { name: 'Investigating agency', short_name: 'agency' },
+  meta: "Anonymous · routes to this case's agency or its tip processor",
   recommended: true,
 };
 

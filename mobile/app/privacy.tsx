@@ -6,7 +6,7 @@ export default function PrivacyScreen() {
   return (
     <LegalDocScreen
       title="Privacy Policy"
-      lastUpdated="2026-04-29"
+      lastUpdated="2026-05-02"
       sections={[
         {
           body: [
