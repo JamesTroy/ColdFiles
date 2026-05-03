@@ -68,6 +68,28 @@ function alphaToDays(alpha: number): number | null {
   return null;
 }
 
+/**
+ * Haversine distance in miles between user and a case. Returns null when
+ * either half is missing — peek-sheet renders that as the bare "SELECTED"
+ * label, no trailing distance. Avoids the "less than 0.1 mi away" reading
+ * users got when distance was unavailable but defaulted to 0.
+ */
+function computeClientDistanceMiles(
+  here: { lat: number; lng: number; fresh: boolean } | null | undefined,
+  c: { lat: number | null; lng: number | null },
+): number | null {
+  if (!here || !here.fresh) return null;
+  if (c.lat == null || c.lng == null) return null;
+  const earthRadiusMi = 3958.7613;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(c.lat - here.lat);
+  const dLng = toRad(c.lng - here.lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(here.lat)) * Math.cos(toRad(c.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * earthRadiusMi * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>('all');
@@ -428,9 +450,18 @@ export default function MapScreen() {
         (() => {
           const selectedCase = cases.find((c) => c.slug === selectedSlug);
           if (!selectedCase) return null;
+          // cases_in_bbox doesn't return distance_miles (the RPC was rebuilt
+          // for view-bounded queries that don't carry a search origin).
+          // Compute client-side from user.here when both halves are present.
+          // Falls back to null when location isn't granted, which the
+          // peek-sheet renders as "SELECTED" without the trailing miles.
+          const computedDistance = computeClientDistanceMiles(
+            here,
+            selectedCase,
+          );
           return (
             <PeekSheet
-              distanceMiles={selectedCase.distance_miles ?? 0}
+              distanceMiles={computedDistance}
               kindLine={kindLine(selectedCase)}
               victimName={peekDisplayName(selectedCase)}
               onOpen={() =>

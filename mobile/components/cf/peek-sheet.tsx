@@ -23,8 +23,8 @@ import { distancePhrase } from '@/lib/format';
 import { MonoLabel, SerifTitle } from './text';
 
 interface PeekSheetProps {
-  /** Distance in miles, e.g. "1.4". */
-  distanceMiles: number;
+  /** Distance in miles, e.g. "1.4". null when location is unknown — renders "SELECTED" without the trailing miles. */
+  distanceMiles: number | null;
   /** "HOMICIDE · 1985 · CLAREMONT, CA". Full mono-cap line including separators. */
   kindLine: string;
   /** Victim name; for unidentifieds, "Unidentified Female, est. 18–25". */
@@ -112,7 +112,7 @@ export function PeekSheet({
           tracking={tokens.tracking.label}
           color={tokens.color.text.secondary}
         >
-          {`SELECTED · ${distancePhrase(distanceMiles)}`}
+          {distanceMiles == null ? 'SELECTED' : `SELECTED · ${distancePhrase(distanceMiles)}`}
         </MonoLabel>
         <MonoLabel
           size={tokens.size.monoChip}
