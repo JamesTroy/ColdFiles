@@ -37,6 +37,16 @@ export interface LeafletMarker {
   selected?: boolean;
   /** Days since last_changed_at (or null). Drives the recency ring. */
   recentDays?: number | null;
+  /**
+   * Optional preview content rendered inside the in-map popup that opens
+   * on a marker tap. Three lines: title (victim name), meta line
+   * (kind · year · state), and a "Read full file →" call to action.
+   * Plain text — no HTML — sanitized into divs by the WebView side.
+   */
+  popup?: {
+    title: string;
+    meta: string;
+  };
 }
 
 export interface LeafletZoneOverlay {
@@ -69,7 +79,14 @@ interface LeafletMapProps {
   zones?: LeafletZoneOverlay[];
   /** Defaults to true. Tied to the layer-stack Z toggle. */
   zonesVisible?: boolean;
+  /** Fired when the user taps a marker — selects it without opening detail. */
   onMarkerPress?: (id: string) => void;
+  /**
+   * Fired when the user taps "Read full file →" inside the in-map popup.
+   * Distinct from onMarkerPress so the parent can branch: pin tap selects,
+   * popup CTA navigates. Defaults to no-op if not provided.
+   */
+  onMarkerOpen?: (id: string) => void;
   onRegionChange?: (bounds: {
     minLng: number;
     minLat: number;
@@ -93,6 +110,7 @@ export function LeafletMap({
   zones = [],
   zonesVisible = true,
   onMarkerPress,
+  onMarkerOpen,
   onRegionChange,
 }: LeafletMapProps) {
   const webRef = useRef<WebView>(null);
@@ -229,6 +247,12 @@ export function LeafletMap({
           /* haptic engine missing or denied — silent */
         });
         onMarkerPress?.(msg.id);
+      } else if (msg.type === 'popup-open' && msg.id) {
+        // User tapped "Read full file →" inside the in-map popup.
+        // Heavier haptic to mirror the visit-detail CTA gravity, then
+        // fire onMarkerOpen so the parent can route to /case/[slug].
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        onMarkerOpen?.(msg.id);
       } else if (msg.type === 'region') {
         // Capture center+zoom for the next mount's initial position so
         // navigating away and back doesn't snap the map to user-location.
@@ -434,6 +458,56 @@ function buildLeafletHtml(
     }
     /* Defang the markercluster default classes so they don't bleed through. */
     .marker-cluster, .marker-cluster div { background: transparent !important; color: transparent !important; }
+
+    /* Case-file popup. Replaces leaflet's default white-rectangle styling
+       with a token-matched dark card. The .leaflet-popup-content-wrapper
+       and .leaflet-popup-tip are leaflet's own classes for the body and
+       arrow respectively; our .cf-popup-wrap class on bindPopup options
+       lets us scope the overrides without touching unrelated popups. */
+    .cf-popup-wrap .leaflet-popup-content-wrapper {
+      background: ${tokens.color.bg.elev1};
+      color: ${tokens.color.text.primary};
+      border: 0.5px solid ${tokens.color.border.strong};
+      border-radius: 8px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      padding: 0;
+    }
+    .cf-popup-wrap .leaflet-popup-content {
+      margin: 0;
+      padding: 12px 14px 12px 14px;
+      min-width: 180px;
+      max-width: 240px;
+      line-height: 1.35;
+    }
+    .cf-popup-wrap .leaflet-popup-tip {
+      background: ${tokens.color.bg.elev1};
+      border: 0.5px solid ${tokens.color.border.strong};
+    }
+    .cf-popup-title {
+      font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+      font-size: 16px;
+      font-weight: 500;
+      color: ${tokens.color.text.primary};
+      margin-bottom: 4px;
+    }
+    .cf-popup-meta {
+      font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: ${tokens.color.text.secondary};
+      margin-bottom: 10px;
+    }
+    .cf-popup-cta {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: ${tokens.color.accent.amber};
+      text-decoration: none;
+      padding: 4px 0 0 0;
+    }
+    .cf-popup-cta:active { opacity: 0.7; }
   </style>
 </head>
 <body>
@@ -459,6 +533,42 @@ function buildLeafletHtml(
           window.ReactNativeWebView.postMessage(JSON.stringify(obj));
         }
       }
+
+      // HTML-escape a string before injecting into a popup body. We don't
+      // run user-supplied content through here (case names + meta come
+      // from our schema), but defensive escaping prevents a malformed
+      // value from breaking the popup's structure or letting an in-name
+      // ampersand render as an entity.
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      // Popup CTA delegation. Inline onclick handlers are fragile across
+      // WebView quirks (CSP, scope, escaping). Using a single delegated
+      // listener at the map container with a [data-cf-open="<id>"]
+      // attribute on the anchor is more robust and keeps the bindPopup
+      // HTML free of script. Stop propagation so leaflet doesn't treat
+      // the tap as a map click.
+      document.addEventListener('click', function (e) {
+        var target = e && e.target;
+        // Walk up to find the data-cf-open ancestor (target may be a
+        // descendant element when fonts/icons render inside).
+        for (var i = 0; i < 4 && target; i++) {
+          if (target.getAttribute && target.getAttribute('data-cf-open')) {
+            var openId = target.getAttribute('data-cf-open');
+            e.preventDefault();
+            e.stopPropagation();
+            postMessage({ type: 'popup-open', id: openId });
+            return;
+          }
+          target = target.parentNode;
+        }
+      });
 
       function recentAlphaFor(days) {
         if (days == null) return 0;
@@ -755,8 +865,39 @@ function buildLeafletHtml(
           id + '|' + m.lat.toFixed(5) + '|' + m.lng.toFixed(5) +
           '|' + m.kind + '|' + (m.selected ? 1 : 0) +
           '|' + (m.recentDays == null ? '' : m.recentDays);
+
+        // Bind in-map popup with the case-file preview. HTML is hand-built
+        // with already-escaped values (escapeHtml below) — leaflet will
+        // render it as inert content. The "Read full file →" anchor calls
+        // a top-level window.__cf_openCase(id) helper that posts back to
+        // React for the navigation transition.
+        if (m.popup) {
+          var titleHtml = escapeHtml(m.popup.title || '');
+          var metaHtml = escapeHtml(m.popup.meta || '');
+          var idAttr = escapeHtml(id);
+          var ctaHtml =
+            '<a class="cf-popup-cta" href="#" data-cf-open="' + idAttr + '">Read full file →</a>';
+          marker.bindPopup(
+            '<div class="cf-popup">' +
+              '<div class="cf-popup-title">' + titleHtml + '</div>' +
+              (metaHtml ? '<div class="cf-popup-meta">' + metaHtml + '</div>' : '') +
+              ctaHtml +
+            '</div>',
+            {
+              closeButton: false,
+              autoPan: true,
+              autoPanPaddingTopLeft: [16, 16],
+              autoPanPaddingBottomRight: [16, 96],
+              className: 'cf-popup-wrap',
+              maxWidth: 240,
+            }
+          );
+        }
+
         marker.on('click', function () {
           pressFlash(marker);
+          // Selection still goes back so the React state knows what's
+          // active (drives the bottom-sheet header / count UI).
           postMessage({ type: 'marker', id: id });
         });
         return marker;

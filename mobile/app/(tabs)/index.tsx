@@ -344,6 +344,7 @@ export default function MapScreen() {
             cases={cases}
             selectedSlug={selectedSlug}
             onMarkerPress={handleMarkerPress}
+            onMarkerOpen={(slug) => router.push({ pathname: '/case/[slug]', params: { slug } })}
             here={here}
             zones={zoneOverlays}
             zonesVisible={zonesVisible}
@@ -505,6 +506,7 @@ function LeafletRenderer({
   cases,
   selectedSlug,
   onMarkerPress,
+  onMarkerOpen,
   here,
   zones,
   zonesVisible,
@@ -513,6 +515,7 @@ function LeafletRenderer({
   cases: CaseRowMapNear[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
+  onMarkerOpen?: (id: string) => void;
   here: { lat: number; lng: number; fresh: boolean };
   zones: { id: string; geojson: { type: 'Polygon'; coordinates: [number, number][][] }; label: string | null }[];
   zonesVisible: boolean;
@@ -558,6 +561,28 @@ function LeafletRenderer({
           lng += Math.sin(angle) * 0.003;
         }
       }
+      // Popup preview content. Title = victim name (or "Unidentified
+      // person" for Doe cases that genuinely have no name), meta = kind
+      // label · year · state. Kept terse so it fits comfortably in the
+      // popup card width without truncation. Real wraps happen on the
+      // case-detail screen.
+      const titlePreview =
+        c.victim_name ??
+        ((c.kind === 'unidentified' || c.kind === 'unclaimed')
+          ? 'Unidentified person'
+          : 'Name not released');
+      const yearPreview = c.incident_date
+        ? c.incident_date.slice(0, 4)
+        : null;
+      const kindLabel =
+        c.kind === 'homicide' || c.kind === 'suspicious_death'
+          ? 'Homicide'
+          : c.kind === 'missing'
+          ? 'Missing'
+          : 'Unidentified';
+      const metaPreview = [kindLabel, yearPreview, c.location_state]
+        .filter(Boolean)
+        .join(' · ');
       return {
         id: c.slug,
         lat,
@@ -568,6 +593,10 @@ function LeafletRenderer({
           c.recency_alpha != null
             ? alphaToDays(c.recency_alpha)
             : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null),
+        popup: {
+          title: titlePreview,
+          meta: metaPreview,
+        },
       };
     });
   }, [cases, selectedSlug]);
@@ -584,6 +613,7 @@ function LeafletRenderer({
       zones={zones}
       zonesVisible={zonesVisible}
       onMarkerPress={onMarkerPress}
+      onMarkerOpen={onMarkerOpen}
       onRegionChange={onRegionChange}
     />
   );
