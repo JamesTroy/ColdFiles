@@ -57,7 +57,7 @@ export default function MeScreen() {
   };
 
   const handleSupportEmail = async () => {
-    const subject = 'The Cold File — Support request';
+    const subject = 'The Cold Files — Support request';
     const body = `\n\n— diagnostics —\n${assembleDiagnosticsText()}\n`;
     const url = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     try {

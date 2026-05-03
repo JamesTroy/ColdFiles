@@ -1,7 +1,7 @@
 /**
  * Onboarding — three-screen first-launch flow.
  *
- *   1. Purpose: what The Cold File is, what it's not.
+ *   1. Purpose: what The Cold Files is, what it's not.
  *   2. Content warning: photos and narratives include depictions of
  *      deceased and missing persons. Mature 17+ rating disclosed up
  *      front so users opt in with eyes open.
@@ -42,7 +42,7 @@ interface Step {
 const STEPS: Step[] = [
   {
     eyebrow: 'WELCOME',
-    title: 'The Cold File',
+    title: 'The Cold Files',
     body: [
       'Discover unsolved cases — homicides, missing persons, unidentified-person investigations — in your area.',
       'When you have information, the app routes you to the agency that owns the case. We never read or store your tip.',
@@ -53,7 +53,7 @@ const STEPS: Step[] = [
     eyebrow: 'CONTENT NOTICE',
     title: 'A few things to know',
     body: [
-      'The Cold File contains depictions of deceased and missing persons, including photos sourced from public agency releases.',
+      'The Cold Files contains depictions of deceased and missing persons, including photos sourced from public agency releases.',
       'Sensitive imagery (forensic reconstruction, post-mortem material) is hidden behind a tap. Tap to view, or scroll past.',
       'This app is rated 17+ and is not directed at children.',
     ],

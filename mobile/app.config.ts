@@ -11,7 +11,7 @@
 import type { ExpoConfig } from 'expo/config';
 
 const config: ExpoConfig = {
-  name: 'The Cold File',
+  name: 'The Cold Files',
   slug: 'coldfile',
   version: '1.0.2',
   orientation: 'portrait',

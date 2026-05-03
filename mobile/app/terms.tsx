@@ -7,12 +7,12 @@ export default function TermsScreen() {
       lastUpdated="2026-04-28"
       sections={[
         {
-          body: ['By using The Cold File, you agree to these terms.'],
+          body: ['By using The Cold Files, you agree to these terms.'],
         },
         {
           heading: 'What this app does',
           body: [
-            'The Cold File aggregates publicly available information about unsolved cases (homicides, missing persons, unidentified persons) from law enforcement agencies and case-awareness aggregators. The app helps you discover cases and submit tips to the agencies that own them.',
+            'The Cold Files aggregates publicly available information about unsolved cases (homicides, missing persons, unidentified persons) from law enforcement agencies and case-awareness aggregators. The app helps you discover cases and submit tips to the agencies that own them.',
           ],
         },
         {

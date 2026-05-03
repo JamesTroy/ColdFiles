@@ -8,7 +8,7 @@ export default function AboutScreen() {
       sections={[
         {
           body: [
-            'The Cold File is a discovery and tip-routing app for unsolved cases — homicides, missing persons, and unidentified-person investigations.',
+            'The Cold Files is a discovery and tip-routing app for unsolved cases — homicides, missing persons, and unidentified-person investigations.',
             'Cold cases get cold partly because they fall out of public attention. This app puts them back in front of people who might recognize something — a name, a place, a face — and routes any tip directly to the agency that owns the case.',
           ],
         },

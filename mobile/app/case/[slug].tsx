@@ -91,7 +91,7 @@ export default function CaseDetailScreen() {
       yearAndPlace,
       url,
       '',
-      'Shared from The Cold File',
+      'Shared from The Cold Files',
     ]
       .filter(Boolean)
       .join('\n');

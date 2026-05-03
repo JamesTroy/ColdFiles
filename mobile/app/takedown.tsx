@@ -8,7 +8,7 @@ export default function TakedownScreen() {
       sections={[
         {
           body: [
-            'If you are a family member or rights holder of someone whose case appears in The Cold File, and you would like a photo or case removed, or information corrected, this page explains how.',
+            'If you are a family member or rights holder of someone whose case appears in The Cold Files, and you would like a photo or case removed, or information corrected, this page explains how.',
           ],
         },
         {

@@ -306,7 +306,7 @@ export default function MapScreen() {
               ]}
             >
               <SerifTitle size="h2" style={{ fontSize: 22 }}>
-                The Cold File
+                The Cold Files
               </SerifTitle>
               {source === 'sample' ? <SampleTag /> : null}
             </Animated.View>

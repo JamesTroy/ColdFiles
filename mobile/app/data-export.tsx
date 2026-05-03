@@ -1,7 +1,7 @@
 /**
  * Download my data — privacy-control screen.
  *
- * Surfaces every artifact The Cold File has stored on the user's device and
+ * Surfaces every artifact The Cold Files has stored on the user's device and
  * account: saved cases, submitted tips, watch zones. The user taps "Download
  * data", we gather the payload, JSON.stringify it, and hand it to the OS share
  * sheet via React Native's built-in Share API. Delivery is OTA-only — no new
@@ -81,7 +81,7 @@ export default function DataExportScreen() {
       setStatus('sharing');
       const result = await Share.share({
         message: json,
-        title: 'The Cold File — your data',
+        title: 'The Cold Files — your data',
       });
       // RN Share returns activityType undefined when the user dismisses the
       // sheet on iOS, and action 'dismissedAction' on iOS only. Either way
@@ -170,7 +170,7 @@ export default function DataExportScreen() {
         >
           <InfoText>
             Includes your saved cases, submitted tips, and watch zones —
-            everything The Cold File has stored on this device. We don&apos;t
+            everything The Cold Files has stored on this device. We don&apos;t
             sell or share your data.
           </InfoText>
         </View>
@@ -178,7 +178,7 @@ export default function DataExportScreen() {
         <NarrativeText style={{ marginTop: 18 }}>
           Tap below to package your data as JSON and hand it to your device&apos;s
           share sheet — save it to Files, email it to yourself, or send it to
-          another app. The Cold File never sees the export.
+          another app. The Cold Files never sees the export.
         </NarrativeText>
 
         <View
