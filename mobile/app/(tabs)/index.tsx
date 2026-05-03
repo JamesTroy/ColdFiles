@@ -38,11 +38,9 @@ import {
   type MapsMarker,
   isNativeMapAvailable,
 } from '@/components/cf/maps-view';
-import { PeekSheet } from '@/components/cf/peek-sheet';
 import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
-import { kindLine } from '@/lib/format';
 import { useCasesInBbox, type CaseBounds } from '@/lib/hooks/use-cases-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
 import { useWatchZones } from '@/lib/hooks/use-watch-zones';
@@ -66,28 +64,6 @@ function alphaToDays(alpha: number): number | null {
   if (alpha >= 0.99) return 1;
   if (alpha >= 0.49) return 7;
   return null;
-}
-
-/**
- * Haversine distance in miles between user and a case. Returns null when
- * either half is missing — peek-sheet renders that as the bare "SELECTED"
- * label, no trailing distance. Avoids the "less than 0.1 mi away" reading
- * users got when distance was unavailable but defaulted to 0.
- */
-function computeClientDistanceMiles(
-  here: { lat: number; lng: number; fresh: boolean } | null | undefined,
-  c: { lat: number | null; lng: number | null },
-): number | null {
-  if (!here || !here.fresh) return null;
-  if (c.lat == null || c.lng == null) return null;
-  const earthRadiusMi = 3958.7613;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(c.lat - here.lat);
-  const dLng = toRad(c.lng - here.lng);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(here.lat)) * Math.cos(toRad(c.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * earthRadiusMi * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
 export default function MapScreen() {
@@ -489,46 +465,21 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      {selectedSlug ? (
-        (() => {
-          const selectedCase = cases.find((c) => c.slug === selectedSlug);
-          if (!selectedCase) return null;
-          // cases_in_bbox doesn't return distance_miles (the RPC was rebuilt
-          // for view-bounded queries that don't carry a search origin).
-          // Compute client-side from user.here when both halves are present.
-          // Falls back to null when location isn't granted, which the
-          // peek-sheet renders as "SELECTED" without the trailing miles.
-          const computedDistance = computeClientDistanceMiles(
-            here,
-            selectedCase,
-          );
-          return (
-            <PeekSheet
-              distanceMiles={computedDistance}
-              kindLine={kindLine(selectedCase)}
-              victimName={peekDisplayName(selectedCase)}
-              onOpen={() =>
-                router.push({
-                  pathname: '/case/[slug]',
-                  params: { slug: selectedCase.slug },
-                })
-              }
-              onDismiss={handleClearSelection}
-            />
-          );
-        })()
-      ) : (
-        <MapBottomSheet
-          ref={sheetRef}
-          cases={cases}
-          selectedSlug={null}
-          onClearSelection={handleClearSelection}
-          daysFor={daysFor}
-          animatedIndex={sheetIndex}
-          onWatchHere={() => router.push('/watch-zone')}
-          watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
-        />
-      )}
+      {/* Bottom-sheet shows the cases list always. The previously-shown
+          PeekSheet (when a pin was selected) is now replaced by the
+          in-map case-file popup that opens directly above the tapped
+          pin — the bottom-sheet stays put as the cases list browser
+          regardless of selection state. */}
+      <MapBottomSheet
+        ref={sheetRef}
+        cases={cases}
+        selectedSlug={selectedSlug}
+        onClearSelection={handleClearSelection}
+        daysFor={daysFor}
+        animatedIndex={sheetIndex}
+        onWatchHere={() => router.push('/watch-zone')}
+        watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
+      />
     </View>
   );
 }
@@ -850,20 +801,6 @@ function SampleTag() {
   );
 }
 
-/**
- * Sub-header copy. Drops a locality string entirely — `useHere` doesn't
- * reverse-geocode, and a hardcoded "VENTURA" lies for any reviewer or
- * tester outside that metro. Radius is also dropped for v1.0.0: the
- * map effectively shows all seeded cases (5000mi radius covers the
- * continental US from any starting point), so showing "5000mi" would
- * be misleading. v1.0.1 reintroduces locality + radius once the
- * LA-county scraper densifies the seed.
- */
-function peekDisplayName(c: CaseRowMapNear): string {
-  if (c.victim_name) return c.victim_name;
-  if (c.kind === 'unidentified' || c.kind === 'unclaimed') return 'Unidentified person';
-  return 'Name not released';
-}
 
 function headerSubLabel(count: number | null): string {
   if (count == null) return 'LOADING';
