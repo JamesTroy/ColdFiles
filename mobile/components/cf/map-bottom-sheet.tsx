@@ -33,7 +33,7 @@ import { Pressable, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 
 import { tokens } from '@/constants/theme';
-import { kindLine } from '@/lib/format';
+import { distancePhrase, kindLine } from '@/lib/format';
 import type { CaseRowMapNear } from '@/lib/types/database';
 
 import { CaseRow } from './case-row';
@@ -364,5 +364,5 @@ function displayName(row: CaseRowMapNear): string {
 
 function distanceLine(row: CaseRowMapNear): string {
   if (row.distance_miles == null) return 'SELECTED';
-  return `SELECTED · ${row.distance_miles.toFixed(1)} mi away`;
+  return `SELECTED · ${distancePhrase(row.distance_miles)}`;
 }

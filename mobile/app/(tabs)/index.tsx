@@ -519,19 +519,52 @@ function LeafletRenderer({
   onRegionChange?: (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => void;
 }) {
   const markers: LeafletMarker[] = useMemo(() => {
-    return cases
-      .filter((c) => c.lat != null && c.lng != null)
-      .map((c) => ({
+    // Many cases land on the same fallback coordinate (city centroid,
+    // county centroid, etc.) when the source didn't carry precise
+    // location data. Stacks at the same lat/lng force markercluster
+    // into spiderfy mode, which spirals pins around the cluster center
+    // — visually dramatic, often unstable, and the "0.0 miles" sub-
+    // label reads like a bug. Detect groups of coincident pins and
+    // apply a small deterministic jitter so pins render at distinct
+    // positions without the spiderfy. ~0.0008° ≈ 90 meters at typical
+    // mid-latitudes — visible at zoom 14+ as separate pins, invisible
+    // at low zoom.
+    const filtered = cases.filter((c) => c.lat != null && c.lng != null);
+    const groups = new Map<string, typeof filtered>();
+    for (const c of filtered) {
+      const k = `${(c.lat as number).toFixed(5)}|${(c.lng as number).toFixed(5)}`;
+      const arr = groups.get(k);
+      if (arr) arr.push(c);
+      else groups.set(k, [c]);
+    }
+    return filtered.map((c) => {
+      const k = `${(c.lat as number).toFixed(5)}|${(c.lng as number).toFixed(5)}`;
+      const group = groups.get(k);
+      let lat = c.lat as number;
+      let lng = c.lng as number;
+      if (group && group.length > 1) {
+        const idx = group.findIndex((g) => g.slug === c.slug);
+        if (idx > 0) {
+          // Spread on a small ring around the shared point. 90m radius,
+          // angles split evenly per group member. Deterministic so the
+          // same case always lands at the same offset across renders.
+          const angle = (idx / group.length) * Math.PI * 2;
+          lat += Math.cos(angle) * 0.0008;
+          lng += Math.sin(angle) * 0.0008;
+        }
+      }
+      return {
         id: c.slug,
-        lat: c.lat as number,
-        lng: c.lng as number,
+        lat,
+        lng,
         kind: c.kind,
         selected: c.slug === selectedSlug,
         recentDays:
           c.recency_alpha != null
             ? alphaToDays(c.recency_alpha)
             : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null),
-      }));
+      };
+    });
   }, [cases, selectedSlug]);
 
   return (

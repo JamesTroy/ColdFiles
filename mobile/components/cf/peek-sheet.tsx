@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, View } from 'react-native';
 
 import { tokens } from '@/constants/theme';
+import { distancePhrase } from '@/lib/format';
 
 import { MonoLabel, SerifTitle } from './text';
 
@@ -111,7 +112,7 @@ export function PeekSheet({
           tracking={tokens.tracking.label}
           color={tokens.color.text.secondary}
         >
-          {`SELECTED · ${distanceMiles.toFixed(1)} mi away`}
+          {`SELECTED · ${distancePhrase(distanceMiles)}`}
         </MonoLabel>
         <MonoLabel
           size={tokens.size.monoChip}
