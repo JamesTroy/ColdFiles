@@ -546,7 +546,7 @@ function SaveSheet({
               marginBottom: 20,
             }}
           >
-            We&apos;ll have it ready in your Saved tab next time you open the app.
+            We&apos;ll send a push when a new case lands inside it. Turn notifications on in Me → Notifications.
           </NarrativeText>
 
           <MonoLabel
