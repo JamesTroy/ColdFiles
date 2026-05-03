@@ -233,15 +233,27 @@ export default function MapScreen() {
   } = useCasesInBbox({
     bounds: fetchBounds,
     kinds: null,
-    // Limit set just over the active corpus size so the user sees
-    // every case in any bbox, including continental zoom. The corpus
-    // is ~3,100 today; 3500 leaves headroom as new sources land.
-    // Performance note: at low zoom this returns the full corpus,
-    // which leaflet-markercluster handles fine via chunkedLoading.
-    // The new index on cases(last_changed_at DESC NULLS LAST)
-    // (migration 23) keeps the ORDER BY + LIMIT path index-walked,
-    // so RPC time scales with limit not with corpus size.
-    limit: 3500,
+    // Limit set well above the active corpus so a continental-zoom
+    // bbox returns every case, never silently clipping the
+    // longest-cold rows off the bottom of ORDER BY last_changed_at
+    // DESC NULLS LAST. With the doe_uid rescrape the corpus crossed
+    // ~3,800 active cases (vs the ~3,100 baseline) and 3,500 was
+    // visibly clipping. 6,000 headroom covers the next two scrape
+    // cycles at the current growth pace.
+    //
+    // Performance: at low zoom this returns the full corpus, which
+    // leaflet-markercluster handles fine via chunkedLoading. The
+    // index on cases(last_changed_at DESC NULLS LAST) WHERE
+    // deleted_at IS NULL (migration 23) keeps the ORDER BY + LIMIT
+    // path index-walked, so RPC time scales with limit not with
+    // corpus size.
+    //
+    // Long-term: this is a stopgap. The proper answer is server-
+    // side aggregation — return cluster centroids at low zoom,
+    // individual rows at high zoom — instead of shipping the entire
+    // corpus to the client and clustering there. Queue once corpus
+    // growth makes the per-call payload meaningful (~10k+).
+    limit: 6000,
   });
 
   const counts = useMemo(() => {
