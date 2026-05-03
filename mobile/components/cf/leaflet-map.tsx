@@ -1131,9 +1131,22 @@ function buildLeafletHtml(
       };
 
       // Force Leaflet to re-measure its container. Called from RN whenever
-      // the parent View's onLayout reports a new size.
+      // the parent View's onLayout reports a new size, plus from the
+      // 0/100/500ms cascade after init.
+      //
+      // Also force-fires moveend so the region postMessage re-runs with
+      // post-invalidate bounds. invalidateSize fires moveend natively
+      // *only when the container size changed*; firing it ourselves
+      // covers the no-op invalidate path so the parent always gets a
+      // refresh after a measure. Consecutive fires collapse into one
+      // postMessage via the existing 200ms regionTimer debounce.
+      //
+      // The initial-region seed at 'ready' time stays in place — it
+      // covers the case where the WebView mounted at the right size and
+      // none of the invalidate calls produce a meaningful re-emit.
       window.__cf_invalidate = function () {
         try { map.invalidateSize(true); } catch (e) {}
+        try { map.fire('moveend'); } catch (e) {}
       };
 
       // Auto-invalidate whenever the WebView viewport itself changes.
