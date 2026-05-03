@@ -203,7 +203,44 @@ export default function MapScreen() {
   // (empty) data + loading=false until the WebView's first onRegionChange
   // lands; that fires synchronously after Leaflet's map.on('load') so
   // there's no perceptible delay.
-  const [bounds, setBounds] = useState<CaseBounds | null>(null);
+  // Two layers of bbox state:
+  //   visibleBounds: what Leaflet just reported as the viewport
+  //   fetchBounds:   the bbox we passed to the RPC; deliberately wider
+  //                  than visibleBounds so small pans don't trigger a
+  //                  refetch every time. Updated only when visibleBounds
+  //                  drifts outside the current fetchBounds.
+  const [fetchBounds, setFetchBounds] = useState<CaseBounds | null>(null);
+  const fetchBoundsRef = useRef<CaseBounds | null>(null);
+
+  const handleRegionChange = useCallback((nextVisible: CaseBounds) => {
+    const current = fetchBoundsRef.current;
+    // First report — or new visible bbox extends outside the cached
+    // fetch bbox. Re-fetch with an expanded version so subsequent pans
+    // within the buffer don't re-fire the RPC.
+    const insideCurrent =
+      !!current &&
+      nextVisible.minLng >= current.minLng &&
+      nextVisible.minLat >= current.minLat &&
+      nextVisible.maxLng <= current.maxLng &&
+      nextVisible.maxLat <= current.maxLat;
+    if (insideCurrent) return;
+
+    // Expand by 50% on each axis around the visible bbox center. With
+    // result_limit:100, the RPC cap absorbs the extra area; if a region
+    // truly has more than 100 cases inside the expanded bbox, the user
+    // will see <100 returned (already true today, the cap was 100).
+    const dLng = nextVisible.maxLng - nextVisible.minLng;
+    const dLat = nextVisible.maxLat - nextVisible.minLat;
+    const expanded: CaseBounds = {
+      minLng: nextVisible.minLng - dLng * 0.5,
+      minLat: nextVisible.minLat - dLat * 0.5,
+      maxLng: nextVisible.maxLng + dLng * 0.5,
+      maxLat: nextVisible.maxLat + dLat * 0.5,
+    };
+    fetchBoundsRef.current = expanded;
+    setFetchBounds(expanded);
+  }, []);
+
   const {
     data: casesAll,
     loading,
@@ -211,7 +248,7 @@ export default function MapScreen() {
     refetch,
     source,
   } = useCasesInBbox({
-    bounds,
+    bounds: fetchBounds,
     kinds: null,
     limit: 100,
   });
@@ -370,7 +407,7 @@ export default function MapScreen() {
             here={here}
             zones={zoneOverlays}
             zonesVisible={zonesVisible}
-            onRegionChange={setBounds}
+            onRegionChange={handleRegionChange}
           />
         )}
         {zoneOverlays.length > 0 ? (
