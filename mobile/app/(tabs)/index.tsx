@@ -301,11 +301,24 @@ export default function MapScreen() {
           <View style={{ flex: 1 }}>
             <Animated.View
               style={[
-                { flexDirection: 'row', alignItems: 'center' },
+                { flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' },
                 wordmarkStyle,
               ]}
             >
-              <SerifTitle size="h2" style={{ fontSize: 22 }}>
+              {/* numberOfLines:1 + adjustsFontSizeToFit prevents Android Text
+                  in a flexDirection:'row' parent from silently visually
+                  clipping the trailing word when its measured width exceeds
+                  the available row space — the prior brand "The Cold File"
+                  fit; "The Cold Files" with the SearchButton sibling and
+                  varying inset widths can clip to "The Cold" on some
+                  device-width / font-scale combinations. */}
+              <SerifTitle
+                size="h2"
+                style={{ fontSize: 22, flexShrink: 1 }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+              >
                 The Cold Files
               </SerifTitle>
               {source === 'sample' ? <SampleTag /> : null}
