@@ -27,9 +27,19 @@
 -- conversation. PostgREST gzips on the wire; real over-the-wire size is
 -- substantially lower.
 --
--- Idempotent via CREATE OR REPLACE FUNCTION.
+-- DROP-then-CREATE is required here, not CREATE OR REPLACE: PostgreSQL
+-- rejects in-place replacement when the RETURNS TABLE signature changes
+-- (error 42P13). The DROP is qualified by full argument signature so it
+-- only targets this overload — safe to re-run.
+--
+-- Idempotent via DROP IF EXISTS + CREATE.
 
-create or replace function cases_in_bbox(
+drop function if exists public.cases_in_bbox(
+  double precision, double precision, double precision, double precision,
+  case_kind[], case_status[], integer
+);
+
+create function cases_in_bbox(
   min_lng double precision,
   min_lat double precision,
   max_lng double precision,
