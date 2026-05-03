@@ -279,7 +279,9 @@ export default function MeScreen() {
         {/* Card 4 — Help / Notifications / About */}
         <Card>
           <NavRow label="Help / contact" onPress={handleSupportEmail} />
-          <NavRow label="Enable notifications" onPress={() => void handleEnableNotifications()} />
+          {/* "Enable notifications" hidden in v1.0.1 — TurboModule crash on
+              Pixel 10 Pro XL Android 16 / RN 0.83 new arch. Re-enable in
+              v1.0.2 native rebuild (versionCode 3) once root-caused. */}
           <NavRow label="Pinned regions" onPress={() => router.push('/region-prefs')} />
           <NavRow label="About · mission" onPress={() => router.push('/about')} />
           <NavRow label="Privacy policy" onPress={() => router.push('/privacy')} />
