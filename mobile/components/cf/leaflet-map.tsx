@@ -78,6 +78,14 @@ interface LeafletMapProps {
   }) => void;
 }
 
+// Module-level memory of the last-viewed map center. Survives Leaflet
+// WebView remounts within a single JS session — when Android reclaims
+// the WebView under memory pressure (commonly while case detail occludes
+// the map), the WebView reloads on return and would otherwise snap to
+// the user-location default via the auto-pan effect. Persisting the
+// region across remounts keeps the user where they were browsing.
+let lastViewedCenter: { lat: number; lng: number; zoomLevel?: number } | null = null;
+
 export function LeafletMap({
   center,
   markers,
@@ -90,8 +98,11 @@ export function LeafletMap({
   const webRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
 
+  // Use the remembered center on remount when one exists. The first ever
+  // mount in a session falls through to the parent-supplied center
+  // (typically the user's last-known location).
   const html = useMemo(
-    () => buildLeafletHtml(center, here ?? null, markers),
+    () => buildLeafletHtml(lastViewedCenter ?? center, here ?? null, markers),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -128,7 +139,11 @@ export function LeafletMap({
   //      retrigger and fight a user who panned to browse.
   // Small unprompted movements (<5km) only update the dot via __cf_setHere
   // and don't disturb the viewport — respects map browsing.
-  const pannedOnceRef = useRef(false);
+  // If a lastViewedCenter was restored on mount, skip the "first fix per
+  // mount" auto-pan — the user was already browsing somewhere, don't yank
+  // them back to their own location. `freshRising` (explicit recenter
+  // request) and `>5km jump` triggers still apply.
+  const pannedOnceRef = useRef(lastViewedCenter !== null);
   const lastPannedRef = useRef<{ lat: number; lng: number } | null>(null);
   const prevFreshRef = useRef(false);
   useEffect(() => {
@@ -186,8 +201,17 @@ export function LeafletMap({
           /* haptic engine missing or denied — silent */
         });
         onMarkerPress?.(msg.id);
-      } else if (msg.type === 'region' && onRegionChange) {
-        onRegionChange(msg.bounds);
+      } else if (msg.type === 'region') {
+        // Capture center+zoom for the next mount's initial position so
+        // navigating away and back doesn't snap the map to user-location.
+        if (msg.center) {
+          lastViewedCenter = {
+            lat: msg.center.lat,
+            lng: msg.center.lng,
+            zoomLevel: msg.center.zoomLevel,
+          };
+        }
+        if (onRegionChange) onRegionChange(msg.bounds);
       }
     } catch {
       // non-JSON message from injected script — ignore
@@ -550,11 +574,14 @@ function buildLeafletHtml(
       }).addTo(map);
 
       // Region change → debounced postMessage so the consumer can refetch.
+      // Includes both bounds (for the cases query) and center+zoom (for
+      // the React-side last-viewed memory that survives WebView remount).
       var regionTimer = null;
       map.on('moveend zoomend', function () {
         if (regionTimer) clearTimeout(regionTimer);
         regionTimer = setTimeout(function () {
           var b = map.getBounds();
+          var c = map.getCenter();
           postMessage({
             type: 'region',
             bounds: {
@@ -562,6 +589,11 @@ function buildLeafletHtml(
               minLat: b.getSouth(),
               maxLng: b.getEast(),
               maxLat: b.getNorth(),
+            },
+            center: {
+              lat: c.lat,
+              lng: c.lng,
+              zoomLevel: map.getZoom(),
             },
           });
         }, 200);
