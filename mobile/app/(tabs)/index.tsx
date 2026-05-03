@@ -105,18 +105,24 @@ export default function MapScreen() {
         })),
     [zones],
   );
-  // Shared value the bottom sheet writes its progress into (0=peek, 1=mid,
-  // 2=full). Drives the header collapse — wordmark fades, subtitle disappears,
-  // height shrinks to chip-row only as the user pulls the list up.
-  const sheetIndex = useSharedValue(0);
+  // Shared value the bottom sheet writes its progress into:
+  //   0 = minimized (handle only)
+  //   1 = peek      (count + WATCH chip)
+  //   2 = mid       (list at 45%)
+  //   3 = full      (list at 92%)
+  // The header animations key off the peek-to-mid range (1 → 2) since
+  // that's where the visual real estate competition starts. Below peek
+  // (0 → 1) the user has explicitly hidden the sheet, so the header
+  // stays in its full visible state.
+  const sheetIndex = useSharedValue(1);
 
   const wordmarkStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(sheetIndex.value, [0, 0.6], [1, 0], Extrapolation.CLAMP),
+    opacity: interpolate(sheetIndex.value, [1, 1.6], [1, 0], Extrapolation.CLAMP),
     transform: [
       {
         translateY: interpolate(
           sheetIndex.value,
-          [0, 1],
+          [1, 2],
           [0, -16],
           Extrapolation.CLAMP,
         ),
@@ -125,14 +131,14 @@ export default function MapScreen() {
   }));
 
   const subtitleStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(sheetIndex.value, [0, 0.4], [1, 0], Extrapolation.CLAMP),
-    height: interpolate(sheetIndex.value, [0, 1], [16, 0], Extrapolation.CLAMP),
+    opacity: interpolate(sheetIndex.value, [1, 1.4], [1, 0], Extrapolation.CLAMP),
+    height: interpolate(sheetIndex.value, [1, 2], [16, 0], Extrapolation.CLAMP),
   }));
 
   const headerStyle = useAnimatedStyle(() => ({
     paddingBottom: interpolate(
       sheetIndex.value,
-      [0, 1],
+      [1, 2],
       [12, 4],
       Extrapolation.CLAMP,
     ),

@@ -36,8 +36,8 @@ import { CaseRow } from './case-row';
 import { MonoLabel } from './text';
 
 export interface MapBottomSheetHandle {
-  /** Snap to peek (0), mid (1), or full (2). */
-  snapToIndex: (index: 0 | 1 | 2) => void;
+  /** Snap to minimized (0), peek (1), mid (2), or full (3). */
+  snapToIndex: (index: 0 | 1 | 2 | 3) => void;
   /** Scroll the list to a case's slug at the current snap point. */
   scrollToSlug: (slug: string) => void;
 }
@@ -70,7 +70,14 @@ interface MapBottomSheetProps {
   watchHereDisabled?: boolean;
 }
 
-const SNAP_POINTS = [96, '45%', '92%'] as const;
+// Four snap points:
+//   0: 28px — minimized; just the handle bar visible. User dragged the
+//      sheet down to "hide" the cases list and reclaim map real estate.
+//      Swipe up from the handle returns to peek.
+//   1: 96px — peek; count + WATCH chip visible. Default starting state.
+//   2: 45%   — mid; cases list visible at half-screen.
+//   3: 92%   — full; list expanded over the map.
+const SNAP_POINTS = [28, 96, '45%', '92%'] as const;
 
 export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetProps>(
   function MapBottomSheet(
@@ -141,7 +148,10 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
     return (
       <BottomSheet
         ref={sheetRef}
-        index={0}
+        // Default to peek (index 1) so the user lands on the cases-in-view
+        // count + WATCH chip on first paint. Index 0 is the minimized
+        // (handle-only) snap, used when the user drags down to hide.
+        index={1}
         animatedIndex={animatedIndex}
         snapPoints={SNAP_POINTS as unknown as (string | number)[]}
         backgroundStyle={{
