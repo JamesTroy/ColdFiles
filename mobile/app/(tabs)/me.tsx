@@ -17,10 +17,9 @@
  * region-prefs. Keep them centralized.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { Alert, Platform, ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card, NavRow, Row } from '@/components/cf/screen-shell';
@@ -32,118 +31,6 @@ import { useSourceMix, type SourceMixRow } from '@/lib/hooks/use-source-mix';
 import { signOut, useUser } from '@/lib/hooks/use-user';
 
 const SUPPORT_EMAIL = 'support@coldfile.app';
-
-const PUSH_TOKEN_STORAGE_KEY = 'cf:push_token:v1';
-const INSTALL_ID_STORAGE_KEY = 'cf:install_id:v1';
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-/**
- * Inline push-token registration. The dedicated /push-prefs screen crashes
- * on Pixel 10 Pro XL v1.0.1 — JS-only OTAs aren't reaching the root cause,
- * and a native rebuild is the v1.0.2 path. Until then, this handler runs
- * the entire registration flow without navigating: permission prompt →
- * Expo push token → register_push_token RPC → Alert with the result. The
- * smoke-test path (token in push_tokens) works without ever opening a
- * separate screen.
- *
- * Dynamic imports for expo-notifications + expo-constants so a module-load
- * error surfaces in the catch block, not as a hard crash.
- */
-async function handleEnableNotifications() {
-  try {
-    const Notifications = await import('expo-notifications');
-    const Constants = await import('expo-constants');
-
-    const { status: perm } = await Notifications.requestPermissionsAsync();
-    if (perm !== 'granted') {
-      Alert.alert(
-        'Notifications not enabled',
-        perm === 'denied'
-          ? 'Enable notifications in system Settings to receive alerts.'
-          : 'Permission was not granted.',
-      );
-      return;
-    }
-
-    const projectId =
-      (Constants.default.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)
-        ?.eas?.projectId;
-    if (!projectId) {
-      Alert.alert('Setup error', 'Missing EAS projectId — push token cannot be issued.');
-      return;
-    }
-
-    const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId });
-    const expoPushToken = tokenResult.data;
-    try {
-      await AsyncStorage.setItem(PUSH_TOKEN_STORAGE_KEY, expoPushToken);
-    } catch {
-      /* non-fatal */
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      Alert.alert('Notifications enabled (local)', 'Backend not configured. Token saved on device.');
-      return;
-    }
-
-    const installId = await loadOrCreateInstallId();
-    const platformLabel = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/register_push_token`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        apikey: SUPABASE_ANON_KEY,
-        authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({
-        p_expo_push_token: expoPushToken,
-        p_install_id: installId,
-        p_platform: platformLabel,
-        p_prefs: {
-          savedCaseUpdates: true,
-          watchZoneAlerts: true,
-          tipStatusUpdates: true,
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      Alert.alert('Register failed', `${res.status} ${body.slice(0, 240)}`);
-      return;
-    }
-
-    Alert.alert(
-      'Notifications enabled',
-      `Token registered.\n…${expoPushToken.slice(-12)}`,
-    );
-  } catch (err) {
-    Alert.alert(
-      'Could not enable notifications',
-      err instanceof Error ? err.message : String(err),
-    );
-  }
-}
-
-async function loadOrCreateInstallId(): Promise<string> {
-  try {
-    const existing = await AsyncStorage.getItem(INSTALL_ID_STORAGE_KEY);
-    if (existing) return existing;
-  } catch {
-    /* fallthrough */
-  }
-  const id =
-    typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto
-      ? globalThis.crypto.randomUUID()
-      : `cf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  try {
-    await AsyncStorage.setItem(INSTALL_ID_STORAGE_KEY, id);
-  } catch {
-    /* non-fatal */
-  }
-  return id;
-}
 
 export default function MeScreen() {
   const insets = useSafeAreaInsets();
@@ -279,9 +166,7 @@ export default function MeScreen() {
         {/* Card 4 — Help / Notifications / About */}
         <Card>
           <NavRow label="Help / contact" onPress={handleSupportEmail} />
-          {/* "Enable notifications" hidden in v1.0.1 — TurboModule crash on
-              Pixel 10 Pro XL Android 16 / RN 0.83 new arch. Re-enable in
-              v1.0.2 native rebuild (versionCode 3) once root-caused. */}
+          <NavRow label="Notifications" onPress={() => router.push('/notifications')} />
           <NavRow label="Pinned regions" onPress={() => router.push('/region-prefs')} />
           <NavRow label="About · mission" onPress={() => router.push('/about')} />
           <NavRow label="Privacy policy" onPress={() => router.push('/privacy')} />
