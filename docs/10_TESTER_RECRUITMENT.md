@@ -1,7 +1,9 @@
 # 10 — Closed-testing recruitment
 
 Three drafts to clear Google Play's 12-tester / 14-day requirement before
-the v1.0.0 production push.
+the production push. The shipped client is currently v1.0.2
+(versionCode 3); push notifications, map, sign-in, and saved cases are
+all working end-to-end on Android.
 
 The Cold File is a niche, mission-aligned product — generic beta-testing
 services are the wrong audience because they install once and bounce, and
@@ -9,6 +11,11 @@ Google's algorithm increasingly weights real engagement signal. The
 right move is to recruit from communities who actually care about the
 topic. Two posts (Reddit + Websleuths) plus the Play Console mechanics
 to onboard the testers who reply.
+
+**Important:** internal testing testers do NOT count toward the 14-day
+gate. Before posting recruitment, you must promote v1.0.2 from
+Internal testing → a new Closed Testing track. See the "Play Console
+setup" section at the bottom for the one-time setup.
 
 ---
 
@@ -49,11 +56,12 @@ actually use a tool like this.
 - Feedback welcome but not required — bugs, missing sources, anything
 
 **What the app does today:**
-- ~3,700 cases from Doe Network, Charley Project, Project: Cold Case, LASD homicide bureau
+- ~3,600 cases from Doe Network, Charley Project, Project: Cold Case, LASD homicide bureau
 - Map + list with case-type / state / date filters
 - Per-case detail with photo, key facts, narrative, agency contact
 - Tip submission deep-links to the agency's official channel
-- Save cases you're following; opt-in push notifications for saved-case updates and new cases in watch zones (v1.0.1)
+- Save cases you're following
+- Optional push notifications for new cases in watch zones you draw on the map
 
 **What it doesn't do:**
 - No ads, no in-app purchases, no premium tier
@@ -99,7 +107,7 @@ I'm a solo developer building **The Cold File**, a free Android app
 that consolidates unsolved homicide, missing-person, and
 unidentified-person cases from public sources (Doe Network, Charley
 Project, Project: Cold Case, LASD) into one searchable map and list.
-~3,700 cases at last count and growing.
+~3,600 cases at last count and growing.
 
 When you submit a tip through the app, it deep-links to the agency
 that owns the case — the app never reads or stores tip content. No
@@ -118,7 +126,7 @@ beyond what Google themselves require.
 **Why post here:** Websleuths members are exactly the audience this
 app is for. If you'd actually use a tool like this, your testing helps
 me clear the gate AND the feedback (missing sources, bugs, copy
-critiques, anything) goes straight into the v1.0.1 release.
+critiques, anything) goes straight into the next release.
 
 **To join:** PM me with the Google account email linked to your Play
 Store, and I'll send the opt-in link. Once accepted, the app installs
@@ -134,25 +142,38 @@ policy, the photo posture, or anything else before you decide.
 
 ## 3. Play Console — onboarding the testers who reply
 
-### One-time setup (your end)
+### One-time setup (DO THIS FIRST, before posting)
 
-1. Play Console → your app → **Testing → Closed testing**
-2. If you already have a closed test track, click **Manage**. Otherwise
-   click **Create track**, name it `Closed Testing v1`, save.
-3. **Testers** tab → **Manage testers**.
-4. Choose one of:
-   - **Create email list** → paste tester emails one per line → save
-   - **Google Group** → paste the group email (only works if your
-     testers are in a Google Group you control)
-5. Save changes.
-6. **Copy the opt-in URL** displayed in the Testers section. It looks
-   like:
-   ```
-   https://play.google.com/apps/testing/com.matteblackdev.coldfile
-   ```
-7. (Optional but recommended) Roll a release on this track if you
-   haven't yet. Without an active release on the track, testers see
-   "this app isn't available for you" when they tap the opt-in link.
+The 14-day gate runs on **closed testing**, not internal testing. You
+already have v1.0.2 vc3 on the internal track from earlier — promote
+it (or upload a fresh copy) to a closed track:
+
+1. Play Console → The Cold File → **Testing → Closed testing**
+2. **Create track** → name it `Closed Testing v1` (any name works) → Save
+3. On the new track's page, **Releases tab** → **Create new release**
+4. Two options for the AAB:
+   - **Promote from internal:** in the "App bundles" section there's a
+     "Use bundles from another track" link → pick Internal testing →
+     pick the v1.0.2 vc3 release → confirm
+   - **Or re-upload** `~/Desktop/coldfile-1.0.2-vc3.aab` directly
+5. Add release notes (copy from the v1.0.2 internal release if you have
+   them, or skip — closed testing release notes show in Play Console only)
+6. **Save** → **Review release** → **Start rollout to Closed testing**
+7. **Testers tab** on the closed track → **Manage testers**
+8. **Create email list** → name it `coldfile-testers` → paste emails
+   one per line as you collect them (start with your own to confirm
+   it works)
+9. Save
+10. Scroll to **How testers join your test** → **Copy link** — that's
+    your opt-in URL:
+    ```
+    https://play.google.com/apps/testing/com.matteblackdev.coldfile
+    ```
+    Same URL as internal testing — Play Store routes by Google
+    account membership, not URL.
+
+The 14-day clock starts the moment **12+ active testers** + **an
+active release on the closed track** both exist.
 
 ### Per-tester DM template
 
