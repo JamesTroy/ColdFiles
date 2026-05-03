@@ -23,7 +23,7 @@ import {
  *   https://www.doenetwork.org/cases/software/php/mpdatabase.php?id={ID}&fields=true
  * with sibling endpoints `&agencies=true` and `&images=true`.
  *
- * Index endpoints (8 for missing, 8 for unidentified) return all IDs scoped by
+ * Index endpoints (10 for missing, 10 for unidentified) return all IDs scoped by
  * (country × sex). A typical missing-person ID looks like `1002DMNY` — the trailing
  * 2 letters are the US state code; non-US cases use a different suffix layout that we
  * don't decode (state is left null and the location_text field is the source of truth).

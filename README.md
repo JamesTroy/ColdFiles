@@ -44,7 +44,7 @@ coldfile/
 
 ## Strategy in one screen
 
-1. **Federal-first ingestion.** Five national sources (NamUs, Charley Project, Doe Network, Project: Cold Case, Solve the Case) cover ~70% of nationally-known cases across all 50 states.
+1. **Federal-first ingestion.** Four national sources (Charley Project, Doe Network — missing, Doe Network — unidentified, Project: Cold Case) cover the corpus across all 50 states. NamUs is wired into the pipeline but dormant pending API access (see `sources/namus.ts` for the wake-up procedure).
 2. **State-level scrapers only for the four strong states.** FL, NJ, OR, TX.
 3. **Agency-direct for the launch metro.** LA County: LAPD per-bureau pages + LASD homicide blog + LA Crime Stoppers P3 as default tip route.
 4. **Dedupe is the moat.** A single `cases` row backed by N `case_sources`. Trust-weighted field merge handles conflicts.

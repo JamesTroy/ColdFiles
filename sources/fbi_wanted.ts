@@ -1,6 +1,28 @@
 /**
  * FBI Wanted — federal cold-case + missing-person feed.
  *
+ * ─── RETIRED — DO NOT RE-ACTIVATE ──────────────────────────────────────
+ *
+ * This source ingested historically but is editorially mis-fit for the
+ * cold-case / homicide track. Migration 15 deactivated it (`active=false`)
+ * after operator review; the corpus was dominated by tip-line bulletins
+ * (Civil Disorder, Building Damage, Allegiant Airlines, etc.) rather than
+ * the unsolved-homicide-victim posters the dataset name implies. See the
+ * `feedback_fbi_wanted_editorial_misfit` note in user memory for the full
+ * decision trail. The next investment in homicide coverage is LASD homicide
+ * bureau / agency-direct, not re-activating this source.
+ *
+ * The export below remains in `sources/index.ts` so the runtime can still
+ * discover historical case_sources rows attributed to FBI Wanted (without
+ * the export, those rows would be unattributable). Setting `active=true`
+ * on the sources table row WILL re-light ingest — guard against accidental
+ * re-activation when bulk-toggling sources.
+ *
+ * The endpoint shape + ingest behavior described below is preserved for
+ * historical context only. None of it runs today.
+ *
+ * ───────────────────────────────────────────────────────────────────────
+ *
  * Public open API at api.fbi.gov; no auth, no robots blocks. The dataset
  * carries:
  *   - ViCAP Homicides (unsolved homicide victims, identified by name)

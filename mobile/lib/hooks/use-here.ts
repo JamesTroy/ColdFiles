@@ -1,19 +1,37 @@
 /**
  * useHere — current device location, with permission state and freshness.
  *
- * Behavior:
- *   - Default state: { lat, lng } from tokens.map.defaultCenter, fresh: false.
- *     The "you are here" pulse is gated on fresh, so the placeholder dot
- *     stays static (per feedback_design_pulse_only_when_fresh — pulse
- *     implies live tracking; placeholders must not lie).
- *   - When permission is granted, we request a single coarse fix. Fresh
- *     flips to true for 30 seconds, then back to false. The map's pulse
- *     halo follows the fresh flag automatically.
- *   - permissionStatus exposes the granted/denied/undetermined state so
- *     onboarding / settings can prompt.
+ * Two distinct paths drive `here.lat` / `here.lng`. The `fresh` flag
+ * separates "the user just asked for their location" from passive
+ * background updates — the map's pulse halo gates on `fresh`, so the
+ * pulse only fires on the former (per feedback_design_pulse_only_when_fresh
+ * — pulse implies live tracking; passive lat/lng updates must not lie).
  *
- * Caller decides when to call requestPermission(); we don't fire it on
- * mount because that would trigger the system dialog without rationale.
+ * Behavior:
+ *
+ *   1. Default state: { lat, lng } from tokens.map.defaultCenter,
+ *      fresh: false. Static placeholder dot, no pulse.
+ *
+ *   2. Passive watch (auto, on permission grant + foreground):
+ *      Installs a Location.watchPositionAsync subscription with
+ *      accuracy=Balanced, distanceInterval=10m, timeInterval=5s. Updates
+ *      `lat`/`lng` as the user moves; LEAVES `fresh` UNTOUCHED. The
+ *      watch pauses when the app backgrounds and re-arms on foreground.
+ *      An immediate `getCurrentPositionAsync` fires on watch-start so
+ *      the dot snaps to current position without waiting for a 10m
+ *      movement.
+ *
+ *   3. Explicit acquire (`requestAndAcquire()`): prompts for permission
+ *      if undetermined, gets a single Balanced-accuracy fix, sets
+ *      `fresh: true` for 30 seconds, then flips back to false. The
+ *      map's pulse follows. Safe to call multiple times — re-arms the
+ *      30s window.
+ *
+ *   permissionStatus exposes granted/denied/undetermined so
+ *   onboarding / settings can prompt.
+ *
+ *   Callers decide when to invoke requestAndAcquire(). We don't fire it
+ *   on mount — that would trigger the system dialog without rationale.
  */
 
 import * as Location from 'expo-location';
