@@ -474,7 +474,6 @@ export default function MapScreen() {
         ref={sheetRef}
         cases={cases}
         selectedSlug={selectedSlug}
-        onClearSelection={handleClearSelection}
         daysFor={daysFor}
         animatedIndex={sheetIndex}
         onWatchHere={() => router.push('/watch-zone')}

@@ -1,15 +1,12 @@
 /**
  * Map bottom sheet — peek/mid/full snap points over the home map.
  *
- * Replaces the dismissible PeekSheet (one-shot on pin tap) with a persistent
- * three-snap sheet — Citizen / AllTrails pattern. The user always sees a
- * minimum 96dp peek showing "{N} CASES IN VIEW · most recent: {name}"; drag
- * up to mid for the case list; drag up to full for the list plus secondary
- * filters.
- *
- * Tapping a pin snaps the sheet to mid and brings that case to the top of
- * the list (selectedSlug pinned). Tapping the same pin again — or the X on
- * the selection header — clears the selection without moving the sheet.
+ * The peek shows "{N} CASES IN VIEW" plus an optional "+ WATCH" chip; drag
+ * up for the cases list. List rows are sorted by recency. Tapping a pin
+ * highlights the matching row in the list; the in-map popup carries the
+ * single-case affordance, so this sheet is purely the list browser. No
+ * mode-swapping, no selection-aware header — selection is just a row
+ * highlight.
  *
  * The map sits underneath, always partially visible. Map state is preserved
  * across all snap transitions; this is the design contract that makes "tap a
@@ -33,11 +30,10 @@ import { Pressable, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 
 import { tokens } from '@/constants/theme';
-import { distancePhrase, kindLine } from '@/lib/format';
 import type { CaseRowMapNear } from '@/lib/types/database';
 
 import { CaseRow } from './case-row';
-import { MonoLabel, SerifTitle } from './text';
+import { MonoLabel } from './text';
 
 export interface MapBottomSheetHandle {
   /** Snap to peek (0), mid (1), or full (2). */
@@ -48,9 +44,8 @@ export interface MapBottomSheetHandle {
 
 interface MapBottomSheetProps {
   cases: CaseRowMapNear[];
-  /** Currently selected case (from a pin tap). Pinned to the top of the list. */
+  /** Currently selected case (from a pin tap). Highlights the matching row. */
   selectedSlug: string | null;
-  onClearSelection: () => void;
   /** Slug-to-days helper for fresh dot rendering. */
   daysFor: (row: CaseRowMapNear) => number;
   /**
@@ -82,7 +77,6 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
     {
       cases,
       selectedSlug,
-      onClearSelection,
       daysFor,
       animatedIndex,
       onWatchHere,
@@ -103,16 +97,13 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
       },
     }));
 
-    // Browse-mode list. When the user has selected a pin, the body of the
-    // sheet goes empty — only the header renders — so they see exactly one
-    // thing about the case they tapped. Tapping the X clears the selection
-    // and the full list comes back. This is the "pin tap and browse-the-
-    // list are two different modes" contract.
+    // List always renders, sorted by recency. Selection just highlights
+    // the matching row — the in-map popup is the single-case affordance,
+    // so the sheet doesn't need a "selection mode" anymore.
     const ordered = useMemo(() => {
-      if (selectedSlug) return [];
       if (cases.length === 0) return cases;
       return [...cases].sort((a, b) => daysFor(a) - daysFor(b));
-    }, [cases, selectedSlug, daysFor]);
+    }, [cases, daysFor]);
 
     const renderItem = useCallback(
       ({ item }: { item: CaseRowMapNear }) => {
@@ -140,13 +131,11 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
       () => (
         <ListHeaderInner
           count={cases.length}
-          selectedRow={cases.find((c) => c.slug === selectedSlug) ?? null}
-          onClearSelection={onClearSelection}
           onWatchHere={onWatchHere}
           watchHereDisabled={watchHereDisabled}
         />
       ),
-      [cases, selectedSlug, onClearSelection, onWatchHere, watchHereDisabled],
+      [cases.length, onWatchHere, watchHereDisabled],
     );
 
     return (
@@ -186,77 +175,18 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
 );
 
 /**
- * Sheet header. At peek (96dp visible) the user sees just the first row of
- * this — count + most-recent. As the sheet expands the rest of the list
- * scrolls into view; the header stays at the top.
+ * Sheet header — count on the left, optional WATCH chip on the right.
+ * Stays mounted at the top of the list; visible at every snap point.
  */
 function ListHeaderInner({
   count,
-  selectedRow,
-  onClearSelection,
   onWatchHere,
   watchHereDisabled,
 }: {
   count: number;
-  selectedRow: CaseRowMapNear | null;
-  onClearSelection: () => void;
   onWatchHere?: () => void;
   watchHereDisabled: boolean;
 }) {
-  if (selectedRow) {
-    return (
-      <View
-        style={{
-          paddingHorizontal: 16,
-          paddingTop: 4,
-          paddingBottom: 12,
-          borderBottomWidth: 0.5,
-          borderBottomColor: tokens.color.border.subtle,
-        }}
-      >
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 4,
-          }}
-        >
-          <MonoLabel
-            size={tokens.size.monoLabel}
-            tracking={tokens.tracking.label}
-            color={tokens.color.text.secondary}
-          >
-            {distanceLine(selectedRow)}
-          </MonoLabel>
-          <Pressable
-            onPress={onClearSelection}
-            accessibilityRole="button"
-            accessibilityLabel="Clear selection"
-            hitSlop={12}
-            style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Ionicons name="close" size={16} color={tokens.color.text.secondary} />
-          </Pressable>
-        </View>
-        <SerifTitle size="h2" style={{ fontSize: 18 }}>
-          {displayName(selectedRow)}
-        </SerifTitle>
-        <MonoLabel
-          size={tokens.size.monoChip}
-          tracking={tokens.tracking.chip}
-          color={tokens.color.text.secondary}
-          style={{ marginTop: 4 }}
-        >
-          {kindLine(selectedRow)}
-        </MonoLabel>
-      </View>
-    );
-  }
-
-  // Default peek state — count on the left, contextual "+ Watch" chip on the
-  // right when the parent supplies one. The chip is the verb "save what I'm
-  // looking at"; the (separate) layers stack handles visibility toggles.
   return (
     <View
       style={{
@@ -356,13 +286,3 @@ function WatchChip({
   );
 }
 
-function displayName(row: CaseRowMapNear): string {
-  if (row.victim_name) return row.victim_name;
-  if (row.kind === 'unidentified' || row.kind === 'unclaimed') return 'Unidentified person';
-  return 'Name not released';
-}
-
-function distanceLine(row: CaseRowMapNear): string {
-  if (row.distance_miles == null) return 'SELECTED';
-  return `SELECTED · ${distancePhrase(row.distance_miles)}`;
-}
