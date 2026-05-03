@@ -225,6 +225,13 @@ export const projectColdCase: SourceConfig = {
         if (!Array.isArray(items) || items.length === 0) break;
         for (const item of items) {
           if (typeof item?.id !== 'number' || typeof item?.link !== 'string') continue;
+          // Skip "Cold Case Spotlight – <Name>" editorial roundup posts.
+          // PCC's category 4 mixes individual case posts with these
+          // summaries; the summary URLs always start with
+          // /cold-case-spotlight-. Their title parses to victim_first_name
+          // ='Cold' and the body has Avada-theme CSS leakage, so they're
+          // unusable as cases.
+          if (/\/cold-case-spotlight-/i.test(item.link)) continue;
           const sep = item.link.includes('?') ? '&' : '?';
           urls.push(`${item.link}${sep}pcc_id=${item.id}`);
           if (urls.length >= target) break;
@@ -264,6 +271,17 @@ export const projectColdCase: SourceConfig = {
       const titleRendered = decodeHtmlEntities(
         stripHtml(post.title?.rendered ?? ''),
       ).trim();
+
+      // Defensive belt-and-suspenders against the discoverFn URL filter:
+      // if a Cold Case Spotlight post slips through (e.g. PCC adds a new
+      // category-tag pattern we don't catch), the title heuristic still
+      // skips the record. The title format is consistent: "Cold Case
+      // Spotlight – <Name>" with an em-dash. Fall through to empty so
+      // the persist path treats it as a no-op.
+      if (/^cold case spotlight\b/i.test(titleRendered)) {
+        return { raw: { skipped: 'cold-case-spotlight-summary' } };
+      }
+
       const nameParts = titleRendered ? splitName(titleRendered) : { first: undefined, last: undefined };
 
       const photos: ExtractedPhoto[] = (yoast.og_image ?? [])
