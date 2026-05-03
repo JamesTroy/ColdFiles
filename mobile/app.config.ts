@@ -13,7 +13,7 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'The Cold File',
   slug: 'coldfile',
-  version: '1.0.1',
+  version: '1.0.2',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'coldfile',
@@ -38,6 +38,14 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.matteblackdev.coldfile',
+    // Firebase Android client config. Required by FCM (which expo-notifications
+    // uses under the hood) so the native side can register the device with
+    // Firebase and obtain a token. Without this file the AAB throws
+    // "FirebaseApp is not initialized" on Notifications.getExpoPushTokenAsync.
+    // The file is gitignored — pull a fresh copy from
+    // Firebase Console → coldfiles → Project settings → Android app when
+    // setting up a new dev environment.
+    googleServicesFile: './google-services.json',
     adaptiveIcon: {
       backgroundColor: '#0a0a0a',
       foregroundImage: './assets/images/android-icon-foreground.png',
@@ -45,7 +53,7 @@ const config: ExpoConfig = {
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
     edgeToEdgeEnabled: true,
-    versionCode: 2,
+    versionCode: 3,
     // Android 14+ predictive back gesture. Recommended now, expected required
     // for API 36 targets. Enable so the system can render the predictive
     // animation; per-screen `gestureEnabled: false` still works on screens

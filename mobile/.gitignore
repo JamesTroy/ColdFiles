@@ -34,6 +34,12 @@ yarn-error.*
 .env
 .env*.local
 
+# Firebase / Google Services config — per-environment credentials. Not a hard
+# secret (API key is restricted to package + SHA-1) but still scoped to the
+# current Firebase project and shouldn't ride into git.
+google-services.json
+GoogleService-Info.plist
+
 # typescript
 *.tsbuildinfo
 
