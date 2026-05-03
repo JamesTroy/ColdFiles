@@ -183,16 +183,32 @@ export function LeafletMap({
     `);
   }, [ready, selectedMarkerId]);
 
+  // Here-marker channel — high-frequency (every GPS sample). Isolated
+  // from zones so a steady GPS cadence doesn't keep re-firing the
+  // zone-layer clear-and-rebuild path, which would emit layeradd/
+  // layerremove events on the map and close any open cluster spiderfy.
   useEffect(() => {
     if (!ready) return;
     webRef.current?.injectJavaScript(`
       try {
         window.__cf_setHere && window.__cf_setHere(${hereJson});
+      } catch (e) {}
+      true;
+    `);
+  }, [ready, hereJson]);
+
+  // Zones channel — fires only when the user's actual zone list changes
+  // (rare — drawing or deleting a zone) or when the visibility toggle
+  // flips. No longer tied to GPS cadence.
+  useEffect(() => {
+    if (!ready) return;
+    webRef.current?.injectJavaScript(`
+      try {
         window.__cf_setZones && window.__cf_setZones(${zonesJson}, ${zonesVisible ? 'true' : 'false'});
       } catch (e) {}
       true;
     `);
-  }, [ready, hereJson, zonesJson, zonesVisible]);
+  }, [ready, zonesJson, zonesVisible]);
 
   // Auto-pan the map to the user once we have a real location fix.
   //
