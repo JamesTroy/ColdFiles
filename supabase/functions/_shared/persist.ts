@@ -97,17 +97,34 @@ export async function persistRecord(
       // with the metadata the candidate generator produced (which keys
       // matched, which sources, conflict reasons), so future-you doesn't
       // re-scan the corpus to find these pairs.
-      caseId = await createNewCase(ctx, record, keys, payloadHash, payloadJson);
-      await queueForTier3Review(ctx, match.case_id, caseId, record, match.matched_key_types);
-      stats.cases_new += 1;
+      const created = await createNewCase(ctx, record, keys, payloadHash, payloadJson);
+      caseId = created.case_id;
+      if (created.kind === 'created') {
+        await queueForTier3Review(ctx, match.case_id, caseId, record, match.matched_key_types);
+        stats.cases_new += 1;
+      } else {
+        // Race-lost during the Tier-3 review-route path — extremely rare,
+        // but the right thing is to treat as merge into the winner rather
+        // than queue a stale review pair.
+        await mergeIntoExistingCase(ctx, caseId, record, payloadHash, payloadJson);
+        stats.cases_updated += 1;
+      }
     } else {
       await mergeIntoExistingCase(ctx, match.case_id, record, payloadHash, payloadJson);
       caseId = match.case_id;
       stats.cases_updated += 1;
     }
   } else {
-    caseId = await createNewCase(ctx, record, keys, payloadHash, payloadJson);
-    stats.cases_new += 1;
+    const created = await createNewCase(ctx, record, keys, payloadHash, payloadJson);
+    caseId = created.case_id;
+    if (created.kind === 'created') {
+      stats.cases_new += 1;
+    } else {
+      // Race-lost: the winner already owns the case row. Merge our record
+      // into theirs so this run's data isn't dropped.
+      await mergeIntoExistingCase(ctx, caseId, record, payloadHash, payloadJson);
+      stats.cases_updated += 1;
+    }
   }
   stats.cases_seen += 1;
 
@@ -372,13 +389,45 @@ async function mergeIntoExistingCase(
   await upsertCaseSource(ctx, caseId, record, payloadHash, payloadJson);
 }
 
+/**
+ * Order dedupe keys by tier strength so the strongest is claimed first.
+ * Mirrors the precedence in findCaseByDedupeKeys; kept duplicated here on
+ * purpose so the claim path doesn't depend on the lookup path's ordering
+ * being authoritative — they both express the same precedence.
+ */
+const KEY_STRENGTH_ORDER: ReadonlyArray<string> = [
+  'namus_number',
+  'ncic_number',
+  'name_state_year',
+  'agency_case_number',
+  'lastname_age_sex',
+];
+
+function strongestFirst(
+  keys: ReturnType<typeof generateDedupeKeys>,
+): ReturnType<typeof generateDedupeKeys> {
+  return [...keys].sort((a, b) => {
+    const ai = KEY_STRENGTH_ORDER.indexOf(a.type);
+    const bi = KEY_STRENGTH_ORDER.indexOf(b.type);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+}
+
+interface CreateNewCaseResult {
+  /** 'created' = we won the dedupe-key race and own the case row.
+   *  'race_lost' = a concurrent persist won; case_id is theirs, our
+   *  provisional row was deleted, caller should merge instead. */
+  kind: 'created' | 'race_lost';
+  case_id: string;
+}
+
 async function createNewCase(
   ctx: PersistContext,
   record: CaseRecord,
   keys: ReturnType<typeof generateDedupeKeys>,
   payloadHash: string,
   payloadJson: string,
-): Promise<string> {
+): Promise<CreateNewCaseResult> {
   const slug = buildSlug(record);
   const insertRow = {
     slug,
@@ -435,23 +484,88 @@ async function createNewCase(
     .select('id')
     .single();
   if (insErr) throw insErr;
-  const caseId = inserted.id as string;
+  const candidateId = inserted.id as string;
 
-  // Insert dedupe keys.
-  if (keys.length) {
-    const rows = keys.map((k) => ({
-      case_id: caseId,
-      key_type: k.type,
-      key_value: k.value,
-    }));
-    await ctx.supabase.from('case_dedupe_keys').upsert(rows, {
-      onConflict: 'key_type,key_value',
-      ignoreDuplicates: true,
-    });
+  // Atomic dedupe-key claim. The strongest key gates ownership of the case:
+  // whoever lands the strongest key first owns the case row, and any
+  // concurrent loser pivots to merge into the winner instead of leaving an
+  // orphan. See migration 30 for the RPC.
+  const ordered = strongestFirst(keys);
+  const strongest = ordered[0];
+
+  let caseId = candidateId;
+
+  if (strongest) {
+    const { data: winnerCaseId, error: claimErr } = await ctx.supabase.rpc(
+      'claim_dedupe_key',
+      {
+        p_case_id: candidateId,
+        p_key_type: strongest.type,
+        p_key_value: strongest.value,
+      },
+    );
+    if (claimErr) throw claimErr;
+
+    if (winnerCaseId && winnerCaseId !== candidateId) {
+      // Lost the strongest-key race. Clean up the provisional cases row
+      // we just inserted and hand off the winner's id to the caller. No
+      // case_sources upsert here — the caller's merge path handles that.
+      await ctx.supabase.from('cases').delete().eq('id', candidateId);
+      return { kind: 'race_lost', case_id: winnerCaseId as string };
+    }
+    // Won (or no concurrent claim) — proceed with the candidate id.
+    caseId = (winnerCaseId as string) ?? candidateId;
+  }
+
+  // Secondary keys: claim each, log split-conflicts. A split-conflict means
+  // a weaker key for THIS new case already points to a DIFFERENT existing
+  // case — evidence that two existing cases describe the same person but
+  // share no Tier-1/2 key. Policy for that is not pinned yet (see CLAUDE.md
+  // dedupe-asymmetry rule, which only covers Tier-3 review-queue routing).
+  // For now we log a structured line so the future case_pair_review_queue
+  // tooling has a corpus to consume; we DO NOT auto-merge.
+  for (const key of ordered.slice(1)) {
+    const { data: keyOwner, error: secErr } = await ctx.supabase.rpc(
+      'claim_dedupe_key',
+      {
+        p_case_id: caseId,
+        p_key_type: key.type,
+        p_key_value: key.value,
+      },
+    );
+    if (secErr) {
+      // Non-fatal — the strongest key already gates dedupe; secondary keys
+      // are belt-and-suspenders. Log and continue.
+      console.warn(
+        JSON.stringify({
+          msg: 'persist: secondary dedupe key claim failed',
+          case_id: caseId,
+          key_type: key.type,
+          error: secErr.message,
+        }),
+      );
+      continue;
+    }
+    if (keyOwner && keyOwner !== caseId) {
+      // SPLIT-CONFLICT. TODO(case_pair_review_queue): when the case-pair
+      // review tooling lands, persist this candidate pair for operator
+      // review. Until then, the structured log line is the audit trail
+      // and serves as the seed for the queue's initial backfill.
+      console.warn(
+        JSON.stringify({
+          msg: 'persist: split-conflict on secondary dedupe key',
+          new_case_id: caseId,
+          existing_case_id: keyOwner,
+          key_type: key.type,
+          key_value: key.value,
+          source_slug: ctx.source.slug,
+        }),
+      );
+    }
   }
 
   await upsertCaseSource(ctx, caseId, record, payloadHash, payloadJson);
-  return caseId;
+  return { kind: 'created', case_id: caseId };
 }
 
 async function upsertCaseSource(
