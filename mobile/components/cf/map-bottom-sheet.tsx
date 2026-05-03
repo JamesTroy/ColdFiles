@@ -30,7 +30,7 @@ import { Pressable, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 
 import { tokens } from '@/constants/theme';
-import type { CaseRowMapNear } from '@/lib/types/database';
+import type { CaseRowMapBbox } from '@/lib/types/database';
 
 import { CaseRow } from './case-row';
 import { MonoLabel } from './text';
@@ -43,11 +43,11 @@ export interface MapBottomSheetHandle {
 }
 
 interface MapBottomSheetProps {
-  cases: CaseRowMapNear[];
+  cases: CaseRowMapBbox[];
   /** Currently selected case (from a pin tap). Highlights the matching row. */
   selectedSlug: string | null;
   /** Slug-to-days helper for fresh dot rendering. */
-  daysFor: (row: CaseRowMapNear) => number;
+  daysFor: (row: CaseRowMapBbox) => number;
   /**
    * Optional shared value the parent reads to drive header collapse, etc.
    * gorhom writes the current snap progress (0=peek, 1=mid, 2=full,
@@ -113,7 +113,7 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
     }, [cases, daysFor]);
 
     const renderItem = useCallback(
-      ({ item }: { item: CaseRowMapNear }) => {
+      ({ item }: { item: CaseRowMapBbox }) => {
         return (
           <CaseRow
             row={item}
@@ -132,7 +132,7 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
       [daysFor, selectedSlug],
     );
 
-    const keyExtractor = useCallback((item: CaseRowMapNear) => item.slug, []);
+    const keyExtractor = useCallback((item: CaseRowMapBbox) => item.slug, []);
 
     const ListHeader = useMemo(
       () => (

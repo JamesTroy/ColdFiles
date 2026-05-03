@@ -34,7 +34,51 @@ export type DateQuality =
   | 'unknown';
 
 /**
- * Result row from cases_within_radius() and cases_in_bbox() RPCs.
+ * Result row from cases_in_bbox() — the only map-tier RPC after Tier 4
+ * cleanup retires cases_within_radius and use-cases-near.ts. Schema source:
+ * migrations/22_cases_in_bbox_order_by_last_changed.sql + migration 29
+ * (expansion to include incident_date/location_city/location_state for the
+ * bottom-sheet subtitle).
+ *
+ * Strict subset of CaseRowMapNear so SAMPLE_CASES_MAP entries flow into
+ * either consumer via structural typing during the transition.
+ */
+export interface CaseRowMapBbox {
+  id: string;
+  slug: string;
+  kind: CaseKind;
+  status: CaseStatus;
+  victim_name: string | null;
+  has_photo: boolean;
+  /** Incident date (ISO yyyy-mm-dd). Drives kindLine's year segment. */
+  incident_date: string | null;
+  /** City name. Drives kindLine's place segment. */
+  location_city: string | null;
+  /** 2-letter US state code. Drives kindLine's place segment. */
+  location_state: string | null;
+  /** WGS84 latitude. */
+  lat: number | null;
+  /** WGS84 longitude. */
+  lng: number | null;
+  /**
+   * Server-computed alpha for the recently-updated ring.
+   *   0–3 days  → 1.0
+   *   4–10 days → 0.5
+   *   11+ days  → 0
+   */
+  recency_alpha: number | null;
+}
+
+/**
+ * Result row from cases_within_radius() — the legacy radius-based query
+ * surface. Tier 4 cleanup will retire this along with use-cases-near.ts;
+ * after that, CaseRowMapBbox is the only map-tier row type.
+ *
+ * Currently still consumed by the list/saved/zone/search direct-table-read
+ * paths, which fill in null for the lat/lng/distance_miles fields. Those
+ * call sites should migrate to a narrower direct-read type as part of the
+ * same Tier 4 sweep.
+ *
  * Schema source: migrations/01_schema.sql + migrations/02_cases_in_bbox_recency_alpha.sql.
  */
 export interface CaseRowMapNear {
