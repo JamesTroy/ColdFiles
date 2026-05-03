@@ -12,7 +12,7 @@
 
 import * as Clipboard from 'expo-clipboard';
 import { Stack } from 'expo-router';
-import { Linking, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA } from '@/components/cf/cta-button';
@@ -55,8 +55,32 @@ export default function NotificationsScreen() {
   // below branches on state values, never on hook count.
   const insets = useSafeAreaInsets();
   const { prefs, setPref, ready } = useNotificationPrefs();
-  const { permissionStatus, token, loading: pushLoading, requestAndRegister, unregister } =
+  const { permissionStatus, token, loading: pushLoading, error: pushError, requestAndRegister, unregister } =
     usePushToken();
+
+  const handleRegister = async () => {
+    try {
+      const result = await requestAndRegister();
+      if (!result.ok) {
+        Alert.alert(
+          'Registration not completed',
+          result.error
+            ? result.error
+            : `Permission status: ${result.status}. The token was not registered.`,
+        );
+      } else {
+        Alert.alert(
+          'Push token issued',
+          'Token registered. If notifications never arrive, check the Notifications screen for the token chip and copy it for the smoke test.',
+        );
+      }
+    } catch (err) {
+      Alert.alert(
+        'Registration threw',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
@@ -92,12 +116,31 @@ export default function NotificationsScreen() {
           token={token}
           loading={pushLoading}
           onRequest={() => {
-            void requestAndRegister();
+            void handleRegister();
           }}
           onDisable={() => {
             void unregister();
           }}
         />
+
+        {pushError ? (
+          <View
+            style={{
+              marginHorizontal: 16,
+              marginBottom: 12,
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderLeftWidth: 2,
+              borderLeftColor: tokens.color.accent.amber,
+              backgroundColor: tokens.color.bg.elev1,
+            }}
+          >
+            <SansBody style={{ fontSize: 12, color: tokens.color.text.secondary, marginBottom: 4 }}>
+              Last error
+            </SansBody>
+            <SansBody style={{ fontSize: 12 }}>{pushError}</SansBody>
+          </View>
+        ) : null}
 
         <Card>
           {TOGGLES.map((t, idx) => (
