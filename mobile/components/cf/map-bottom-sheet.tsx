@@ -287,12 +287,20 @@ function ListHeaderInner({
             backgroundColor: tokens.color.accent.amberHot,
           }}
         />
+        {/* flexShrink:1 lets RN compress this Text to the available width
+            so it wraps gracefully on narrow viewports instead of clipping
+            mid-word — RN's default for an un-shrinkable Text in a flex
+            row is to take intrinsic width + overflow-clip past the parent
+            edge. The shorter label keeps the precision (math notation
+            <10 days) while reading on a single line on every device we
+            ship to. */}
         <MonoLabel
           size={11}
           tracking={tokens.tracking.label}
           color={tokens.color.text.disabled}
+          style={{ flexShrink: 1 }}
         >
-          UPDATED IN LAST 10 DAYS
+          {'UPDATED < 10 DAYS'}
         </MonoLabel>
       </View>
     </View>
