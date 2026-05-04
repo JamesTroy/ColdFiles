@@ -25,10 +25,27 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+
+# build / cache artifacts (mirror root patterns so a stray turbo / jest /
+# coverage run doesn't deposit untracked files that get accidentally
+# `git add .`-ed)
+.turbo/
+.cache/
+coverage/
+.nyc_output/
 
 # macOS
 .DS_Store
 *.pem
+
+# Editor — track only the project-shared bits; everything else stays local.
+# Mirrors the root .gitignore allow-list so per-package settings don't
+# silently track. Both files were verified benign (Expo extension recco +
+# format-on-save action set) — no user paths, no environment-specific config.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 
 # local env files
 .env

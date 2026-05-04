@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Pre-push smoke gate — runs typecheck + the vitest suite before letting a
+# push reach the remote. Mirrors what CI runs in `.github/workflows/test.yml`
+# so the failure-mode "I pushed and CI immediately went red" gets blocked
+# locally instead, where the fix is one keystroke away.
+#
+# OPT-IN ONCE PER CLONE. Hooks aren't tracked through `core.hooksPath` by
+# default; activate this directory by running:
+#
+#     git config core.hooksPath .githooks
+#
+# After that, every `git push` from this clone runs the steps below.
+# Skip on a specific push (rare — usually only for emergency hotfixes
+# where you've already verified locally) by passing `--no-verify`.
+#
+# WHY .githooks INSTEAD OF .husky:
+#   No npm dependency, no `prepare` script, no node_modules touch. One
+#   tracked script, one git-config opt-in. If husky needs land later for
+#   pre-commit / commit-msg formatting too, the hooks here can be folded
+#   into husky in one move.
+#
+# SCOPE — match CI exactly. The root tsconfig excludes mobile/ and
+# supabase/functions, so this matches what GitHub Actions runs. Mobile-
+# side typecheck (`cd mobile && npx tsc --noEmit`) is intentionally NOT
+# run here — pushing mid-mobile-WIP is normal in this workflow and
+# blocking it would be friction without value.
+
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "→ pre-push: typecheck"
+npm run typecheck
+
+echo "→ pre-push: vitest"
+npm test
+
+echo "✓ pre-push: ok"
