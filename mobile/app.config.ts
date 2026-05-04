@@ -42,9 +42,17 @@ const config: ExpoConfig = {
     // uses under the hood) so the native side can register the device with
     // Firebase and obtain a token. Without this file the AAB throws
     // "FirebaseApp is not initialized" on Notifications.getExpoPushTokenAsync.
-    // The file is gitignored — pull a fresh copy from
-    // Firebase Console → coldfiles → Project settings → Android app when
-    // setting up a new dev environment.
+    //
+    // The file IS committed despite being a credential file — Firebase
+    // Android API keys are restricted to package name + SHA-1 fingerprint
+    // per Google's security model, so leaking the key doesn't grant
+    // access outside the app. EAS Build only ships git-tracked files,
+    // so committing it is the practical move (matches most public Expo
+    // projects). The rationale lives alongside the matching policy in
+    // mobile/.gitignore. If you're setting up a fresh dev environment,
+    // the file is in the repo — only pull a fresh copy from
+    // Firebase Console → coldfiles → Project settings → Android app
+    // when the key has been rotated or the package name has changed.
     googleServicesFile: './google-services.json',
     adaptiveIcon: {
       backgroundColor: '#0a0a0a',
