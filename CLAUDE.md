@@ -77,3 +77,81 @@ Default-on; flip only as an operational safety valve.
 
 See `supabase/functions/_shared/persist.ts:queueForTier3Review` for the
 implementation.
+
+## Release sequence — bump version BEFORE the AAB is uploaded
+
+Native rebuilds (`eas build --profile production` against a fresh
+`versionCode`) follow this order, not any other:
+
+1. Cut a release branch off `main` (`release/v<X.Y.Z>`).
+2. Bump `version` + `versionCode` in `mobile/app.config.ts` on the
+   release branch.
+3. Tag the bump commit (`v<X.Y.Z>`) so the AAB is built from a stable
+   point in history.
+4. Run `eas build` from the tag.
+5. Merge the release branch back to `main` BEFORE uploading the AAB
+   to Play Console.
+6. Upload the AAB.
+
+The order matters because `main` is the source of truth for "what
+ships next." If the AAB lands in Play Console before the bump merges,
+`main` claims the prior versionCode while Play has the new one. Anyone
+who clones `main` and runs `eas build` produces an AAB Play Console
+rejects with `versionCode N already used` — the same trap PR #5
+created when the v1.0.3 AAB shipped while its release-branch PR
+sat open. Branch first, bump first, tag first, merge before upload.
+
+## Branch + commit conventions
+
+Branches use a small fixed set of intent prefixes. The taxonomy is
+additive — new prefixes earn a line here, not a quiet appearance in
+`git log`.
+
+  - `fix/<scope>` — bug fix, no new feature surface
+  - `feat/<scope>` — new user-facing feature
+  - `chore/<scope>` — build/tooling/gitignore/CI/dep bumps
+  - `docs/<scope>` — pure prose, no code path
+  - `ux/<scope>` — UX polish that's neither a bug fix nor a discrete
+    new feature (legend rewordings, sheet snap-point tweaks, etc.)
+  - `smoke/<scope>` — smoke / integration test infrastructure
+  - `release/v<X.Y.Z>` — version bump for a native rebuild (see
+    "Release sequence" above)
+
+Commit subjects use the matching `type(scope): subject` shape. Scope
+must be a real surface — not spelling drift. Canonical scopes today:
+
+  - Mobile surfaces: `map`, `map-sheet`, `map-pin`, `zone`, `home`,
+    `list`, `saved`, `case-detail`, `tip`, `about`, `onboarding`,
+    `notifications`, `auth`
+  - Server surfaces: `persist`, `dedupe`, `geocode`, `media`,
+    `notify-fanout`, `tip-route`, `takedown`, `ingest`, `migrations`,
+    `rls`, `rpc`
+  - Doc surfaces: `app-config`, `gitignore`, `claude-md`, `readme`
+
+Add a new scope when a real surface earns one; do NOT introduce
+near-duplicates (`fix(mapsheet)` vs `fix(map-sheet)`, `fix(map header)`
+with a literal space) — those silently fragment `git log --grep`
+searches and never surface as a real signal.
+
+### PRs ship one surface or one theme
+
+A PR's commits should share a common subject. Two unrelated commits
+on different screens belong in two PRs, even if both are small.
+Reviewability is the test, not size: a reviewer should be able to
+hold the diff in one mental model. Mixing a `fix(map)` with a
+`feat(about)` in the same PR forces the reviewer to context-switch
+mid-review and obscures whether the test plan covers both surfaces.
+
+When a PR's commits start to drift across surfaces mid-work, split
+into a stack of branches before pushing. The cost of two small PRs
+is much less than the cost of one PR that's hard to review.
+
+### Multi-commit PRs preserve per-fix partial-revert
+
+Multi-commit PRs MUST land as true merge commits (not squash). The
+per-commit SHAs stay individually addressable in `git log` so any
+single fix can be reverted without touching its siblings. The
+established pattern: 2-4 commits per PR, each commit a coherent
+slice of the PR's theme, GitHub merge-commit (not squash). PR #3
+and PR #7 are the worked examples — three commits each, all
+revertable in isolation.
