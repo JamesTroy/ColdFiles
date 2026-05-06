@@ -34,6 +34,7 @@ import {
   SerifTitle,
 } from '@/components/cf/text';
 import { TrustDisclosureCallout, TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
+import { CasesNearCaseSection } from '@/components/cf/cases-near-case-section';
 import { tokens } from '@/constants/theme';
 import { displayName, formatDateLedger, formatDateMonthDay, formatPlace } from '@/lib/format';
 import { useCaseDetail } from '@/lib/hooks/use-case-detail';
@@ -265,6 +266,20 @@ export default function CaseDetailScreen() {
             ) : null}
           </View>
         ) : null}
+
+        {/* Geographic adjacency — supporting context AFTER the case
+            content (narrative + identity + tip routing already
+            consumed) and BEFORE the provenance footer. Placement is
+            load-bearing per the design conversation: top frames the
+            region as the story, bottom converts adjacency into a
+            "next case" engagement loop. Middle (here) frames it as
+            context for evaluating the subject case. Section is self-
+            suppressing when the subject has no location_point. */}
+        <CasesNearCaseSection
+          caseId={c.id}
+          caseIncidentDate={c.incident_date}
+          hasLocation={c.location_lat != null && c.location_lng != null}
+        />
 
         {data.sources.length > 0 ? (
           <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
