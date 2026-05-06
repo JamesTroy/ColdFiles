@@ -67,6 +67,15 @@ export interface CaseRowMapBbox {
    *   11+ days  → 0
    */
   recency_alpha: number | null;
+  /**
+   * Distance from a query origin point in miles. Set by cases_near_case
+   * (migration 34) only; null/undefined on rows from cases_in_bbox /
+   * cases_in_polygon (no query origin to measure from). Drives the
+   * "Same period: / Other nearby:" bucket-render on the case-detail
+   * "Within N Miles" section. PostgREST omits the field on the wire
+   * for 29/33 calls; JS reads undefined for those.
+   */
+  distance_miles?: number | null;
 }
 
 /**
