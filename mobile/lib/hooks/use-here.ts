@@ -125,11 +125,30 @@ export function useHere(): UseHereResult {
         }));
       }).catch(() => { /* silent */ });
 
+      // Watch options — must work within ACCESS_COARSE_LOCATION
+      // (mobile/app.config.ts:74). Android won't grant fine-grained GPS
+      // for coarse-only manifests, so position fixes have ~50-200m
+      // triangulation noise. Implications:
+      //
+      //   • distanceInterval is set to 0, NOT a small distance like 10m,
+      //     because Android's coarse-accuracy "did the user move N meters"
+      //     check is below the noise floor at small N — every 10m delta
+      //     gets smoothed away by cell+wifi triangulation and the watch
+      //     reports "no movement" even when the user has walked a block.
+      //     Symptom (reported): the dot stays put as the user moves.
+      //   • timeInterval drives the cadence instead. Every 5s the watch
+      //     fires whatever the current best fix is, regardless of detected
+      //     movement. The dot updates as the underlying coarse fix
+      //     converges on the user's actual location.
+      //   • DO NOT change accuracy to High here without also updating
+      //     mobile/app.config.ts permissions, the privacy policy, and the
+      //     Play Console Data Safety form — all three currently declare
+      //     approximate location only.
       Location.watchPositionAsync(
-        { 
-          accuracy: Location.Accuracy.Balanced, 
-          distanceInterval: 10,
-          timeInterval: 5000 // Ensure we don't spam updates more than once every 5s
+        {
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 0,
+          timeInterval: 5000,
         },
         (loc) => {
           if (cancelled) return;
