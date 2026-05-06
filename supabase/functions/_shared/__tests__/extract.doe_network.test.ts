@@ -185,28 +185,149 @@ describe('doe network extractor — real fixture (Duane Robert Talmon, Jr. — 1
 });
 
 describe('doe network extractor — closed-case path', () => {
-  it('returns a stub with raw.closed=true when the case is marked is_closed=X', () => {
+  it('ingests is_closed=X cases with status=cleared_other so the merge path propagates the flip on existing rows', () => {
     if (doeNetwork.detail.kind !== 'json') throw new Error('expected json detail strategy');
-    const detailUrl = 'https://www.doenetwork.org/cases/software/php/mpdatabase.php?id=999CLOSE&fields=true';
+    const detailUrl = 'https://www.doenetwork.org/cases/software/php/mpdatabase.php?id=999CLOSEDMNY&fields=true';
     const out = doeNetwork.detail.mapJson(
       {
-        fields: { id: '999CLOSE', is_closed: 'X', pname: '' },
+        fields: {
+          id: '999CLOSEDMNY',
+          is_closed: 'X',
+          pname: 'Closed Test Person',
+          missing_since: '2010-01-15',
+          location_last_seen: 'Albany, Albany County, New York',
+        },
         agencies: [],
         images: [],
       },
       detailUrl,
     );
-    expect((out.raw as { closed?: boolean })?.closed).toBe(true);
-    expect(out.victim_name).toBeUndefined();
+    expect(out.status).toBe('cleared_other');
+    // Full record still ingested — name + state + date carried so the
+    // dedupe path can match an existing case row and propagate the
+    // status flip via mergeIntoExistingCase.
+    expect(out.victim_name).toBe('Closed Test Person');
+    expect(out.location_state).toBe('NY');
+    expect(out.kind).toBe('missing');
   });
 
-  it('returns a stub when the fields endpoint returns null (case removed)', () => {
+  it('open cases still ingest with status=open (regression guard on the non-closed branch)', () => {
+    if (doeNetwork.detail.kind !== 'json') throw new Error('expected json detail strategy');
+    const out = doeNetwork.detail.mapJson(
+      {
+        fields: {
+          id: '500OPENDMNY',
+          pname: 'Open Test Person',
+          missing_since: '2015-06-20',
+          location_last_seen: 'Buffalo, Erie County, New York',
+        },
+        agencies: [],
+        images: [],
+      },
+      'https://www.doenetwork.org/cases/software/php/mpdatabase.php?id=500OPENDMNY&fields=true',
+    );
+    expect(out.status).toBe('open');
+  });
+
+  it('returns a stub when the fields endpoint returns null (case removed entirely, nothing to ingest)', () => {
     if (doeNetwork.detail.kind !== 'json') throw new Error('expected json detail strategy');
     const out = doeNetwork.detail.mapJson(
       { fields: null, agencies: [], images: [] },
       'https://www.doenetwork.org/cases/software/php/mpdatabase.php?id=999NULL&fields=true',
     );
     expect((out.raw as { closed?: boolean })?.closed).toBe(true);
+    // Genuine null: skip path stays — nothing to update or ingest.
+    expect(out.victim_name).toBeUndefined();
+  });
+});
+
+describe('doe network UID extractor — resolution-status mapping', () => {
+  // doe_network_uid is loaded via dynamic import so this block doesn't
+  // need a top-level import (would conflict with the existing tests'
+  // file-scope assumptions).
+  it('is_identified=X → status=identified (Doe has been ID\'d)', async () => {
+    const { doeNetworkUid } = await import('../../../../sources/doe_network_uid.ts');
+    if (doeNetworkUid.detail.kind !== 'json') throw new Error('expected json detail strategy');
+    const out = doeNetworkUid.detail.mapJson(
+      {
+        fields: {
+          id: '500UMNY',
+          is_identified: 'X',
+          date_of_discovery: '1995-08-12',
+          location_of_discovery: 'Niagara Falls, Niagara County, New York',
+          estimated_age: '20-30',
+          sex: 'Male',
+        },
+        agencies: [],
+        images: [],
+      },
+      'https://www.doenetwork.org/cases/software/php/database.php?id=500UMNY&fields=true',
+    );
+    expect(out.status).toBe('identified');
+    expect(out.kind).toBe('unidentified');
+  });
+
+  it('is_closed=X (and not identified) → status=cleared_other', async () => {
+    const { doeNetworkUid } = await import('../../../../sources/doe_network_uid.ts');
+    if (doeNetworkUid.detail.kind !== 'json') throw new Error('expected json detail strategy');
+    const out = doeNetworkUid.detail.mapJson(
+      {
+        fields: {
+          id: '600UFCA',
+          is_closed: 'X',
+          date_of_discovery: '2003-04-22',
+          location_of_discovery: 'Sacramento, Sacramento County, California',
+          estimated_age: '30-40',
+          sex: 'Female',
+        },
+        agencies: [],
+        images: [],
+      },
+      'https://www.doenetwork.org/cases/software/php/database.php?id=600UFCA&fields=true',
+    );
+    expect(out.status).toBe('cleared_other');
+  });
+
+  it('is_identified takes precedence when both flags are set', async () => {
+    const { doeNetworkUid } = await import('../../../../sources/doe_network_uid.ts');
+    if (doeNetworkUid.detail.kind !== 'json') throw new Error('expected json detail strategy');
+    const out = doeNetworkUid.detail.mapJson(
+      {
+        fields: {
+          id: '700UMTX',
+          is_closed: 'X',
+          is_identified: 'X',
+          date_of_discovery: '2012-07-04',
+          location_of_discovery: 'Houston, Harris County, Texas',
+          estimated_age: '25-35',
+          sex: 'Male',
+        },
+        agencies: [],
+        images: [],
+      },
+      'https://www.doenetwork.org/cases/software/php/database.php?id=700UMTX&fields=true',
+    );
+    expect(out.status).toBe('identified');
+  });
+
+  it('open cases (no closed/identified flags) keep status=open', async () => {
+    const { doeNetworkUid } = await import('../../../../sources/doe_network_uid.ts');
+    if (doeNetworkUid.detail.kind !== 'json') throw new Error('expected json detail strategy');
+    const out = doeNetworkUid.detail.mapJson(
+      {
+        fields: {
+          id: '800UMFL',
+          date_of_discovery: '2018-11-30',
+          location_of_discovery: 'Miami, Miami-Dade County, Florida',
+          estimated_age: '40-50',
+          sex: 'Male',
+        },
+        agencies: [],
+        images: [],
+      },
+      'https://www.doenetwork.org/cases/software/php/database.php?id=800UMFL&fields=true',
+    );
+    expect(out.status).toBe('open');
   });
 });
 
