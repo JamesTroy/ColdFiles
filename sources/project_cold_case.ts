@@ -116,6 +116,13 @@ const EDITORIAL_NOISE_SLUG_PATTERNS: readonly RegExp[] = [
   /^annual-year-of-hope(-|$)/i,
   /^arrests?-don.?t-always-equal-justice(-|$)/i,
   /(^|-)fundraiser(-|$)/i,
+  // "Cold Case Spotlight – <Name>" summary roundup posts (editorial,
+  // not individual victim files). The prior discoverFn skipped these
+  // with /\/cold-case-spotlight-/i; the classifier carries that forward.
+  // NOTE: this pattern is anchored at slug start, so it does NOT match
+  // /solved-cold-case-spotlight-/ or /update-solved-cold-case-spotlight-/
+  // — those classify as status-update below. Order is preserved.
+  /^cold-case-spotlight(-|$)/i,
 ];
 
 // Status-update slug patterns. Order matters — more-specific patterns
@@ -358,13 +365,17 @@ export const projectColdCase: SourceConfig = {
         if (!Array.isArray(items) || items.length === 0) break;
         for (const item of items) {
           if (typeof item?.id !== 'number' || typeof item?.link !== 'string') continue;
-          // Skip "Cold Case Spotlight – <Name>" editorial roundup posts.
-          // PCC's category 4 mixes individual case posts with these
-          // summaries; the summary URLs always start with
-          // /cold-case-spotlight-. Their title parses to victim_first_name
-          // ='Cold' and the body has Avada-theme CSS leakage, so they're
-          // unusable as cases.
-          if (/\/cold-case-spotlight-/i.test(item.link)) continue;
+          // Three-way classification at discovery (classifyPccUrl above):
+          //   editorial      → skip entirely (Grief Diaries, Year of Hope,
+          //                    fundraisers, "Cold Case Spotlight – <Name>"
+          //                    roundup summaries).
+          //   status-update  → keep — extractor will produce a
+          //                    status_update_only-flagged record so
+          //                    persistRecord merges into an existing case
+          //                    or skips, never inserts.
+          //   victim         → keep — normal extraction path.
+          const klass = classifyPccUrl(item.link).class;
+          if (klass === 'editorial') continue;
           const sep = item.link.includes('?') ? '&' : '?';
           urls.push(`${item.link}${sep}pcc_id=${item.id}`);
           if (urls.length >= target) break;
@@ -393,7 +404,7 @@ export const projectColdCase: SourceConfig = {
       }
       return { post: `${API_BASE}/posts/${id}` };
     },
-    mapJson: (data, _detailUrl): Partial<CaseRecord> => {
+    mapJson: (data, detailUrl): Partial<CaseRecord> => {
       const post = data.post as PccPost | null;
       if (!post) return { raw: { empty: true } };
 
@@ -413,6 +424,45 @@ export const projectColdCase: SourceConfig = {
       // the persist path treats it as a no-op.
       if (/^cold case spotlight\b/i.test(titleRendered)) {
         return { raw: { skipped: 'cold-case-spotlight-summary' } };
+      }
+
+      // Status-update routing. URLs that classify as status-update at
+      // discovery (e.g. /arrests-made-in-X-case/, /solved-cold-case-
+      // spotlight-X/) document a resolution event for an EXISTING case
+      // — not a new case file. Produce a minimal record carrying just
+      // the resolution status + the victim-name hint extracted from
+      // the title; persistRecord (with status_update_only=true) merges
+      // into the matching existing case, or logs + skips when no match.
+      //
+      // We re-classify here (rather than threading state from discovery)
+      // because classifyPccUrl is pure + cheap, and re-running with the
+      // title in hand fills the victimNameHint that URL-only
+      // classification couldn't.
+      const classification = classifyPccUrl(detailUrl, titleRendered);
+      if (classification.class === 'status-update' && classification.statusUpdate) {
+        const hint = classification.statusUpdate;
+        const hintParts = hint.victimNameHint
+          ? splitName(hint.victimNameHint)
+          : { first: undefined, last: undefined };
+        return {
+          kind: 'homicide',
+          status: hint.status,
+          status_update_only: true,
+          victim_name: hint.victimNameHint ?? undefined,
+          victim_first_name: hintParts.first,
+          victim_last_name: hintParts.last,
+          // Nothing else populated — this record is a status flip, not
+          // a new case file. The merge path will only touch the status
+          // field on the matched existing case.
+          raw: {
+            post_id: post.id,
+            slug: post.slug,
+            link: post.link,
+            classification: 'status-update',
+            proposed_status: hint.status,
+            title: titleRendered,
+          },
+        };
       }
 
       const nameParts = titleRendered ? splitName(titleRendered) : { first: undefined, last: undefined };
