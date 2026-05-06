@@ -441,3 +441,110 @@ describe('persistRecord — Tier-3 routing (CLAUDE.md anchor)', () => {
     }
   });
 });
+
+describe('persistRecord — status_update_only flag', () => {
+  it('match found → merges status flip into existing case (cases_updated bumped)', async () => {
+    // Existing case matched on lastname_age_sex (Tier-3-only) — for a
+    // status-update-only record, we WANT this to merge unconditionally
+    // even though normally Tier-3 routes to review. The flag's whole
+    // point is "just update status on whatever case matches."
+    const { client, calls } = buildMockSupabase({
+      case_dedupe_keys: {
+        selectRows: [
+          { case_id: 'existing-case-uuid', key_type: 'lastname_age_sex', key_value: 'redden_28_female' },
+        ],
+      },
+      cases: {
+        singleRow: {
+          id: 'existing-case-uuid',
+          kind: 'homicide',
+          status: 'open', // currently open in DB
+          victim_sex: 'female',
+          has_photo: false,
+          has_sketch: false,
+          has_reconstruction: false,
+          location_point: null,
+        },
+      },
+      case_sources: { selectRows: [{ trust_weight: 50 }] },
+    });
+
+    const stats = newStats();
+    await persistRecord(
+      baseCtx(client),
+      baseRecord({
+        kind: 'homicide',
+        status: 'cleared_arrest',
+        victim_first_name: 'Nikki',
+        victim_last_name: 'Redden',
+        victim_age: 28,
+        victim_sex: 'female',
+        status_update_only: true,
+      }),
+      stats,
+    );
+
+    // Status update merged into existing case — counted as an update.
+    expect(stats.cases_updated).toBe(1);
+    expect(stats.cases_new).toBe(0);
+    expect(stats.cases_seen).toBe(1);
+
+    // Critical: NO new case insert (status-update posts must never
+    // create new cases — they're update-only).
+    const casesInserts = calls.filter((c) => c.table === 'cases' && c.method === 'insert');
+    expect(casesInserts).toHaveLength(0);
+
+    // No review-queue entry — the flag bypasses Tier-3 review routing.
+    const reviewInserts = calls.filter(
+      (c) => c.table === 'dedupe_review_queue' && c.method === 'insert',
+    );
+    expect(reviewInserts).toHaveLength(0);
+  });
+
+  it('no match → logs structured "skipped" line + does NOT insert a new case', async () => {
+    const { client, calls } = buildMockSupabase({
+      case_dedupe_keys: { selectRows: [] }, // no match
+    });
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const stats = newStats();
+      await persistRecord(
+        baseCtx(client),
+        baseRecord({
+          kind: 'homicide',
+          status: 'cleared_arrest',
+          victim_first_name: 'Unknown',
+          victim_last_name: 'NoMatch',
+          status_update_only: true,
+          source_url: 'https://projectcoldcase.org/2018/04/24/arrest-made-in-unknown-nomatch-case/',
+        }),
+        stats,
+      );
+
+      // No new case created — the flag's whole purpose.
+      const casesInserts = calls.filter((c) => c.table === 'cases' && c.method === 'insert');
+      expect(casesInserts).toHaveLength(0);
+
+      // Counters: seen=1, but neither new nor updated — the record
+      // was acknowledged but didn't land anywhere.
+      expect(stats.cases_seen).toBe(1);
+      expect(stats.cases_new).toBe(0);
+      expect(stats.cases_updated).toBe(0);
+
+      // Structured log line gives operators the data to retry.
+      const skipLogged = warnSpy.mock.calls.some((args) => {
+        const line = String(args[0] ?? '');
+        return (
+          line.includes('status_update_only') &&
+          line.includes('no dedupe match') &&
+          line.includes('cleared_arrest')
+        );
+      });
+      expect(skipLogged).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});

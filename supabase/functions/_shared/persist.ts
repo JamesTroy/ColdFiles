@@ -81,6 +81,40 @@ export async function persistRecord(
   // 1. Try to find an existing case via dedupe keys.
   const match = await findCaseByDedupeKeys(ctx.supabase, keys);
 
+  // Status-update-only short-circuit. Records flagged by their source
+  // (currently PCC's "Arrest Made in X" / "Solved Cold Case Spotlight"
+  // routing — see sources/project_cold_case.ts) document a resolution
+  // event for an EXISTING case, not a new case file. If we found a
+  // match, merge (which propagates the status flip via field-merge);
+  // if we didn't, log and skip — DON'T insert a new case carrying just
+  // a status field with everything else empty.
+  //
+  // No side effects (no geocode, no media cache) on the skip path —
+  // the post isn't a case, just a resolution signal that didn't land
+  // on a known case row.
+  if (record.status_update_only) {
+    if (match) {
+      await mergeIntoExistingCase(ctx, match.case_id, record, payloadHash, payloadJson);
+      stats.cases_updated += 1;
+      stats.cases_seen += 1;
+      return;
+    }
+    // No match → log and skip. The structured log line gives operators
+    // the data needed to retry against a fuzzy-match layer when one
+    // ships, or to manually flip status on the matching case via SQL.
+    console.warn(
+      JSON.stringify({
+        msg: 'persist: status_update_only — no dedupe match, skipped',
+        source_slug: ctx.source.slug,
+        source_url: record.source_url,
+        victim_name: record.victim_name ?? null,
+        proposed_status: record.status,
+      }),
+    );
+    stats.cases_seen += 1;
+    return;
+  }
+
   let caseId: string;
   if (match) {
     // Tier-3-only matches (`lastname_age_sex` matched, no stronger key)
