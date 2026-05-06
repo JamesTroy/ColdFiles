@@ -11,7 +11,7 @@ import type {
   ListStrategySitemap,
   ListStrategyStatePagination,
 } from './types.ts';
-import { PoliteFetcher, fetchRobots, isAllowed } from './http.ts';
+import { HttpError, PoliteFetcher, fetchRobots, isAllowed } from './http.ts';
 import { extractWithStrategy, linksFromSelector, load } from './extract.ts';
 import { generateDedupeKeys } from './dedupe.ts';
 
@@ -164,17 +164,38 @@ async function sitemapDiscovery(
   // Charley (and most WordPress sources) ship a sitemap *index* at the
   // top, not a flat URL list — root tag is <sitemapindex> with <loc>s
   // pointing at child sitemaps. Detect and recurse one level.
-  const visit = async (sitemapUrl: string): Promise<void> => {
+  //
+  // 404 tolerance — child sitemaps only. WordPress occasionally lists
+  // sitemap pages in the top-level index that have been pruned (post
+  // deletions, numbering reshuffle). Charley as of 2026-05-04 is the
+  // worked example: index lists case-1 through case-9, but only case-1
+  // actually resolves — pages 2-9 all 404. A child 404 should let the
+  // crawl proceed with whatever children DO resolve; a top-level 404
+  // (the sitemap index URL itself) is fatal and propagates.
+  const visit = async (sitemapUrl: string, isChild: boolean): Promise<void> => {
     if (opts.detailLimit && urls.length >= opts.detailLimit) return;
     if (!sameHost(sitemapUrl)) return; // refuse to follow cross-host index
-    const xml = await fetcher.getText(sitemapUrl);
+    let xml: string;
+    try {
+      xml = await fetcher.getText(sitemapUrl);
+    } catch (err) {
+      if (
+        isChild &&
+        err instanceof HttpError &&
+        err.status === 404
+      ) {
+        // Stale-index child entry. Skip; continue with siblings.
+        return;
+      }
+      throw err;
+    }
     const isIndex = /<sitemapindex[\s>]/i.test(xml);
     for (const m of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
       const u = m[1].trim();
       if (!sameHost(u)) continue; // drop off-host entries silently
       if (isIndex) {
         opts.onProgress?.({ kind: 'list_page', url: u, index: childIndex++ });
-        await visit(u);
+        await visit(u, true);
         if (opts.detailLimit && urls.length >= opts.detailLimit) return;
       } else {
         if (!strat.urlPattern.test(u)) continue;
@@ -187,7 +208,7 @@ async function sitemapDiscovery(
     }
   };
 
-  await visit(strat.sitemapUrl);
+  await visit(strat.sitemapUrl, false);
   return urls;
 }
 
