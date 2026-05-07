@@ -79,6 +79,7 @@ export default function WatchZoneScreen() {
   const [radiusMi, setRadiusMi] = useState(RADIUS_DEFAULT_MI);
   const [casesInside, setCasesInside] = useState<number | null>(null);
   const [countLoading, setCountLoading] = useState(false);
+  const [countError, setCountError] = useState(false);
 
   const [saveSheetOpen, setSaveSheetOpen] = useState(false);
 
@@ -114,6 +115,7 @@ export default function WatchZoneScreen() {
         <CountChip
           count={casesInside}
           loading={countLoading}
+          error={countError}
           area={areaMi2}
         />
       </View>
@@ -153,6 +155,7 @@ export default function WatchZoneScreen() {
         radiusMi={radiusMi}
         onCount={setCasesInside}
         onLoadingChange={setCountLoading}
+        onErrorChange={setCountError}
       />
 
       {saveSheetOpen ? (
@@ -188,11 +191,13 @@ function UseCasesInsideQuery({
   radiusMi,
   onCount,
   onLoadingChange,
+  onErrorChange,
 }: {
   center: CenterPoint;
   radiusMi: number;
   onCount: (n: number) => void;
   onLoadingChange: (loading: boolean) => void;
+  onErrorChange: (hasError: boolean) => void;
 }) {
   const cacheRef = useRef<Map<string, number>>(new Map());
 
@@ -206,12 +211,14 @@ function UseCasesInsideQuery({
     if (cached !== undefined) {
       onCount(cached);
       onLoadingChange(false);
+      onErrorChange(false);
       return;
     }
 
     let cancelled = false;
     const timer = setTimeout(async () => {
       onLoadingChange(true);
+      onErrorChange(false);
       try {
         const supabase = getSupabase();
         const { data, error } = await supabase.rpc('cases_within_radius', {
@@ -224,12 +231,22 @@ function UseCasesInsideQuery({
         });
         if (cancelled) return;
         if (error) {
-          onCount(0);
+          // Surface the failure rather than masquerading as "0 cases nearby" —
+          // the user can't otherwise distinguish empty area from broken net.
+          console.warn('[watch-zone] cases_within_radius failed', error.message);
+          onErrorChange(true);
         } else {
           const n = (data ?? []).length;
           cacheRef.current.set(key, n);
           onCount(n);
         }
+      } catch (err) {
+        if (cancelled) return;
+        console.warn(
+          '[watch-zone] cases_within_radius rejected',
+          err instanceof Error ? err.message : String(err),
+        );
+        onErrorChange(true);
       } finally {
         if (!cancelled) onLoadingChange(false);
       }
@@ -239,7 +256,7 @@ function UseCasesInsideQuery({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [center.lat, center.lng, radiusMi, onCount, onLoadingChange]);
+  }, [center.lat, center.lng, radiusMi, onCount, onLoadingChange, onErrorChange]);
 
   return null;
 }
@@ -344,15 +361,20 @@ function CrosshairOverlay() {
 function CountChip({
   count,
   loading,
+  error,
   area,
 }: {
   count: number | null;
   loading: boolean;
+  error: boolean;
   area: number;
 }) {
   const countText = count == null ? '…' : count.toLocaleString();
   const caseWord = count === 1 ? 'CASE' : 'CASES';
   const areaText = area >= 1 ? `${area < 10 ? area.toFixed(1) : Math.round(area)} MI²` : `${area.toFixed(1)} MI²`;
+  const label = error
+    ? `COULDN'T PREVIEW ZONE COUNT · ${areaText}`
+    : `${countText} ${caseWord} · ${areaText}`;
   return (
     <View
       pointerEvents="none"
@@ -377,7 +399,7 @@ function CountChip({
         tracking={tokens.tracking.chip}
         color={tokens.color.accent.amber}
       >
-        {`${countText} ${caseWord} · ${areaText}`}
+        {label}
       </MonoLabel>
     </View>
   );
@@ -500,8 +522,14 @@ function SaveSheet({
     try {
       await onSave(label);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not save zone';
-      Alert.alert("Couldn't save", msg);
+      console.warn(
+        '[watch-zone] save failed',
+        err instanceof Error ? err.message : String(err),
+      );
+      Alert.alert(
+        "Couldn't save",
+        "We couldn't save that zone right now. Check your connection and try again.",
+      );
     } finally {
       setSubmitting(false);
     }

@@ -36,11 +36,26 @@ export function useUser(): UseUserResult {
     const supabase = getSupabase();
     let cancelled = false;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      setSession(data.session);
-      setLoading(false);
-    });
+    supabase.auth.getSession().then(
+      ({ data }) => {
+        if (cancelled) return;
+        setSession(data.session);
+        setLoading(false);
+      },
+      (err: unknown) => {
+        // Network failure (offline, captive portal, supabase outage) on cold
+        // launch must not freeze `loading: true` — that hangs Me + Saved
+        // panes indefinitely. Resolve to no-session and let onAuthStateChange
+        // fill in once the network recovers.
+        if (cancelled) return;
+        console.warn(
+          '[use-user] getSession rejected',
+          err instanceof Error ? err.message : String(err),
+        );
+        setSession(null);
+        setLoading(false);
+      },
+    );
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);

@@ -15,13 +15,14 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   TextInput,
   View,
@@ -50,6 +51,7 @@ import type { CaseKind, CaseRowMapBbox } from '@/lib/types/database';
 interface CasesInside {
   rows: CaseRowMapBbox[];
   loading: boolean;
+  error: boolean;
 }
 
 export default function ZoneDetailScreen() {
@@ -63,7 +65,9 @@ export default function ZoneDetailScreen() {
   const [casesInside, setCasesInside] = useState<CasesInside>({
     rows: [],
     loading: false,
+    error: false,
   });
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const polygonVertices = useMemo<PolygonVertex[]>(
     () => geojsonToVertices(zone?.geojson ?? null),
@@ -71,10 +75,12 @@ export default function ZoneDetailScreen() {
   );
 
   // Pull cases-inside via cases_in_polygon. Cheap because the zone is small.
+  // Both arms wired (success + rejection) so a network failure surfaces an
+  // inline retry instead of stalling at `loading: true` forever.
   useEffect(() => {
     if (!zone || polygonVertices.length < 3 || !isSupabaseConfigured()) return;
     let cancelled = false;
-    setCasesInside((s) => ({ ...s, loading: true }));
+    setCasesInside((s) => ({ ...s, loading: true, error: false }));
     const wkt = verticesToWkt(polygonVertices);
     const supabase = getSupabase();
     supabase
@@ -84,17 +90,37 @@ export default function ZoneDetailScreen() {
         filter_status: ['open'],
         result_limit: 500,
       })
-      .then(({ data }) => {
-        if (cancelled) return;
-        setCasesInside({
-          rows: (data ?? []) as CaseRowMapBbox[],
-          loading: false,
-        });
-      });
+      .then(
+        ({ data, error }) => {
+          if (cancelled) return;
+          if (error) {
+            console.warn('[zone] cases_in_polygon failed', error.message);
+            setCasesInside({ rows: [], loading: false, error: true });
+            return;
+          }
+          setCasesInside({
+            rows: (data ?? []) as CaseRowMapBbox[],
+            loading: false,
+            error: false,
+          });
+        },
+        (err: unknown) => {
+          if (cancelled) return;
+          console.warn(
+            '[zone] cases_in_polygon rejected',
+            err instanceof Error ? err.message : String(err),
+          );
+          setCasesInside({ rows: [], loading: false, error: true });
+        },
+      );
     return () => {
       cancelled = true;
     };
-  }, [zone?.id, polygonVertices.length]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [zone?.id, polygonVertices.length, refreshTick]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+  }, []);
 
   if (zonesLoading) {
     return (
@@ -142,8 +168,14 @@ export default function ZoneDetailScreen() {
               await remove(zone.id);
               router.back();
             } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Could not delete';
-              Alert.alert("Couldn't delete", msg);
+              console.warn(
+                '[zone] delete failed',
+                err instanceof Error ? err.message : String(err),
+              );
+              Alert.alert(
+                "Couldn't delete",
+                "We couldn't delete that zone right now. Check your connection and try again.",
+              );
             }
           },
         },
@@ -155,7 +187,17 @@ export default function ZoneDetailScreen() {
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
       <BackHeader title={zone.label ?? 'Untitled zone'} />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={casesInside.loading}
+            onRefresh={handleRefresh}
+            tintColor={tokens.color.accent.amber}
+            colors={[tokens.color.accent.amber]}
+          />
+        }
+      >
         <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
           <MonoLabel
             size={tokens.size.monoLabel}
@@ -178,6 +220,18 @@ export default function ZoneDetailScreen() {
         {casesInside.loading ? (
           <View style={{ paddingVertical: 24, alignItems: 'center' }}>
             <ActivityIndicator color={tokens.color.accent.amber} />
+          </View>
+        ) : casesInside.error ? (
+          <View style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
+            <NarrativeText
+              style={{
+                color: tokens.color.text.secondary,
+                fontSize: 14,
+                lineHeight: 20,
+              }}
+            >
+              Couldn&apos;t load cases for this zone. Pull to retry.
+            </NarrativeText>
           </View>
         ) : casesInside.rows.length === 0 ? (
           <View style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
@@ -394,8 +448,14 @@ function RenameRow({ zone }: { zone: WatchZone }) {
       if (error) throw new Error(error.message);
       setEditing(false);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not rename';
-      Alert.alert("Couldn't rename", msg);
+      console.warn(
+        '[zone] rename failed',
+        err instanceof Error ? err.message : String(err),
+      );
+      Alert.alert(
+        "Couldn't rename",
+        "We couldn't save the new name. Check your connection and try again.",
+      );
     } finally {
       setSaving(false);
     }
