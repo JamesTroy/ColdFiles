@@ -52,6 +52,16 @@ export interface CaseRowMapBbox {
   has_photo: boolean;
   /** Incident date (ISO yyyy-mm-dd). Drives kindLine's year segment. */
   incident_date: string | null;
+  /**
+   * Quality of `incident_date`. Migration 36 added this to the
+   * cases_in_bbox + cases_near_case RPCs so the case-detail adjacency
+   * section can bucket by date precision (year_only dates land at
+   * YYYY-01-01 by parseDate convention; treating them as point-dates
+   * produces asymmetric matching against subjects elsewhere in the
+   * year). Optional on the type because rows from older RPCs that
+   * don't return it still typecheck — PostgREST omits unset fields.
+   */
+  incident_date_quality?: DateQuality | null;
   /** City name. Drives kindLine's place segment. */
   location_city: string | null;
   /** 2-letter US state code. Drives kindLine's place segment. */

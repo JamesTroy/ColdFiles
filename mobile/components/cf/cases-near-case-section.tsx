@@ -42,15 +42,22 @@ import { Pressable, View } from 'react-native';
 
 import { tokens } from '@/constants/theme';
 import { useCasesNearCase } from '@/lib/hooks/use-cases-near-case';
-import type { CaseKind, CaseRowMapBbox } from '@/lib/types/database';
+import type { CaseKind, CaseRowMapBbox, DateQuality } from '@/lib/types/database';
 
 import { CaseRow } from './case-row';
 import { Mono, MonoLabel } from './text';
 
 interface Props {
   caseId: string;
-  /** ISO date (yyyy-mm-dd). Drives the ±2y "Same period" bucket. */
+  /** ISO date (yyyy-mm-dd). Drives the "Same period" bucket. */
   caseIncidentDate: string | null;
+  /**
+   * Quality of caseIncidentDate. Drives whether the subject is
+   * compared as a point-date (exact) or a range (year_only,
+   * approximate, suspect, unknown). See bucketByPeriod for the
+   * range-overlap math.
+   */
+  caseIncidentDateQuality?: DateQuality | null;
   /** False when the subject has no location_point — section is suppressed. */
   hasLocation: boolean;
 }
@@ -59,27 +66,47 @@ const RADIUS_OPTIONS = [10, 25, 50, 100] as const;
 const DEFAULT_RADIUS: (typeof RADIUS_OPTIONS)[number] = 25;
 const HIGH_COUNT_THRESHOLD = 30;
 const RESULT_CAP = 200;
-// "Same period" = cases within ±6 months of the subject's incident
-// date. Tightened from ±2 years in two steps:
-//   step 1 (this commit): ±2y was way too wide — a case two years
-//                          apart isn't "around the same time" in any
-//                          tipster's mental model.
-//   step 2 (this commit): ±1y was still too loose. Real "same period"
-//                          intuition is closer to "same season / same
-//                          half of the year." 6 months captures that
-//                          while staying inclusive of year_only-
-//                          quality matches that anchor at YYYY-01-01.
+// "Same period" = a case's effective date range overlaps the subject's
+// effective date range expanded by ±6 months on each side. Boundary
+// is INCLUSIVE on both sides; calendar-month math (Date.setMonth)
+// rather than fixed-day approximation, so months expand to their
+// natural lengths (Feb 28/29 etc.).
 //
-// Year_only-quality dates land at YYYY-01-01 by parseDate convention,
-// so a year_only "1985" case will match a mid-1985 subject within
-// ~5 months and a late-1985 subject just barely (~7 months → out).
-// That's a small bias toward early-year matches; acceptable given
-// the upstream data quality.
+// History:
+//   ±2y (original) — too wide; a case two years apart isn't "around
+//                    the same time" in any tipster's mental model.
+//   ±1y (interim)  — still too loose. Real "same period" intuition is
+//                    closer to "same season / same half of the year."
+//   ±6m (this)     — captures the spirit of "around the same time"
+//                    without overclaiming temporal coincidence.
+//
+// Quality-aware ranges (this commit) — the previous ±6mo math compared
+// each case as a point-date against the subject's point-date. That
+// produced asymmetric matching for year_only-quality dates because
+// parseDate stores them at YYYY-01-01: a year_only "1985" case landed
+// near February-1985 subjects (~1 month apart) but missed October-1985
+// subjects (~9 months apart), even though both are by definition in
+// the same year as the year_only record. Same problem across year
+// boundaries: year_only 1984 (Jan 1, 1984) vs year_only 1985 (Jan 1,
+// 1985) is exactly 12 months apart, falling out — but the underlying
+// truth could be Dec 1984 vs Jan 1985, days apart in real time.
+//
+// Fix: treat each case as a date RANGE based on its quality.
+//   exact     → range = [date, date] (point)
+//   year_only → range = [Jan 1 of year, Dec 31 of year]
+//   approximate → range = the parsed-date's month (best signal we have:
+//                          parseDate sets day to 01 but month is real)
+//   suspect / unknown → no temporal claim; bucket to "Other Nearby"
+//
+// Then check if the subject's range expanded by ±6 months on each
+// side overlaps the candidate's range. Symmetric, intuitive, respects
+// upstream date precision.
 const SAME_PERIOD_MONTHS = 6;
 
 export function CasesNearCaseSection({
   caseId,
   caseIncidentDate,
+  caseIncidentDateQuality,
   hasLocation,
 }: Props): ReactElement | null {
   // Hooks-before-returns per CLAUDE.md.
@@ -90,16 +117,15 @@ export function CasesNearCaseSection({
     limit: RESULT_CAP,
   });
 
-  // Subject's incident date as a millisecond timestamp — null if the
-  // case has no incident_date or it didn't parse. The bucket logic
-  // below compares this against each row's incident_date in months.
-  const subjectMs = useMemo<number | null>(() => {
-    if (!caseIncidentDate) return null;
-    const ms = Date.parse(caseIncidentDate);
-    return Number.isFinite(ms) ? ms : null;
-  }, [caseIncidentDate]);
+  // Subject's effective date range — depends on quality. See
+  // effectiveRange + the SAME_PERIOD_MONTHS comment block for the
+  // contract.
+  const subjectRange = useMemo<DateRange | null>(
+    () => effectiveRange(caseIncidentDate, caseIncidentDateQuality),
+    [caseIncidentDate, caseIncidentDateQuality],
+  );
 
-  const buckets = useMemo(() => bucketByPeriod(rows, subjectMs), [rows, subjectMs]);
+  const buckets = useMemo(() => bucketByPeriod(rows, subjectRange), [rows, subjectRange]);
   const stats = useMemo(() => buildStats(rows), [rows]);
 
   if (!hasLocation) return null;
@@ -286,44 +312,108 @@ function EmptyState({ radius }: { radius: number }) {
 
 /* ---------- pure helpers ---------- */
 
+/**
+ * A case's effective date range, expressed in millisecond timestamps.
+ * Inclusive on both ends. Point-dates have startMs === endMs.
+ */
+interface DateRange {
+  startMs: number;
+  endMs: number;
+}
+
+/**
+ * Convert (incident_date, quality) into a DateRange that respects
+ * the source's date precision. Returns null when the case can't make
+ * a temporal claim — those rows fall through to "Other Nearby"
+ * because we don't want to silently include them in "Same Period."
+ *
+ *   exact        → point [date, date]
+ *   year_only    → full year [Jan 1 YYYY, Dec 31 YYYY]
+ *   approximate  → full year (parseDate sets day=01 either way and
+ *                   we can't tell from the iso string alone whether
+ *                   the month is real ("June 1985") or a Jan 1 anchor
+ *                   for an embedded year ("summer 1985"). Conservative
+ *                   call: trust only the year.)
+ *   suspect      → null  (source itself flagged the date as unreliable)
+ *   unknown      → null  (no temporal signal)
+ *   undefined    → falls back to exact-style point — handles the brief
+ *                   pre-migration-36 window where the RPC didn't
+ *                   return quality. After migration 36 every row has
+ *                   a value; this branch is dead but kept for safety.
+ *
+ * Uses UTC throughout so the same input produces the same range
+ * regardless of the device's local timezone — a 1985-06-15 case
+ * shouldn't bucket differently for a user in NY vs Tokyo.
+ */
+function effectiveRange(
+  isoDate: string | null | undefined,
+  quality: DateQuality | null | undefined,
+): DateRange | null {
+  if (!isoDate) return null;
+  if (quality === 'suspect' || quality === 'unknown') return null;
+
+  if (quality === 'year_only' || quality === 'approximate') {
+    const year = parseInt(isoDate.slice(0, 4), 10);
+    if (!Number.isFinite(year)) return null;
+    return {
+      startMs: Date.UTC(year, 0, 1, 0, 0, 0, 0),
+      endMs: Date.UTC(year, 11, 31, 23, 59, 59, 999),
+    };
+  }
+
+  // exact (or undefined fallback)
+  const ms = Date.parse(isoDate);
+  if (!Number.isFinite(ms)) return null;
+  return { startMs: ms, endMs: ms };
+}
+
+/**
+ * Expand a DateRange by `months` calendar months on each side.
+ * Calendar-month math via setUTCMonth (rather than fixed-day
+ * approximation) so months keep their natural lengths — Feb's
+ * 28/29 is honored; June+6mo lands on December not "180 days
+ * later." Boundary is INCLUSIVE on both sides via the rangesOverlap
+ * comparison below.
+ */
+function expandRange(range: DateRange, months: number): DateRange {
+  const start = new Date(range.startMs);
+  start.setUTCMonth(start.getUTCMonth() - months);
+  const end = new Date(range.endMs);
+  end.setUTCMonth(end.getUTCMonth() + months);
+  return { startMs: start.getTime(), endMs: end.getTime() };
+}
+
+/** Inclusive-on-both-sides range overlap. */
+function rangesOverlap(a: DateRange, b: DateRange): boolean {
+  return a.startMs <= b.endMs && a.endMs >= b.startMs;
+}
+
 function bucketByPeriod(
   rows: CaseRowMapBbox[],
-  subjectMs: number | null,
+  subjectRange: DateRange | null,
 ): { samePeriod: CaseRowMapBbox[]; otherNearby: CaseRowMapBbox[] } {
-  // No subject date → no temporal grouping; everything lands in "Other".
-  if (subjectMs == null) {
+  // No subject date / unreliable subject quality → no temporal
+  // grouping; everything lands in "Other Nearby."
+  if (subjectRange == null) {
     return { samePeriod: [], otherNearby: rows };
   }
-  const subjectDate = new Date(subjectMs);
+  // Subject's matching window: subject's range expanded by ±6 months.
+  const window = expandRange(subjectRange, SAME_PERIOD_MONTHS);
   const samePeriod: CaseRowMapBbox[] = [];
   const otherNearby: CaseRowMapBbox[] = [];
   for (const r of rows) {
-    if (!r.incident_date) {
+    const rRange = effectiveRange(r.incident_date, r.incident_date_quality);
+    if (rRange == null) {
       otherNearby.push(r);
       continue;
     }
-    const rMs = Date.parse(r.incident_date);
-    if (!Number.isFinite(rMs)) {
-      otherNearby.push(r);
-      continue;
-    }
-    const monthsApart = Math.abs(monthsBetween(subjectDate, new Date(rMs)));
-    if (monthsApart <= SAME_PERIOD_MONTHS) {
+    if (rangesOverlap(window, rRange)) {
       samePeriod.push(r);
     } else {
       otherNearby.push(r);
     }
   }
   return { samePeriod, otherNearby };
-}
-
-/**
- * Whole-month delta between two dates, ignoring day-of-month. Sufficient
- * resolution for a 6-month threshold; no need for day-precision when the
- * upstream data is mostly year_only or approximate quality anyway.
- */
-function monthsBetween(a: Date, b: Date): number {
-  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
 }
 
 interface Stats {
