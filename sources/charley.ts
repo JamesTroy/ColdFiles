@@ -1,4 +1,5 @@
 import type { SourceConfig } from '../supabase/functions/_shared/types.ts';
+import type { CaseEventInput } from '../supabase/functions/_shared/case-events.ts';
 import { byLabel, textOf } from '../supabase/functions/_shared/extract.ts';
 import {
   extractPhone,
@@ -119,6 +120,30 @@ export const charleyProject: SourceConfig = {
         const raw = textOf($, '#case-bottom .column', { preserveNewlines: true });
         const cleaned = raw.replace(/^Details of Disappearance\s*/i, '').trim();
         return cleaned.split(/\n{2,}/)[0]?.slice(0, 240) || undefined;
+      },
+      // Timeline events — Charley emits last_seen from the "Missing Since"
+      // meta-list value. source_quote is the raw upstream value verbatim
+      // (with the field label preserved so an operator audit reads cleanly).
+      // Suppressed when Missing Since didn't parse to a date — a dateless
+      // last_seen headline isn't useful in the timeline.
+      events: (_, $, pageUrl) => {
+        const rawDate = byLabel($, '#case-top li', 'Missing Since');
+        if (!rawDate) return undefined;
+        const parsed = parseDate(rawDate);
+        if (!parsed.iso && parsed.quality === 'unknown') return undefined;
+        const url = pageUrl ?? '';
+        if (!url) return undefined;
+        const locationLabel = byLabel($, '#case-top li', 'Missing From')?.trim();
+        const event: CaseEventInput = {
+          event_kind: 'last_seen',
+          headline: locationLabel ? `Last seen — ${locationLabel}` : 'Last seen',
+          event_date: parsed.iso ?? undefined,
+          event_date_quality: parsed.quality,
+          event_date_text: parsed.quality !== 'exact' ? rawDate : undefined,
+          source_url: url,
+          source_quote: `Missing Since: ${rawDate}`,
+        };
+        return [event];
       },
     },
     inferKind: () => 'missing',

@@ -243,6 +243,42 @@ export interface CaseMediaRow {
  * photo. Derived from kind rather than stored as a column — the kind taxonomy
  * already encodes this distinction.
  */
+/**
+ * Row shape for case_events (migration 35) — the per-case Timeline
+ * Reconstruction. Closed taxonomy of public-record event kinds; every
+ * row carries a verified source URL + verbatim quote (NOT NULL,
+ * schema-enforced anti-inference).
+ *
+ * Joins on `source` so the section can render the source name in
+ * the per-event meta line without a follow-up fetch.
+ */
+export type CaseEventKind =
+  | 'incident'
+  | 'last_seen'
+  | 'remains_found'
+  | 'case_spotlight_published'
+  | 'status_resolved_arrest'
+  | 'status_resolved_other'
+  | 'status_identified';
+
+export interface CaseEventRow {
+  id: string;
+  case_id: string;
+  event_kind: CaseEventKind;
+  headline: string;
+  body: string | null;
+  event_at: string | null;
+  event_date: string | null;
+  event_date_end: string | null;
+  event_date_quality: DateQuality;
+  event_date_text: string | null;
+  source_url: string;
+  source_quote: string;
+  source_id: string | null;
+  /** Joined source row when present. */
+  source: SourceRow | null;
+}
+
 export function isMediaReconstruction(media: Pick<CaseMediaRow, 'kind'> | null | undefined): boolean {
   if (!media) return false;
   return (

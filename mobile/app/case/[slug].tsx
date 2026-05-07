@@ -34,6 +34,7 @@ import {
   SerifTitle,
 } from '@/components/cf/text';
 import { TrustDisclosureCallout, TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
+import { CaseEventsSection } from '@/components/cf/case-events-section';
 import { CasesNearCaseSection } from '@/components/cf/cases-near-case-section';
 import { tokens } from '@/constants/theme';
 import { displayName, formatDateLedger, formatDateMonthDay, formatPlace } from '@/lib/format';
@@ -275,6 +276,17 @@ export default function CaseDetailScreen() {
             "next case" engagement loop. Middle (here) frames it as
             context for evaluating the subject case. Section is self-
             suppressing when the subject has no location_point. */}
+        {/* Per-case Timeline Reconstruction (migration 35) —
+            placed ABOVE adjacency. The timeline reads as the
+            chronological "what happened" for the subject case;
+            adjacency reads as "what other cases sit nearby." Order
+            is editorial: subject-case context first, then the
+            broader regional frame. Self-suppressing under 3 events.
+            Reverting this commit restores the order from D1
+            (timeline below adjacency); reverting D1 removes the
+            section entirely. */}
+        <CaseEventsSection caseId={c.id} />
+
         <CasesNearCaseSection
           caseId={c.id}
           caseIncidentDate={c.incident_date}

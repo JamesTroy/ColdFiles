@@ -126,6 +126,17 @@ export interface CaseRecord {
   reward_amount_usd?: number;
   reward_text?: string;
 
+  /**
+   * Timeline events emitted by the extractor. Persist.ts forwards these
+   * to persistCaseEvents after the case row write, regardless of whether
+   * the case was created or merged. Each event carries source_url +
+   * source_quote (NOT NULL at the schema; the editorial-noise rule from
+   * migration 35 — extractor must quote upstream text, no inference at
+   * extraction time). Empty array == no events for this scrape, which is
+   * the common case for narrative-locked sources.
+   */
+  events?: import('./case-events.ts').CaseEventInput[];
+
   agency_hint?: AgencyHint;
   /**
    * Raw agency name/phone written to cases.primary_agency_name_raw /
@@ -239,7 +250,11 @@ export interface DetailStrategyCheerio {
   dateFormats?: string[];
   /** Per-field transforms when selectors aren't enough. The transform receives the raw selector text. */
   transforms?: {
-    [field in keyof CaseRecord]?: (raw: string, $: CheerioAPI) => unknown;
+    [field in keyof CaseRecord]?: (
+      raw: string,
+      $: CheerioAPI,
+      pageUrl?: string,
+    ) => unknown;
   };
   /** Inferred case kind if not derivable from URL/selectors. */
   inferKind?: (record: Partial<CaseRecord>) => CaseKind;

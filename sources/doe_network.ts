@@ -4,6 +4,7 @@ import type {
   ExtractedPhoto,
   SourceConfig,
 } from '../supabase/functions/_shared/types.ts';
+import type { CaseEventInput } from '../supabase/functions/_shared/case-events.ts';
 import {
   extractPhone,
   heightToCm,
@@ -204,6 +205,29 @@ export const doeNetwork: SourceConfig = {
       const narrative_short =
         narrative.split(/\n{2,}/)[0]?.slice(0, 240) || undefined;
 
+      // Timeline event — last_seen. Only emit when missing_since parsed
+      // (no inference from absence). source_quote is the raw upstream
+      // value verbatim per the editorial-noise rule (migration 35).
+      // Dates that didn't parse to ISO would still produce a hash but
+      // we keep the event suppressed when no date signal is present —
+      // headlines without dates aren't useful in the timeline.
+      const events: CaseEventInput[] = [];
+      if (fields.missing_since && (dateParse.iso || dateParse.quality !== 'unknown')) {
+        const locationLabel = fields.location_last_seen?.trim();
+        events.push({
+          event_kind: 'last_seen',
+          headline: locationLabel ? `Last seen — ${locationLabel}` : 'Last seen',
+          event_date: dateParse.iso ?? undefined,
+          event_date_quality: dateParse.quality,
+          event_date_text:
+            fields.missing_since && dateParse.quality !== 'exact'
+              ? fields.missing_since
+              : undefined,
+          source_url: detailUrl,
+          source_quote: `Missing Since: ${fields.missing_since}`,
+        });
+      }
+
       return {
         kind: 'missing',
         status: 'open',
@@ -242,6 +266,7 @@ export const doeNetwork: SourceConfig = {
 
         agency_hint: agencyHint,
         photos,
+        events,
 
         raw: {
           fields,

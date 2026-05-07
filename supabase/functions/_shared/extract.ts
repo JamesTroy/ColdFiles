@@ -206,7 +206,7 @@ export function extractWithStrategy(
     for (const [field, fn] of Object.entries(strategy.transforms)) {
       const sourceSelector = sel[field as keyof typeof sel];
       const raw = sourceSelector ? textOf($, sourceSelector) : '';
-      const v = fn(raw, $);
+      const v = fn(raw, $, pageUrl);
       if (v !== undefined && v !== null) {
         // @ts-expect-error: transform return type is unknown; the SourceConfig author owns correctness here.
         out[field as keyof CaseRecord] = v;

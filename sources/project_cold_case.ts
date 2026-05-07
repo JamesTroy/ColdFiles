@@ -43,6 +43,7 @@ import type {
   ExtractedPhoto,
   SourceConfig,
 } from '../supabase/functions/_shared/types.ts';
+import type { CaseEventInput } from '../supabase/functions/_shared/case-events.ts';
 import {
   parseDate,
   parseState,
@@ -308,6 +309,44 @@ export const projectColdCase: SourceConfig = {
         tip_url: 'https://projectcoldcase.org/contact-us/',
       };
 
+      // Timeline events:
+      //   - incident:               parsed date in the yoast description
+      //                             sentence. source_quote is the verbatim
+      //                             single-sentence Yoast description (the
+      //                             upstream evidence the date came from).
+      //   - case_spotlight_published: yoast.article_published_time. Editorial
+      //                             milestone — when PCC published the
+      //                             spotlight post on the victim. Date is
+      //                             ISO timestamp, quality 'exact'.
+      const events: CaseEventInput[] = [];
+      const sourceUrl = post.link;
+      if (parsed.iso && description) {
+        events.push({
+          event_kind: 'incident',
+          headline: parsed.locationText
+            ? `Incident — ${parsed.locationText}`
+            : 'Incident',
+          event_date: parsed.iso,
+          event_date_quality: parsed.quality,
+          event_date_text:
+            parsed.rawDate && parsed.quality !== 'exact' ? parsed.rawDate : undefined,
+          source_url: sourceUrl,
+          source_quote: description,
+        });
+      }
+      if (yoast.article_published_time) {
+        const publishedIso = yoast.article_published_time.slice(0, 10);
+        events.push({
+          event_kind: 'case_spotlight_published',
+          headline: 'Cold Case Spotlight published',
+          event_at: yoast.article_published_time,
+          event_date: /^\d{4}-\d{2}-\d{2}$/.test(publishedIso) ? publishedIso : undefined,
+          event_date_quality: 'exact',
+          source_url: sourceUrl,
+          source_quote: `Article published: ${yoast.article_published_time}`,
+        });
+      }
+
       return {
         kind: 'homicide',
         status: 'open',
@@ -329,6 +368,7 @@ export const projectColdCase: SourceConfig = {
 
         agency_hint: agencyHint,
         photos,
+        events,
 
         raw: {
           post_id: post.id,
