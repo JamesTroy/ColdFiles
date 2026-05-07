@@ -617,17 +617,29 @@ function LeafletRenderer({
       if (group && group.length > 1) {
         const idx = group.findIndex((g) => g.slug === c.slug);
         if (idx > 0) {
-          // Spread on a ring around the shared point. ~330m radius
-          // (0.003°) so adjacent pins are ~330-660m apart depending
-          // on group size. At zoom 13+ this puts pins well outside
-          // markercluster's 30px radius (combined with the dropped
-          // maxClusterRadius below), so the cluster never forms in
-          // the first place — no spiderfy, no spiral, no snap-back.
-          // Deterministic by group index so a case always lands at
-          // the same offset across renders.
+          // Spread on a ring around the shared point. ~90m radius
+          // (0.0008°) at typical mid-latitudes — visible at zoom
+          // 14+ as separate pins (~9 screen px), invisible at low
+          // zoom. Deterministic by group index so a case always
+          // lands at the same offset across renders.
+          //
+          // Why 90m and not 330m: a previous version used 330m to
+          // escape markercluster's 30px-radius clustering at zoom
+          // 13, but that meant any two cases that happened to share
+          // 5-decimal coordinates (~1m, often after the upstream
+          // 3-decimal privacy-snap) had the second pin yanked
+          // ~330m off the true location. For genuinely-precise
+          // pairs that's a flat-out wrong location; for centroid
+          // stacks of 30+ cases at the same city-centroid coord,
+          // 330m was visual overkill anyway. At 90m, pairs that
+          // happen to share post-snap coordinates render
+          // distinguishably at street zoom but are at most ~45m
+          // off the true location. At low zoom, markercluster's
+          // "N here" badge takes over — that's a more honest
+          // signal than 660m-apart "separate" pins anyway.
           const angle = (idx / group.length) * Math.PI * 2;
-          lat += Math.cos(angle) * 0.003;
-          lng += Math.sin(angle) * 0.003;
+          lat += Math.cos(angle) * 0.0008;
+          lng += Math.sin(angle) * 0.0008;
         }
       }
       // Popup preview content. Title = victim name (or "Unidentified
