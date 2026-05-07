@@ -290,6 +290,7 @@ export default function CaseDetailScreen() {
         <CasesNearCaseSection
           caseId={c.id}
           caseIncidentDate={c.incident_date}
+          caseIncidentDateQuality={c.incident_date_quality}
           hasLocation={c.location_lat != null && c.location_lng != null}
         />
 
