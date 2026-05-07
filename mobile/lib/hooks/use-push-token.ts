@@ -30,7 +30,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { getSupabase, isSupabaseConfigured } from '../supabase';
@@ -255,6 +255,44 @@ export function usePushToken(): UsePushTokenResult {
     if (!registrationId) return;
     void syncPrefs(prefs);
   }, [prefs, registrationId, syncPrefs]);
+
+  // Latest-state refs so the auth listener can stay subscribed exactly once
+  // and still read fresh values. Re-subscribing on every state change would
+  // race the listener against in-flight token registration.
+  const requestAndRegisterRef = useRef(requestAndRegister);
+  const unregisterRef = useRef(unregister);
+  const hasRegistrationRef = useRef(false);
+  useEffect(() => {
+    requestAndRegisterRef.current = requestAndRegister;
+    unregisterRef.current = unregister;
+  }, [requestAndRegister, unregister]);
+  useEffect(() => {
+    hasRegistrationRef.current = Boolean(registrationId || token);
+  }, [registrationId, token]);
+
+  // React to sign-in/out: rotate the install's push subscription so user A
+  // signing out and user B signing in on the same device doesn't carry A's
+  // user_id on the push_tokens row. SIGNED_IN re-runs the registration only
+  // if the user had previously opted into pushes (otherwise don't
+  // surprise-prompt for permission on sign-in). SIGNED_OUT clears local
+  // state; the server row's user_id falls off via auth.users cascade on
+  // account deletion, and rotates on the next register call.
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    const supabase = getSupabase();
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') {
+        if (hasRegistrationRef.current) {
+          void requestAndRegisterRef.current();
+        }
+      } else if (event === 'SIGNED_OUT') {
+        void unregisterRef.current();
+      }
+    });
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, []);
 
   // Touch user.id so the linter doesn't complain about an unused destructure;
   // it's read for future analytics + is the de-facto "are we authed" signal

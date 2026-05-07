@@ -4,22 +4,23 @@
  * Why this exists: the Supabase client at lib/supabase.ts has
  * `detectSessionInUrl: false` (correct for RN — there's no window.location
  * to anchor on), which means we have to manually catch the deep link,
- * parse the auth tokens, and call setSession() / exchangeCodeForSession().
+ * parse the auth tokens, and call exchangeCodeForSession().
  *
  * Wired in once at the root layout. Listens for both:
  *   - Cold-launch deep link (Linking.getInitialURL on mount)
  *   - Hot deep link while the app is already running (Linking.addEventListener)
  *
- * Handles both auth flows in case Supabase's project setting changes:
- *   - PKCE: coldfile://auth-callback?code=<exchange-code>
- *   - Implicit: coldfile://auth-callback#access_token=...&refresh_token=...
+ * PKCE-only: coldfile://auth-callback?code=<exchange-code>. Implicit-flow
+ * URL fragments are deliberately ignored — see comment block below.
  *
  * The session set fires onAuthStateChange in lib/hooks/use-user.ts, which
  * is what flips the UI from signed-out to signed-in.
  */
 
 import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 import { useEffect } from 'react';
+import { Alert } from 'react-native';
 
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -30,6 +31,22 @@ export function useAuthCallback(): void {
     if (!isSupabaseConfigured()) return;
 
     let cancelled = false;
+
+    const showExpired = () => {
+      Alert.alert(
+        'Sign-in link expired',
+        'This link is too old, or has been used already. Try signing in again.',
+        [{ text: 'Back to sign-in', onPress: () => router.replace('/sign-in') }],
+      );
+    };
+
+    const showGeneric = () => {
+      Alert.alert(
+        "Sign-in didn't complete",
+        'Please try again.',
+        [{ text: 'Back to sign-in', onPress: () => router.replace('/sign-in') }],
+      );
+    };
 
     const handle = async (url: string | null): Promise<void> => {
       if (!url || cancelled) return;
@@ -45,8 +62,15 @@ export function useAuthCallback(): void {
       const code = decodeURIComponent(codeMatch[1]);
       try {
         await getSupabase().auth.exchangeCodeForSession(code);
-      } catch {
-        // Code expired or invalid — UI re-prompts via the sign-in screen.
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message.toLowerCase() : '';
+        console.warn('[use-auth-callback] exchangeCodeForSession failed');
+        if (msg.includes('expired') || msg.includes('invalid') || msg.includes('used')) {
+          showExpired();
+        } else {
+          showGeneric();
+        }
       }
     };
 
