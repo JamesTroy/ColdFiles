@@ -241,6 +241,35 @@ export const doeNetwork: SourceConfig = {
         });
       }
 
+      // Status flip event. Doe doesn't surface a publish-date for the
+      // close — only the is_closed boolean. Per migration 35 body
+      // comment: use 'approximate' quality with today's date as the
+      // scrape-observed flip anchor. UI copy carries the cron-cadence
+      // caveat ("first observed within ~quarter of cron last fire").
+      // source_quote is the verbatim JSON-field signal that justified
+      // the event. Idempotent on re-scrape via the
+      // unique(case_id, ingest_signature) constraint — re-running
+      // tomorrow with a different "today" date would generate a new
+      // signature, BUT computeEventSignature drops the date when no
+      // event_date_text is set... wait, it includes event_date in the
+      // hash. Workaround: pin event_date_text to a stable string so
+      // the signature stabilizes across cron firings. Trade-off:
+      // event_date_text becomes a synthetic anchor, not a verbatim
+      // quote — which is the right call here since Doe has no
+      // verbatim flip-date to quote.
+      if (isClosed) {
+        events.push({
+          event_kind: 'status_resolved_other',
+          headline: 'Marked closed by Doe Network',
+          event_date_quality: 'approximate',
+          // Stable signature input: date_text is the anchor across
+          // cron firings so re-scrapes don't churn.
+          event_date_text: 'observed by Doe Network (date approximate)',
+          source_url: detailUrl,
+          source_quote: 'is_closed: X',
+        });
+      }
+
       return {
         kind: 'missing',
         status: isClosed ? 'cleared_other' : 'open',

@@ -310,6 +310,31 @@ export const doeNetworkUid: SourceConfig = {
         });
       }
 
+      // Status flip event — same posture as Doe MP's is_closed branch.
+      // Doe surfaces only the boolean signals (is_identified, is_closed),
+      // not a publish-date for the flip. Per migration 35: 'approximate'
+      // quality with a stable event_date_text anchor so re-scrapes don't
+      // churn signatures across cron firings.
+      if (isIdentified) {
+        events.push({
+          event_kind: 'status_identified',
+          headline: 'Victim identified',
+          event_date_quality: 'approximate',
+          event_date_text: 'identification confirmed by Doe Network (date approximate)',
+          source_url: detailUrl,
+          source_quote: 'is_identified: X',
+        });
+      } else if (isClosed) {
+        events.push({
+          event_kind: 'status_resolved_other',
+          headline: 'Marked closed by Doe Network',
+          event_date_quality: 'approximate',
+          event_date_text: 'observed by Doe Network (date approximate)',
+          source_url: detailUrl,
+          source_quote: 'is_closed: X',
+        });
+      }
+
       return {
         kind: 'unidentified',
         status: resolvedStatus ?? 'open',
