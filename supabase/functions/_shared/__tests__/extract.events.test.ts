@@ -99,6 +99,47 @@ describe('doe network UID — remains_found event', () => {
     expect(ev.source_quote).toBe('is_closed: X');
   });
 
+  it('emits incident event from estimated_date_of_death when present', () => {
+    // Doe sometimes provides an estimated date of death — usually
+    // approximate ("circa 1985") or year-only ("2003"). When the date
+    // parses, we surface it as an incident timeline event with the
+    // upstream value preserved verbatim in event_date_text.
+    const out = doeNetworkUid.detail.mapJson(
+      {
+        fields: {
+          id: '9001UMCA',
+          estimated_date_of_death: 'circa 1985',
+        },
+        agencies: [],
+        images: [],
+      },
+      detailUrl,
+    );
+    const incidents = (out.events ?? []).filter((e) => e.event_kind === 'incident');
+    expect(incidents).toHaveLength(1);
+    expect(incidents[0].headline).toBe('Estimated date of death');
+    expect(incidents[0].event_date_text).toBe('circa 1985');
+    expect(incidents[0].source_quote).toBe('Estimated Date of Death: circa 1985');
+  });
+
+  it('does not emit an incident event when estimated_date_of_death is "Unknown"', () => {
+    // Sentinel-text "Unknown" is Doe's no-data placeholder. Treating
+    // it as a valid date would litter the timeline with empty rows.
+    const out = doeNetworkUid.detail.mapJson(
+      {
+        fields: {
+          id: '9001UMCA',
+          estimated_date_of_death: 'Unknown',
+        },
+        agencies: [],
+        images: [],
+      },
+      detailUrl,
+    );
+    const incidents = (out.events ?? []).filter((e) => e.event_kind === 'incident');
+    expect(incidents).toHaveLength(0);
+  });
+
   it('emits status_identified event when is_identified=X', () => {
     // Doe UID's identification signal is the structurally cleanest of
     // the three status events — when a Doe is identified, a real-name
