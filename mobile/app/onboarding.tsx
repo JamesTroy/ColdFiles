@@ -29,6 +29,7 @@ import {
 import { tokens } from '@/constants/theme';
 import { useHere } from '@/lib/hooks/use-here';
 import { useOnboarding } from '@/lib/hooks/use-onboarding';
+import { useTosVersion } from '@/lib/hooks/use-tos-version';
 
 interface Step {
   eyebrow: string;
@@ -75,6 +76,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const [stepIndex, setStepIndex] = useState(0);
   const { complete } = useOnboarding();
+  const { acceptCurrent: acceptCurrentTos } = useTosVersion();
   const { requestAndAcquire, acquiring } = useHere();
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
@@ -86,7 +88,14 @@ export default function OnboardingScreen() {
   const showSkip = true;
 
   const finish = async () => {
-    await complete();
+    // Completing onboarding implicitly accepts the current Terms +
+    // Privacy. Stamp the current TOS version into AsyncStorage so the
+    // material-change banner doesn't fire for a fresh user on their
+    // very first home-screen render. Existing users (pre-banner build)
+    // will see the banner because their stored value is null when they
+    // open the app — they didn't go through this onboarding path on
+    // this build, so this finish() never fires for them.
+    await Promise.all([complete(), acceptCurrentTos()]);
     router.replace('/');
   };
 
