@@ -40,9 +40,11 @@
  */
 
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
+  type ListRenderItem,
   RefreshControl,
   ScrollView,
   View,
@@ -54,6 +56,7 @@ import { ErrorState } from '@/components/cf/error-state';
 import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
+import { alphaToDays } from '@/lib/format';
 import { useCaseList } from '@/lib/hooks/use-case-list';
 import { useRegionPrefs } from '@/lib/hooks/use-region-prefs';
 import { interleaveByKind } from '@/lib/interleave-by-kind';
@@ -70,6 +73,17 @@ const KIND_FILTER: Record<Filter, CaseKind[] | null> = {
 };
 
 type Bucket = 'today' | 'week' | 'month' | 'older';
+
+/**
+ * FlatList row variants — bucket headers, empty-bucket strips, and case rows
+ * all share one virtualized list. Headers/strips are cheap leaf views; the
+ * vast majority of rows are case-rows, so virtualization recycles the
+ * dominant cost.
+ */
+type ListItem =
+  | { type: 'header'; bucket: Bucket }
+  | { type: 'empty-strip'; bucket: Bucket }
+  | { type: 'case'; row: CaseRowMapNear; days: number };
 
 const BUCKET_ORDER: Bucket[] = ['today', 'week', 'month', 'older'];
 
@@ -88,14 +102,6 @@ const BUCKET_EMPTY_LABEL: Record<Bucket, string> = {
   // no dataset at all, which is the root EmptyState's job. Skip the strip.
   older: '',
 };
-
-/** Mirrors the map's stepwise recency_alpha → day-count translation. */
-function alphaToDays(alpha: number | null): number | null {
-  if (alpha == null) return null;
-  if (alpha >= 0.99) return 1;
-  if (alpha >= 0.49) return 7;
-  return null;
-}
 
 function bucketFor(days: number): Bucket {
   if (days <= 1) return 'today';
@@ -173,6 +179,48 @@ export default function ListScreen() {
     return grouped;
   }, [filtered]);
 
+  // Flatten bucketed groups into a single virtualized list. Each bucket
+  // produces a header row (or an empty-strip row when the bucket has no
+  // items) followed by its case rows.
+  const listItems = useMemo<ListItem[]>(() => {
+    const out: ListItem[] = [];
+    for (const bucket of BUCKET_ORDER) {
+      const items = buckets[bucket];
+      if (items.length === 0) {
+        if (BUCKET_EMPTY_LABEL[bucket]) {
+          out.push({ type: 'empty-strip', bucket });
+        }
+        continue;
+      }
+      out.push({ type: 'header', bucket });
+      for (const { row, days } of items) {
+        out.push({ type: 'case', row, days });
+      }
+    }
+    return out;
+  }, [buckets]);
+
+  const keyExtractor = useCallback((item: ListItem, index: number) => {
+    if (item.type === 'case') return `c:${item.row.slug}`;
+    return `${item.type}:${item.bucket}:${index}`;
+  }, []);
+
+  const renderItem = useCallback<ListRenderItem<ListItem>>(({ item }) => {
+    if (item.type === 'header') {
+      return <SectionLabel>{BUCKET_LABEL[item.bucket]}</SectionLabel>;
+    }
+    if (item.type === 'empty-strip') {
+      return <EmptyBucketStrip label={BUCKET_EMPTY_LABEL[item.bucket]} />;
+    }
+    return (
+      <CaseRow
+        row={item.row}
+        daysSinceUpdate={item.days}
+        onPress={() => router.push(`/case/${item.row.slug}`)}
+      />
+    );
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
     refetch();
@@ -183,11 +231,115 @@ export default function ListScreen() {
     setTimeout(() => setRefreshing(false), 600);
   };
 
+  if (loading && rows.length === 0) {
+    return (
+      <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+        <ListChrome
+          insetsTop={insets.top}
+          source={source}
+          filtered={filtered}
+          rows={rows}
+          counts={counts}
+          loading={loading}
+          filter={filter}
+          setFilter={setFilter}
+        />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={tokens.color.accent.amber} />
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+        <ListChrome
+          insetsTop={insets.top}
+          source={source}
+          filtered={filtered}
+          rows={rows}
+          counts={counts}
+          loading={loading}
+          filter={filter}
+          setFilter={setFilter}
+        />
+        <ErrorState
+          title="Couldn't load cases."
+          detail={error.message}
+          onRetry={refetch}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+      <FlatList
+        data={listItems}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        removeClippedSubviews
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        initialNumToRender={12}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 24 }}
+        ListHeaderComponent={
+          <ListChrome
+            insetsTop={insets.top}
+            source={source}
+            filtered={filtered}
+            rows={rows}
+            counts={counts}
+            loading={loading}
+            filter={filter}
+            setFilter={setFilter}
+          />
+        }
+        ListEmptyComponent={rows.length === 0 ? <EmptyState /> : null}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={tokens.color.accent.amber}
+            colors={[tokens.color.accent.amber]}
+            progressBackgroundColor={tokens.color.bg.elev1}
+          />
+        }
+      />
+    </View>
+  );
+}
+
+/**
+ * Title + count + filter-chip row. Pulled out so loading/error/normal
+ * states all share the same chrome without re-jigging the FlatList contract.
+ */
+function ListChrome({
+  insetsTop,
+  source,
+  filtered,
+  rows,
+  counts,
+  loading,
+  filter,
+  setFilter,
+}: {
+  insetsTop: number;
+  source: 'live' | 'sample';
+  filtered: CaseRowMapNear[];
+  rows: CaseRowMapNear[];
+  counts: { all: number; homicide: number; missing: number; unidentified: number };
+  loading: boolean;
+  filter: Filter;
+  setFilter: (f: Filter) => void;
+}) {
+  return (
+    <View>
       <View
         style={{
-          paddingTop: insets.top + 8,
+          paddingTop: insetsTop + 8,
           paddingHorizontal: 16,
           paddingBottom: 8,
         }}
@@ -254,64 +406,6 @@ export default function ListScreen() {
           />
         ) : null}
       </ScrollView>
-
-      {loading && rows.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={tokens.color.accent.amber} />
-        </View>
-      ) : error ? (
-        <ErrorState
-          title="Couldn't load cases."
-          detail={error.message}
-          onRetry={refetch}
-        />
-      ) : rows.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: 24 }}
-          // "handled" keeps inner Pressables responsive when the ScrollView
-          // is also handling pull-to-refresh / momentum gestures. Without
-          // this, taps near the start of a fling can get eaten by the
-          // ScrollView's gesture handler.
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={tokens.color.accent.amber}
-              colors={[tokens.color.accent.amber]}
-              progressBackgroundColor={tokens.color.bg.elev1}
-            />
-          }
-        >
-          {BUCKET_ORDER.map((bucket) => {
-            const items = buckets[bucket];
-            if (items.length === 0) {
-              const emptyLabel = BUCKET_EMPTY_LABEL[bucket];
-              if (!emptyLabel) return null;
-              return <EmptyBucketStrip key={bucket} label={emptyLabel} />;
-            }
-            return (
-              <View key={bucket}>
-                <SectionLabel>{BUCKET_LABEL[bucket]}</SectionLabel>
-                {items.map(({ row, days }) => (
-                  <CaseRow
-                    key={row.slug}
-                    row={row}
-                    daysSinceUpdate={days}
-                    // Template-string format matches the legacy navigation
-                    // pattern that worked in this codebase pre-redesign.
-                    // Both forms are valid Expo Router APIs; this one is
-                    // battle-tested here.
-                    onPress={() => router.push(`/case/${row.slug}`)}
-                  />
-                ))}
-              </View>
-            );
-          })}
-        </ScrollView>
-      )}
     </View>
   );
 }

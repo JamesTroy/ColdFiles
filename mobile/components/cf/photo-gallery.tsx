@@ -24,8 +24,10 @@
  * already the hero and the gallery would be empty.
  */
 
+import { Image } from 'expo-image';
 import type { ReactElement } from 'react';
-import { Image, Pressable, ScrollView, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
 import Svg, { Ellipse, Rect } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
@@ -92,6 +94,8 @@ function GalleryThumb({ row, onPress }: { row: CaseMediaRow; onPress: () => void
   const uri = effectivePhotoUri(row);
   const label = KIND_LABEL[row.kind];
   const gated = row.display_warning === 'graphic' || row.display_warning === 'sensitive';
+  const [loadFailed, setLoadFailed] = useState(false);
+  const showImage = !!uri && !loadFailed;
 
   return (
     <Pressable
@@ -115,12 +119,15 @@ function GalleryThumb({ row, onPress }: { row: CaseMediaRow; onPress: () => void
           borderColor: tokens.color.border.hairline,
         }}
       >
-        {uri ? (
+        {showImage ? (
           <Image
-            source={{ uri }}
+            source={{ uri: uri! }}
             style={{ width: '100%', height: '100%' }}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
             blurRadius={gated ? 16 : 0}
+            onError={() => setLoadFailed(true)}
             accessibilityIgnoresInvertColors
           />
         ) : (

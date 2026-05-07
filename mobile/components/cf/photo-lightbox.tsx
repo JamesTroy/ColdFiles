@@ -21,8 +21,9 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import type { ReactElement } from 'react';
-import { Dimensions, Image, Modal, Pressable, View } from 'react-native';
+import { Dimensions, Modal, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { tokens } from '@/constants/theme';
@@ -83,7 +84,9 @@ export function PhotoLightbox({
             <Image
               source={{ uri }}
               style={{ width: screenW, height: screenH }}
-              resizeMode="contain"
+              contentFit="contain"
+              cachePolicy="memory-disk"
+              transition={150}
               accessibilityIgnoresInvertColors
             />
           </View>

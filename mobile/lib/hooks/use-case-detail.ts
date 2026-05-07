@@ -62,7 +62,10 @@ export function useCaseDetail(slug: string | undefined): QueryResult<CaseDetailB
 
     const supabase = getSupabase();
 
-    // 1) The case row + primary agency (single join).
+    // Fan all three reads out from `slug` simultaneously. case_sources and
+    // case_media reference cases(id), but PostgREST's nested-resource filter
+    // lets us drive the join from the parent's slug — saves the case-row RTT
+    // that previously serialized in front of the parallel fan-out.
     const caseQuery = supabase
       .from('cases')
       .select(
@@ -72,68 +75,68 @@ export function useCaseDetail(slug: string | undefined): QueryResult<CaseDetailB
       .is('deleted_at', null)
       .maybeSingle();
 
-    caseQuery.then(
-      async ({ data: caseRow, error: caseError }) => {
+    const sourcesQuery = supabase
+      .from('case_sources')
+      .select(
+        'id, case_id, source_id, source_external_id, source_url, trust_weight, last_ingested_at, source:sources ( id, slug, name, kind, base_url, attribution_html ), case:cases!inner ( slug )',
+      )
+      .eq('case.slug', slug)
+      // Trust-weight ordering — leftmost chip is the most authoritative source.
+      // Tiebreak on last_ingested_at desc per docs/04_DESIGN_SYSTEM.md.
+      .order('trust_weight', { ascending: false })
+      .order('last_ingested_at', { ascending: false });
+
+    const mediaQuery = supabase
+      .from('case_media')
+      .select(
+        'id, case_id, kind, url, source_url, caption, is_primary, display_warning, source_id, case:cases!inner ( slug )',
+      )
+      .eq('case.slug', slug)
+      .order('is_primary', { ascending: false });
+
+    Promise.all([caseQuery, sourcesQuery, mediaQuery]).then(
+      ([caseResult, sourcesResult, mediaResult]) => {
         if (cancelled) return;
-        if (caseError) {
-          setError(new Error(caseError.message));
+
+        if (caseResult.error) {
+          setError(new Error(caseResult.error.message));
           setData(EMPTY);
           setLoading(false);
           return;
         }
-        if (!caseRow) {
+        if (!caseResult.data) {
+          // Case not found — discard sources/media even if they resolved
+          // (they shouldn't have, since the inner join would have produced
+          // an empty set, but being explicit is cheap insurance).
           setData(EMPTY);
           setLoading(false);
           return;
         }
 
-        const caseId = (caseRow as { id: string }).id;
-
-        try {
-          // 2) Sources + 3) Media in parallel.
-          const [sourcesResult, mediaResult] = await Promise.all([
-            supabase
-              .from('case_sources')
-              .select(
-                'id, case_id, source_id, source_external_id, source_url, trust_weight, last_ingested_at, source:sources ( id, slug, name, kind, base_url, attribution_html )',
-              )
-              .eq('case_id', caseId)
-              // Trust-weight ordering — leftmost chip is the most authoritative source.
-              // Tiebreak on last_ingested_at desc per docs/04_DESIGN_SYSTEM.md.
-              .order('trust_weight', { ascending: false })
-              .order('last_ingested_at', { ascending: false }),
-            supabase
-              .from('case_media')
-              .select(
-                'id, case_id, kind, url, source_url, caption, is_primary, display_warning, source_id',
-              )
-              .eq('case_id', caseId)
-              .order('is_primary', { ascending: false }),
-          ]);
-
-          if (cancelled) return;
+        // Sources/media partial-failure: keep the case row, blank the side
+        // data, surface the error. Same behavior as the prior sequential
+        // implementation, just inline.
+        if (sourcesResult.error || mediaResult.error) {
+          const err = sourcesResult.error ?? mediaResult.error;
+          setError(new Error(err!.message));
           setData({
-            case: caseRow as unknown as CaseRowFull,
-            sources: ((sourcesResult.data as unknown as CaseSourceRow[]) ?? []),
-            media: ((mediaResult.data as unknown as CaseMediaRow[]) ?? []),
-          });
-        } catch (err) {
-          // Sources/media parallel fetch rejected — keep the case row
-          // but surface the partial-load state. Without this catch,
-          // loading sticks at true and the screen shows a permanent
-          // spinner over the case the user already successfully loaded.
-          if (cancelled) return;
-          setError(err instanceof Error ? err : new Error(String(err)));
-          setData({
-            case: caseRow as unknown as CaseRowFull,
+            case: caseResult.data as unknown as CaseRowFull,
             sources: [],
             media: [],
           });
+          setLoading(false);
+          return;
         }
+
+        setData({
+          case: caseResult.data as unknown as CaseRowFull,
+          sources: ((sourcesResult.data as unknown as CaseSourceRow[]) ?? []),
+          media: ((mediaResult.data as unknown as CaseMediaRow[]) ?? []),
+        });
         setLoading(false);
       },
       (err: unknown) => {
-        // Outer rejection — case lookup itself failed at the network layer.
+        // Network-level rejection on any of the three; treat as full failure.
         if (cancelled) return;
         setError(err instanceof Error ? err : new Error(String(err)));
         setData(EMPTY);
