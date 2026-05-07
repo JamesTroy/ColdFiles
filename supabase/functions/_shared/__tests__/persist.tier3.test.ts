@@ -154,6 +154,7 @@ const newStats = (): RunStats => ({
   cases_seen: 0,
   cases_new: 0,
   cases_updated: 0,
+  cases_unchanged: 0,
   errors: [],
 });
 
@@ -803,8 +804,12 @@ describe('persistRecord — payload_hash short-circuit (steady-state optimizatio
     // — payload_hash, raw_payload, trust_weight all stay put.
     expect(Object.keys(updateArg)).toEqual(['last_ingested_at']);
 
-    // Stats: counted as updated (we observed the case again) and seen.
-    expect(stats.cases_updated).toBe(1);
+    // Stats: counted as UNCHANGED (we observed the case but nothing
+    // was different). cases_updated stays at zero — that counter now
+    // means "fields actually changed and we wrote," not just "we
+    // re-observed this case."
+    expect(stats.cases_unchanged).toBe(1);
+    expect(stats.cases_updated).toBe(0);
     expect(stats.cases_seen).toBe(1);
     expect(stats.cases_new).toBe(0);
   });

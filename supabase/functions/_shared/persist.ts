@@ -164,7 +164,12 @@ export async function persistRecord(
             }),
           );
         }
-        stats.cases_updated += 1;
+        // Bump cases_unchanged (NOT cases_updated). This way the run
+        // summary distinguishes "we re-observed this case and nothing
+        // changed" from "fields actually changed and we wrote." Useful
+        // for steady-state cron monitoring: a healthy quarterly re-scrape
+        // is mostly cases_unchanged with a small cases_updated tail.
+        stats.cases_unchanged += 1;
         stats.cases_seen += 1;
         return;
       }

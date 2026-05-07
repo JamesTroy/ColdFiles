@@ -361,6 +361,20 @@ export interface DryRunResult {
 export interface RunStats {
   cases_seen: number;
   cases_new: number;
+  /**
+   * Cases where the merge actually wrote new field values to the
+   * existing case row. Re-scrapes that hit the payload-hash short-
+   * circuit (content unchanged) bump cases_unchanged instead, so
+   * cases_updated reflects "fields actually changed" rather than
+   * "we re-observed this case."
+   */
   cases_updated: number;
+  /**
+   * Same-source re-scrape where the upstream payload hash matched the
+   * prior case_sources.payload_hash — merge skipped, only
+   * last_ingested_at bumped. The "nothing changed" steady-state count
+   * for cron operations.
+   */
+  cases_unchanged: number;
   errors: { url: string; message: string }[];
 }

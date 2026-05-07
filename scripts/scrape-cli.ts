@@ -138,7 +138,13 @@ async function main() {
 
   const sourceId = await ensureSourceRow(supabase, source);
   const fetcher = new PoliteFetcher(source.rateLimitMs, source.userAgent);
-  const stats: RunStats = { cases_seen: 0, cases_new: 0, cases_updated: 0, errors: [] };
+  const stats: RunStats = {
+    cases_seen: 0,
+    cases_new: 0,
+    cases_updated: 0,
+    cases_unchanged: 0,
+    errors: [],
+  };
 
   const urls = await discoverDetailUrls(source, fetcher, { detailLimit: args.limit });
   console.log(
@@ -180,7 +186,7 @@ async function main() {
         await persistRecord(persistCtx, out, stats);
         console.log(
           `[${source.slug}] ✓ ${out.victim_name ?? '<no name>'} (${u}) — ` +
-            `seen=${stats.cases_seen} new=${stats.cases_new} upd=${stats.cases_updated}`,
+            `seen=${stats.cases_seen} new=${stats.cases_new} upd=${stats.cases_updated} unch=${stats.cases_unchanged}`,
         );
       } catch (err) {
         stats.errors.push({ url: u, message: errMessage(err) });
@@ -194,7 +200,10 @@ async function main() {
   // Drain the pool before reporting final stats so the totals are accurate.
   await Promise.all(pool);
 
-  console.log(`\n[${source.slug}] done — seen=${stats.cases_seen} new=${stats.cases_new} upd=${stats.cases_updated} errors=${stats.errors.length}`);
+  console.log(
+    `\n[${source.slug}] done — seen=${stats.cases_seen} new=${stats.cases_new} ` +
+      `upd=${stats.cases_updated} unch=${stats.cases_unchanged} errors=${stats.errors.length}`,
+  );
 }
 
 async function runTick() {
