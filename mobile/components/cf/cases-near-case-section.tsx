@@ -17,7 +17,7 @@
  *                                 At 200 cap:    "· capped at 200" appended.
  *                                 Suppressed when rows.length === 0.
  *   3. Two-bucket render:
- *      a. SAME PERIOD: rows whose incident_date is within ±2 years of
+ *      a. SAME PERIOD: rows whose incident_date is within ±6 months of
  *         the subject case's incident_date. Sorted by distance asc.
  *         If subject has no incident_date OR no rows match the window,
  *         the bucket is suppressed entirely (don't render an empty
@@ -59,7 +59,23 @@ const RADIUS_OPTIONS = [10, 25, 50, 100] as const;
 const DEFAULT_RADIUS: (typeof RADIUS_OPTIONS)[number] = 25;
 const HIGH_COUNT_THRESHOLD = 30;
 const RESULT_CAP = 200;
-const SAME_PERIOD_YEARS = 2;
+// "Same period" = cases within ±6 months of the subject's incident
+// date. Tightened from ±2 years in two steps:
+//   step 1 (this commit): ±2y was way too wide — a case two years
+//                          apart isn't "around the same time" in any
+//                          tipster's mental model.
+//   step 2 (this commit): ±1y was still too loose. Real "same period"
+//                          intuition is closer to "same season / same
+//                          half of the year." 6 months captures that
+//                          while staying inclusive of year_only-
+//                          quality matches that anchor at YYYY-01-01.
+//
+// Year_only-quality dates land at YYYY-01-01 by parseDate convention,
+// so a year_only "1985" case will match a mid-1985 subject within
+// ~5 months and a late-1985 subject just barely (~7 months → out).
+// That's a small bias toward early-year matches; acceptable given
+// the upstream data quality.
+const SAME_PERIOD_MONTHS = 6;
 
 export function CasesNearCaseSection({
   caseId,
@@ -74,13 +90,16 @@ export function CasesNearCaseSection({
     limit: RESULT_CAP,
   });
 
-  const subjectYear = useMemo<number | null>(() => {
+  // Subject's incident date as a millisecond timestamp — null if the
+  // case has no incident_date or it didn't parse. The bucket logic
+  // below compares this against each row's incident_date in months.
+  const subjectMs = useMemo<number | null>(() => {
     if (!caseIncidentDate) return null;
-    const y = parseInt(caseIncidentDate.slice(0, 4), 10);
-    return Number.isFinite(y) ? y : null;
+    const ms = Date.parse(caseIncidentDate);
+    return Number.isFinite(ms) ? ms : null;
   }, [caseIncidentDate]);
 
-  const buckets = useMemo(() => bucketByPeriod(rows, subjectYear), [rows, subjectYear]);
+  const buckets = useMemo(() => bucketByPeriod(rows, subjectMs), [rows, subjectMs]);
   const stats = useMemo(() => buildStats(rows), [rows]);
 
   if (!hasLocation) return null;
@@ -269,25 +288,42 @@ function EmptyState({ radius }: { radius: number }) {
 
 function bucketByPeriod(
   rows: CaseRowMapBbox[],
-  subjectYear: number | null,
+  subjectMs: number | null,
 ): { samePeriod: CaseRowMapBbox[]; otherNearby: CaseRowMapBbox[] } {
-  // No subject year → no temporal grouping; everything lands in "Other".
-  if (subjectYear == null) {
+  // No subject date → no temporal grouping; everything lands in "Other".
+  if (subjectMs == null) {
     return { samePeriod: [], otherNearby: rows };
   }
+  const subjectDate = new Date(subjectMs);
   const samePeriod: CaseRowMapBbox[] = [];
   const otherNearby: CaseRowMapBbox[] = [];
   for (const r of rows) {
-    const y = r.incident_date
-      ? parseInt(r.incident_date.slice(0, 4), 10)
-      : null;
-    if (y != null && Number.isFinite(y) && Math.abs(y - subjectYear) <= SAME_PERIOD_YEARS) {
+    if (!r.incident_date) {
+      otherNearby.push(r);
+      continue;
+    }
+    const rMs = Date.parse(r.incident_date);
+    if (!Number.isFinite(rMs)) {
+      otherNearby.push(r);
+      continue;
+    }
+    const monthsApart = Math.abs(monthsBetween(subjectDate, new Date(rMs)));
+    if (monthsApart <= SAME_PERIOD_MONTHS) {
       samePeriod.push(r);
     } else {
       otherNearby.push(r);
     }
   }
   return { samePeriod, otherNearby };
+}
+
+/**
+ * Whole-month delta between two dates, ignoring day-of-month. Sufficient
+ * resolution for a 6-month threshold; no need for day-precision when the
+ * upstream data is mostly year_only or approximate quality anyway.
+ */
+function monthsBetween(a: Date, b: Date): number {
+  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
 }
 
 interface Stats {
