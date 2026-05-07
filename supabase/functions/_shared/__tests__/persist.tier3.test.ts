@@ -589,3 +589,141 @@ describe('persistRecord — status_update_only flag', () => {
     }
   });
 });
+
+describe('persistRecord — same-source re-scrape lookup (case_sources)', () => {
+  // The same-source path is for the re-scrape identity case: same
+  // source + same source_external_id always means same case from
+  // that source's POV. Authoritative via the existing unique
+  // (source_id, source_external_id) constraint on case_sources.
+  // This pins the contract so a future refactor can't silently drop
+  // the lookup back into the natural-key dedupe path (which then
+  // trips slug uniqueness as a backstop — the production-log noise
+  // this fix exists to eliminate).
+
+  it('Prior case_sources row for same (source_id, external_id) → merges directly', async () => {
+    const { client, calls } = buildMockSupabase({
+      case_sources: {
+        // The new same-source maybeSingle() lookup hits this row.
+        singleRow: { case_id: 'prior-same-source-case-uuid' },
+        // mergeIntoExistingCase later reads case_sources for prior trust weights.
+        selectRows: [{ trust_weight: 40 }],
+      },
+      cases: {
+        // mergeIntoExistingCase reads existing case for conflict detection +
+        // ensureGeocode reads it again for location_point.
+        singleRow: {
+          id: 'prior-same-source-case-uuid',
+          kind: 'missing',
+          victim_first_name: 'Jane',
+          victim_last_name: 'Doe',
+          victim_age: 23,
+          victim_sex: 'female',
+          has_photo: false,
+          has_sketch: false,
+          has_reconstruction: false,
+          location_point: null,
+        },
+      },
+    });
+
+    const stats = newStats();
+    await persistRecord(baseCtx(client), baseRecord(), stats);
+
+    // No new case insert — the same-source lookup short-circuited
+    // ahead of any natural-key dedupe attempt.
+    const casesInserts = calls.filter((c) => c.table === 'cases' && c.method === 'insert');
+    expect(casesInserts).toHaveLength(0);
+
+    // No dedupe-keys lookup — the same-source path never reaches it.
+    // This is the load-bearing assertion: if a future refactor moves
+    // the lookup AFTER generateDedupeKeys, this fails.
+    const dedupeLookups = calls.filter(
+      (c) => c.table === 'case_dedupe_keys' && c.method === 'select',
+    );
+    expect(dedupeLookups).toHaveLength(0);
+
+    // Merge ran — cases.update with merge-shaped fields (victim_*, narrative).
+    const casesUpdates = calls.filter((c) => c.table === 'cases' && c.method === 'update');
+    const mergeUpdates = casesUpdates.filter((c) => {
+      const arg = c.args[0] as Record<string, unknown>;
+      return (
+        arg &&
+        Object.keys(arg).some(
+          (k) => k.startsWith('victim_') || k === 'narrative' || k === 'has_photo',
+        )
+      );
+    });
+    expect(mergeUpdates.length).toBeGreaterThanOrEqual(1);
+
+    // Stats: counted as updated, not new.
+    expect(stats.cases_updated).toBe(1);
+    expect(stats.cases_new).toBe(0);
+    expect(stats.cases_seen).toBe(1);
+  });
+
+  it('No prior case_sources row → falls through to natural-key dedupe path', async () => {
+    // case_sources.singleRow defaults to null → the same-source
+    // lookup misses cleanly. Then the existing dedupe-keys path runs
+    // and (here) finds nothing → createNewCase fires.
+    const { client, calls } = buildMockSupabase({
+      case_dedupe_keys: { selectRows: [] }, // no natural-key hit
+      cases: {
+        insertReturning: { id: 'fresh-case-uuid' },
+        singleRow: { id: 'fresh-case-uuid', location_point: null },
+      },
+    });
+
+    const stats = newStats();
+    await persistRecord(baseCtx(client), baseRecord(), stats);
+
+    // Same-source lookup happened (the .select on case_sources before
+    // anything else).
+    const sameSourceLookups = calls.filter(
+      (c) => c.table === 'case_sources' && c.method === 'select',
+    );
+    expect(sameSourceLookups.length).toBeGreaterThanOrEqual(1);
+
+    // Fell through: dedupe-keys lookup ran AND createNewCase inserted.
+    const dedupeLookups = calls.filter(
+      (c) => c.table === 'case_dedupe_keys' && c.method === 'select',
+    );
+    expect(dedupeLookups.length).toBeGreaterThanOrEqual(1);
+
+    const casesInserts = calls.filter((c) => c.table === 'cases' && c.method === 'insert');
+    expect(casesInserts).toHaveLength(1);
+
+    expect(stats.cases_new).toBe(1);
+    expect(stats.cases_updated).toBe(0);
+  });
+
+  it('Empty source_external_id → skips same-source lookup, falls straight through', async () => {
+    // Defensive guard: an extractor that emits a record with no
+    // external_id (rare; usually a misconfiguration) shouldn't trip
+    // a case_sources query that would match every other row with an
+    // empty external_id. Skip the same-source path entirely.
+    const { client, calls } = buildMockSupabase({
+      case_dedupe_keys: { selectRows: [] },
+      cases: {
+        insertReturning: { id: 'fresh-case-uuid' },
+        singleRow: { id: 'fresh-case-uuid', location_point: null },
+      },
+    });
+
+    const stats = newStats();
+    await persistRecord(
+      baseCtx(client),
+      baseRecord({ source_external_id: '' }),
+      stats,
+    );
+
+    // No same-source select on case_sources — guarded out.
+    // (The case_sources upsert still happens at the tail of createNewCase,
+    // so we filter to just .select calls to isolate the lookup.)
+    const sameSourceLookups = calls.filter(
+      (c) => c.table === 'case_sources' && c.method === 'select',
+    );
+    expect(sameSourceLookups).toHaveLength(0);
+
+    expect(stats.cases_new).toBe(1);
+  });
+});

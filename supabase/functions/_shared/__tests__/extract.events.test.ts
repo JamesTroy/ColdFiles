@@ -76,7 +76,12 @@ describe('doe network UID — remains_found event', () => {
     expect(out.events ?? []).toHaveLength(0);
   });
 
-  it('does not emit an event when the case is closed (skip path)', () => {
+  it('does not emit an event when the case is closed without a date', () => {
+    // Post-PR-#19, is_closed='X' no longer short-circuits to a stub —
+    // the record carries through with status='cleared_other' so the
+    // status flip propagates to the existing case via merge. Events
+    // still suppress because date_of_discovery is absent (the
+    // editorial-noise rule: no date signal → no timeline entry).
     const out = doeNetworkUid.detail.mapJson(
       {
         fields: { id: '9001UMCA', is_closed: 'X' },
@@ -85,8 +90,7 @@ describe('doe network UID — remains_found event', () => {
       },
       detailUrl,
     );
-    // mapJson short-circuits to a stub; no events on the partial.
-    expect(out.events).toBeUndefined();
+    expect(out.events ?? []).toHaveLength(0);
   });
 });
 

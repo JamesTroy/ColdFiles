@@ -75,9 +75,74 @@ export async function persistRecord(
     }
   }
 
-  const keys = generateDedupeKeys(record);
   const payloadJson = JSON.stringify({ ...record, photos: record.photos.map((p) => p.url) });
   const payloadHash = await sha256Hex(payloadJson);
+
+  // 0. Same-source re-scrape lookup. Authoritative via the existing
+  // unique(source_id, source_external_id) constraint on case_sources.
+  // If we previously wrote this external_id from this source, that
+  // case_id is the merge target — no further dedupe needed.
+  //
+  // Why this comes before generateDedupeKeys + findCaseByDedupeKeys:
+  // a re-scrape's natural-key set can drift from the original insert's
+  // keys when an extractor's data varies between runs (PCC's yoast
+  // description sometimes drops the state, missing_since reformats,
+  // etc.). When natural keys diverge, dedupe-keys lookup misses, and
+  // the path falls into createNewCase — which then trips the slug
+  // uniqueness constraint as a backstop, surfacing as 23505 noise in
+  // production logs. Scoping the same-source identity to its proper
+  // home (case_sources, where the unique constraint already lives)
+  // makes that backstop unnecessary.
+  //
+  // Architectural distinction this preserves: case_dedupe_keys is for
+  // CROSS-source matching (same person across NamUs + Charley + Doe);
+  // case_sources is for SINGLE-source identity (this post's WP slug,
+  // this Doe ID). External IDs are scoped to their source — there's
+  // no cross-source dedupe to do via them. The 'source_external_id'
+  // value sitting in DedupeKeyType is vestigial; cleanup follow-up
+  // removes it after this lands.
+  if (record.source_external_id) {
+    const { data: priorSource, error: lookupErr } = await ctx.supabase
+      .from('case_sources')
+      .select('case_id')
+      .eq('source_id', ctx.sourceId)
+      .eq('source_external_id', record.source_external_id)
+      .maybeSingle();
+    if (lookupErr) throw lookupErr;
+    if (priorSource?.case_id) {
+      await mergeIntoExistingCase(
+        ctx,
+        priorSource.case_id as string,
+        record,
+        payloadHash,
+        payloadJson,
+      );
+      stats.cases_updated += 1;
+      stats.cases_seen += 1;
+      // Side effects (geocode, media) follow the same pattern as the
+      // tail of persistRecord — best-effort, idempotent.
+      await persistCaseEvents(
+        { supabase: ctx.supabase, sourceId: ctx.sourceId },
+        priorSource.case_id as string,
+        record.events,
+      );
+      await ensureGeocode(ctx, priorSource.case_id as string, record);
+      if (record.photos?.length) {
+        await cacheMediaForCase(
+          {
+            supabase: ctx.supabase,
+            caseId: priorSource.case_id as string,
+            sourceId: ctx.sourceId,
+            fetcher: ctx.fetcher,
+          },
+          record.photos,
+        );
+      }
+      return;
+    }
+  }
+
+  const keys = generateDedupeKeys(record);
 
   // 1. Try to find an existing case via dedupe keys.
   const match = await findCaseByDedupeKeys(ctx.supabase, keys);
