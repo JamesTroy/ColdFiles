@@ -20,7 +20,7 @@ export default function PrivacyPage() {
   return (
     <LegalDoc
       title="Privacy Policy"
-      lastUpdated="2026-05-02"
+      lastUpdated="2026-05-07"
       sections={[
         {
           heading: 'Plain-language summary',
@@ -113,7 +113,7 @@ export default function PrivacyPage() {
             'We use a small set of third-party services to operate the app. Each receives only what it needs to do its job.',
             'Supabase (Database) hosts our case database and tip-routing audit log and serves radius queries; it sees your approximate location at query time and a record that a tip routing occurred.',
             'Supabase Auth authenticates you if you sign in; it sees your email address.',
-            'OpenStreetMap provides map tiles and rendering; it sees the map area you are currently viewing.',
+            'Map tiles are served by OpenFreeMap and CARTO (the Leaflet basemap CDN). Your IP address reaches these tile servers when you scroll the map. Neither service is a ColdFiles vendor — they are independent providers, and their privacy practices apply to your tile requests. The underlying map data is OpenStreetMap.',
             'Expo / EAS builds and delivers the app; it sees no runtime user data.',
             'Apple Push Notification service / Firebase Cloud Messaging deliver push notifications via Expo\'s push relay; they see only the device-bound delivery token and the notification payload we send (no user content beyond what\'s necessary for the alert).',
             'We do not share data with any party that is not on this list, except where required by law (for example, in response to a valid subpoena).',

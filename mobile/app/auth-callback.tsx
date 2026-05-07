@@ -16,7 +16,7 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Alert, View } from 'react-native';
 
 import { tokens } from '@/constants/theme';
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -24,6 +24,22 @@ import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 export default function AuthCallback() {
   useEffect(() => {
     let cancelled = false;
+
+    const showExpired = () => {
+      Alert.alert(
+        'Sign-in link expired',
+        'This link is too old, or has been used already. Try signing in again.',
+        [{ text: 'Back to sign-in', onPress: () => router.replace('/sign-in') }],
+      );
+    };
+
+    const showGeneric = () => {
+      Alert.alert(
+        "Sign-in didn't complete",
+        'Please try again.',
+        [{ text: 'Back to sign-in', onPress: () => router.replace('/sign-in') }],
+      );
+    };
 
     const finalize = async (): Promise<void> => {
       if (!isSupabaseConfigured()) {
@@ -41,17 +57,39 @@ export default function AuthCallback() {
       // as the attacker. PKCE binds the exchange to the device that
       // initiated the auth, closing that vector.
       const codeMatch = target.match(/[?&]code=([^&#]+)/);
-      if (codeMatch) {
-        try {
-          await getSupabase().auth.exchangeCodeForSession(
-            decodeURIComponent(codeMatch[1]),
-          );
-        } catch {
-          // Code expired or invalid — sign-in screen re-prompts.
-        }
+      if (!codeMatch) {
+        // No ?code= — silent home redirect. Defends against a hostile
+        // intent firing the route with no auth payload at all.
+        if (!cancelled) router.replace('/');
+        return;
       }
 
-      if (!cancelled) router.replace('/');
+      const supabase = getSupabase();
+      // If the global useAuthCallback already exchanged the code, this
+      // screen would otherwise re-attempt and fail on the now-consumed
+      // single-use code — which would surface a misleading "expired"
+      // Alert. Skip the exchange when a valid session already exists.
+      const { data: existing } = await supabase.auth.getSession();
+      if (existing.session) {
+        if (!cancelled) router.replace('/');
+        return;
+      }
+
+      try {
+        await supabase.auth.exchangeCodeForSession(
+          decodeURIComponent(codeMatch[1]),
+        );
+        if (!cancelled) router.replace('/');
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message.toLowerCase() : '';
+        console.warn('[auth-callback] exchangeCodeForSession failed');
+        if (msg.includes('expired') || msg.includes('invalid') || msg.includes('used')) {
+          showExpired();
+        } else {
+          showGeneric();
+        }
+      }
     };
 
     void finalize();

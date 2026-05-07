@@ -37,7 +37,7 @@ import { TrustDisclosureCallout, TrustDisclosureCaption } from '@/components/cf/
 import { CaseEventsSection } from '@/components/cf/case-events-section';
 import { CasesNearCaseSection } from '@/components/cf/cases-near-case-section';
 import { tokens } from '@/constants/theme';
-import { displayName, formatDateLedger, formatDateMonthDay, formatPlace } from '@/lib/format';
+import { displayName, formatDateLedger, formatPlace } from '@/lib/format';
 import { useCaseDetail } from '@/lib/hooks/use-case-detail';
 import { useFreshReceiptCount } from '@/lib/hooks/use-fresh-receipt';
 import { useIsSaved } from '@/lib/hooks/use-saved-cases';

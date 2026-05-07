@@ -6,9 +6,10 @@
  * (cases_within_radius, cases_in_bbox) and RLS-gated table reads — never a
  * Next.js route handler.
  *
- * Auth uses AsyncStorage for session persistence so users stay signed in
- * across app launches. Email magic-link is the primary flow; OAuth (Apple /
- * Google) is wired through the same client when available.
+ * Auth uses expo-secure-store (Android Keystore / iOS Keychain) for session
+ * persistence so the JWT + refresh token are not readable from a rooted
+ * device's AsyncStorage SQLite blob. Email magic-link is the only sign-in
+ * path today.
  *
  * Env vars (Expo's EXPO_PUBLIC_ prefix exposes them to the client bundle):
  *   EXPO_PUBLIC_SUPABASE_URL
@@ -19,11 +20,21 @@
  * who don't need a backend hooked up.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+// SecureStore caps values at ~2KB. Supabase JWTs fit comfortably; if a future
+// session blob ever exceeds that, supabase-js will throw on persist and we'll
+// see it in error logs before users do.
+const secureStorageAdapter = {
+  getItem: (key: string) => SecureStore.getItemAsync(key),
+  setItem: (key: string, value: string) =>
+    SecureStore.setItemAsync(key, value, { requireAuthentication: false }),
+  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+};
 
 let cached: SupabaseClient | null = null;
 
@@ -40,7 +51,7 @@ export function getSupabase(): SupabaseClient {
   if (!cached) {
     cached = createClient(url as string, anonKey as string, {
       auth: {
-        storage: AsyncStorage,
+        storage: secureStorageAdapter,
         persistSession: true,
         autoRefreshToken: true,
         // Mobile platforms (RN) don't have a window.location to anchor URL detection on.

@@ -30,7 +30,7 @@ import { Pressable, View } from 'react-native';
 import Svg, { Ellipse, Rect } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
-import { kindLine } from '@/lib/format';
+import { displayName, kindLine } from '@/lib/format';
 import type { CaseKind, CaseRowMapBbox } from '@/lib/types/database';
 
 import { MonoLabel, SansMedium, SerifTitle } from './text';
@@ -182,10 +182,4 @@ function stripeColor(kind: CaseKind): string {
   if (kind === 'unidentified' || kind === 'unclaimed') return tokens.color.pin.doe;
   if (kind === 'missing') return tokens.color.pin.missing;
   return tokens.color.pin.homicide; // homicide + suspicious_death
-}
-
-function displayName(row: CaseRowMapBbox): string {
-  if (row.victim_name) return row.victim_name;
-  if (row.kind === 'unidentified' || row.kind === 'unclaimed') return 'Unidentified person';
-  return 'Name not released';
 }

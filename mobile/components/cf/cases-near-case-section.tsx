@@ -288,7 +288,7 @@ interface Stats {
   total: number;
   yearMin: number | null;
   yearMax: number | null;
-  byKind: Array<{ kind: 'homicide' | 'missing' | 'unidentified'; count: number; label: string }>;
+  byKind: { kind: 'homicide' | 'missing' | 'unidentified'; count: number; label: string }[];
 }
 
 function buildStats(rows: CaseRowMapBbox[]): Stats {

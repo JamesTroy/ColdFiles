@@ -22,9 +22,10 @@
  * See docs/04_DESIGN_SYSTEM.md "Hero photo frame".
  */
 
+import { Image } from 'expo-image';
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { tokens } from '@/constants/theme';
@@ -84,11 +85,14 @@ export function PhotoFrame({
 }: PhotoFrameProps): ReactElement {
   const [revealed, setRevealed] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const gateActive = !!displayWarning && !revealed && !!uri;
+  const [loadFailed, setLoadFailed] = useState(false);
+  const showImage = !!uri && !loadFailed;
+  const gateActive = !!displayWarning && !revealed && showImage;
   // The image is tappable to open the lightbox once a uri exists and the
-  // warning gate (if any) has been passed. Without a uri we render the
-  // em-dash placeholder, which isn't an image and shouldn't expand.
-  const expandable = !!uri && !gateActive;
+  // warning gate (if any) has been passed. Without a uri (or after a hot-link
+  // 404) we render the em-dash placeholder, which isn't an image and
+  // shouldn't expand.
+  const expandable = showImage && !gateActive;
 
   return (
     <View
@@ -102,7 +106,7 @@ export function PhotoFrame({
         backgroundColor: tokens.color.bg.elev1,
       }}
     >
-      {uri ? (
+      {showImage ? (
         <Pressable
           onPress={expandable ? () => setLightboxOpen(true) : undefined}
           disabled={!expandable}
@@ -120,10 +124,13 @@ export function PhotoFrame({
           ]}
         >
           <Image
-            source={{ uri }}
+            source={{ uri: uri! }}
             style={{ flex: 1 }}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
             blurRadius={gateActive ? 28 : 0}
+            onError={() => setLoadFailed(true)}
             accessibilityIgnoresInvertColors
           />
         </Pressable>

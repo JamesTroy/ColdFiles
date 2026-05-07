@@ -23,14 +23,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  type ListRenderItem,
+  Pressable,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PinGlyph } from '@/components/cf/pin';
 import { MonoLabel, NarrativeText, SansBody, SansMedium, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
-import { kindLine } from '@/lib/format';
+import { displayName, kindLine } from '@/lib/format';
 import { useSavedCases } from '@/lib/hooks/use-saved-cases';
 import { useWatchZones, type WatchZone } from '@/lib/hooks/use-watch-zones';
 import type { CaseKind, CaseRowMapNear } from '@/lib/types/database';
@@ -203,6 +210,12 @@ function CasesPane({
   rows: CaseRowMapNear[];
   loading: boolean;
 }) {
+  const keyExtractor = useCallback((row: CaseRowMapNear) => row.slug, []);
+  const renderItem = useCallback<ListRenderItem<CaseRowMapNear>>(
+    ({ item }) => <SavedRow row={item} />,
+    [],
+  );
+
   if (loading && rows.length === 0) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -222,11 +235,16 @@ function CasesPane({
   }
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-      {rows.map((row) => (
-        <SavedRow key={row.slug} row={row} />
-      ))}
-    </ScrollView>
+    <FlatList
+      data={rows}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      removeClippedSubviews
+      maxToRenderPerBatch={10}
+      windowSize={7}
+      initialNumToRender={12}
+      contentContainerStyle={{ paddingBottom: 24 }}
+    />
   );
 }
 
@@ -239,6 +257,12 @@ function ZonesPane({
   loading: boolean;
   onDelete: (zone: WatchZone) => void;
 }) {
+  const keyExtractor = useCallback((zone: WatchZone) => zone.id, []);
+  const renderItem = useCallback<ListRenderItem<WatchZone>>(
+    ({ item }) => <ZoneCard zone={item} onDelete={() => onDelete(item)} />,
+    [onDelete],
+  );
+
   if (loading && zones.length === 0) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -291,12 +315,17 @@ function ZonesPane({
   }
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 16 }}>
-      <SectionRow label="YOUR ZONES" trailing={<NewZoneButton />} />
-      {zones.map((zone) => (
-        <ZoneCard key={zone.id} zone={zone} onDelete={() => onDelete(zone)} />
-      ))}
-    </ScrollView>
+    <FlatList
+      data={zones}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      removeClippedSubviews
+      maxToRenderPerBatch={10}
+      windowSize={7}
+      initialNumToRender={12}
+      contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 16 }}
+      ListHeaderComponent={<SectionRow label="YOUR ZONES" trailing={<NewZoneButton />} />}
+    />
   );
 }
 
@@ -565,12 +594,6 @@ function EmptyState({
       </SansBody>
     </View>
   );
-}
-
-function displayName(row: CaseRowMapNear): string {
-  if (row.victim_name) return row.victim_name;
-  if (row.kind === 'unidentified' || row.kind === 'unclaimed') return 'Unidentified';
-  return 'Name not released';
 }
 
 /**

@@ -164,8 +164,17 @@ export function useSavedCases(): {
           .in('slug', slugs)
           .is('deleted_at', null)
           .then(
-            ({ data }) => {
+            ({ data, error }) => {
               if (cancelled) return;
+              if (error) {
+                // Keep prior rows on transient errors — the next subscriber
+                // notification (e.g. user toggles save on another case) will
+                // re-trigger this effect and rebuild. Locking the spinner
+                // would be worse than a stale list.
+                console.warn('[saved-cases] hydrate failed', error.message);
+                setLoading(false);
+                return;
+              }
               // Preserve the user's saved-order, not the database order.
               const bySlug = new Map(
                 (data ?? []).map((r) => [
@@ -196,19 +205,26 @@ export function useSavedCases(): {
               setRows(ordered);
               setLoading(false);
             },
-            () => {
+            (err: unknown) => {
               // Inner rejection (network failure on the cases query).
-              // Keep prior rows; just clear loading so the spinner doesn't
-              // lock the saved-cases screen.
+              // Keep prior rows; the next save-toggle re-fires this effect.
               if (cancelled) return;
+              console.warn(
+                '[saved-cases] hydrate rejected',
+                err instanceof Error ? err.message : String(err),
+              );
               setLoading(false);
             },
           );
       },
-      () => {
+      (err: unknown) => {
         // Outer rejection — the dynamic supabase import failed (rare,
         // typically in test or designer-mode lab conditions).
         if (cancelled) return;
+        console.warn(
+          '[saved-cases] supabase import failed',
+          err instanceof Error ? err.message : String(err),
+        );
         setLoading(false);
       },
     );

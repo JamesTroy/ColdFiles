@@ -20,7 +20,7 @@
  * tick the WebView mounts in — the null-bounds window is one render long.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { SAMPLE_CASES_MAP } from '../sample-data';
 import { getSupabase, isSupabaseConfigured } from '../supabase';
@@ -54,6 +54,11 @@ export function useCasesInBbox({
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Stable string keys for the deps array — avoids JSON.stringify(kinds/status)
+  // running on every render of every consumer of this hook.
+  const kindsKey = useMemo(() => (kinds ? kinds.join(',') : ''), [kinds]);
+  const statusKey = useMemo(() => (status ? status.join(',') : ''), [status]);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -115,13 +120,14 @@ export function useCasesInBbox({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     bounds?.minLng,
     bounds?.minLat,
     bounds?.maxLng,
     bounds?.maxLat,
-    JSON.stringify(kinds),
-    JSON.stringify(status),
+    kindsKey,
+    statusKey,
     limit,
     refreshKey,
   ]);
