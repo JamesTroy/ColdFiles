@@ -98,9 +98,9 @@ export async function persistRecord(
   // CROSS-source matching (same person across NamUs + Charley + Doe);
   // case_sources is for SINGLE-source identity (this post's WP slug,
   // this Doe ID). External IDs are scoped to their source — there's
-  // no cross-source dedupe to do via them. The 'source_external_id'
-  // value sitting in DedupeKeyType is vestigial; cleanup follow-up
-  // removes it after this lands.
+  // no cross-source dedupe to do via them. DedupeKeyType used to
+  // advertise 'source_external_id' as a key type; PR #21 cleaned that
+  // up so the type accurately reflects what generateDedupeKeys emits.
   if (record.source_external_id) {
     const { data: priorSource, error: lookupErr } = await ctx.supabase
       .from('case_sources')

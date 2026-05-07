@@ -328,13 +328,18 @@ export interface SourceConfig {
 // Dedupe
 // ────────────────────────────────────────────────────────────────────────────
 
+// Closed taxonomy of cross-source dedupe key types. Every value here
+// expresses "same person across multiple sources" — NamUs ID matches
+// across NamUs + Charley + Doe, name+state+year matches across sources,
+// etc. Single-source identity (this PCC post's WP slug, this Doe ID)
+// belongs in case_sources via the unique(source_id, source_external_id)
+// constraint, not here. See persistRecord's same-source lookup path.
 export type DedupeKeyType =
   | 'namus_number'
   | 'ncic_number'
   | 'name_state_year'
   | 'lastname_age_sex'
-  | 'agency_case_number'
-  | 'source_external_id';
+  | 'agency_case_number';
 
 export interface DedupeKey {
   type: DedupeKeyType;
