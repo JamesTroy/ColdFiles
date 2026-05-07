@@ -48,31 +48,44 @@ export function kindLine(c: KindLineRow): string {
 }
 
 /**
- * Year as a string with a leading "~" when the source's incident-date
- * precision is anything other than exact. Surfaces the precision
- * difference inline so two rows in the same subtitle don't read as
- * identical when one is "1985 (year only)" and the other is
- * "1985 (June 13)."
+ * Year segment for kindLine, with precision marker AND explicit
+ * "DATE UNKNOWN" surfacing.
  *
- *   exact          → "1985"
- *   year_only      → "~1985"
- *   approximate    → "~1985"
- *   suspect        → "~1985"
- *   unknown        → "~1985"  (year would be visible only if the
- *                              parser somehow produced one despite
- *                              flagging quality unknown — defensive)
- *   null/undefined → "1985"   (rollout-tolerant; pre-migration-36
- *                              rows that don't carry quality render
- *                              with the legacy no-marker shape so
- *                              we don't regress on existing rows)
+ *   exact                  → "1985"
+ *   year_only              → "~1985"
+ *   approximate            → "~1985"
+ *   suspect                → "DATE UNKNOWN"  (source flagged date
+ *                                              unreliable — don't
+ *                                              show its year as if
+ *                                              it were a real signal)
+ *   unknown                → "DATE UNKNOWN"
+ *   null incident_date     → "DATE UNKNOWN"  (no temporal claim at all)
+ *   null/undefined quality → "1985"          (rollout-tolerant;
+ *                                              pre-migration-36 rows
+ *                                              that don't carry quality
+ *                                              render with the legacy
+ *                                              shape, no regression)
+ *
+ * Why "DATE UNKNOWN" inline instead of a separate badge: the
+ * mono-caps kindLine already reads as label-register, the segment
+ * occupies exactly the slot where a year would otherwise appear,
+ * and a tipster scanning rows can't miss it. A separate badge
+ * would add chrome without adding signal.
+ *
+ * The Same-Period bucketing layer (lib/period-bucket.ts) treats
+ * suspect/unknown/missing-date rows as having no temporal claim
+ * and routes them to "Other Nearby." This rendering is the paired
+ * user-facing signal for that routing decision: the row lands in
+ * Other Nearby AND visibly says why.
  */
 function formatYearWithPrecision(
   incidentDate: string | null,
   quality: DateQuality | null | undefined,
 ): string | null {
-  if (!incidentDate) return null;
+  if (quality === 'suspect' || quality === 'unknown') return 'DATE UNKNOWN';
+  if (!incidentDate) return 'DATE UNKNOWN';
   const year = incidentDate.slice(0, 4);
-  if (!year) return null;
+  if (!year) return 'DATE UNKNOWN';
   if (!quality) return year;
   if (quality === 'exact') return year;
   return `~${year}`;
