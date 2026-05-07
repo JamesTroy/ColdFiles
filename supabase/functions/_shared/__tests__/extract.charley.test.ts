@@ -172,6 +172,41 @@ describe('charley extractor — real fixture (John Andrew Aarlie)', () => {
   });
 });
 
+describe('charley extractor — timeline events (PR #16)', () => {
+  // Charley's events transform reads "Missing Since" via byLabel and
+  // emits a single last_seen event. source_url comes from the third
+  // transform arg (extract.ts forwards pageUrl). source_quote is the
+  // raw upstream value verbatim per the editorial-noise rule.
+  const html = readFixture('case_jane_doe_synthetic.html');
+  const $ = load(html);
+  const detailUrl = 'https://charleyproject.org/case/jane-synthetic-doe';
+  const out = extractWithStrategy($, detailUrl, charleyProject.detail);
+
+  it('emits one last_seen event for the parsed Missing Since date', () => {
+    expect(out.events).toBeDefined();
+    expect(out.events).toHaveLength(1);
+    const ev = out.events![0];
+    expect(ev.event_kind).toBe('last_seen');
+    expect(ev.event_date).toBe('1985-06-13');
+    expect(ev.event_date_quality).toBe('exact');
+  });
+
+  it('source_url is the page URL passed to extractWithStrategy', () => {
+    const ev = out.events![0];
+    expect(ev.source_url).toBe(detailUrl);
+  });
+
+  it('source_quote prefixes the field label', () => {
+    const ev = out.events![0];
+    expect(ev.source_quote).toMatch(/^Missing Since: /);
+  });
+
+  it('headline includes the Missing From location', () => {
+    const ev = out.events![0];
+    expect(ev.headline).toBe('Last seen — Claremont, California');
+  });
+});
+
 describe('charley extractor — sitemap URL filter', () => {
   const xml = readFixture('sitemap_synthetic.xml');
   const pattern =

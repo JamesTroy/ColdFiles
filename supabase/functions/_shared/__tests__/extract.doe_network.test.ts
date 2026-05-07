@@ -184,6 +184,52 @@ describe('doe network extractor — real fixture (Duane Robert Talmon, Jr. — 1
   });
 });
 
+describe('doe network extractor — timeline events (PR #16)', () => {
+  // PR #16 contract: Doe MP emits a single last_seen event per record when
+  // missing_since parsed. source_quote is the raw upstream value verbatim
+  // — schema-enforced anti-inference per the editorial-noise rule.
+  const out = mapDetail('synthetic');
+
+  it('emits one last_seen event with the parsed missing_since date', () => {
+    expect(out.events).toBeDefined();
+    expect(out.events).toHaveLength(1);
+    const ev = out.events![0];
+    expect(ev.event_kind).toBe('last_seen');
+    expect(ev.event_date).toBe('1985-06-13');
+    expect(ev.event_date_quality).toBe('exact');
+  });
+
+  it('source_url is the detail-page URL the extractor consumed', () => {
+    const ev = out.events![0];
+    expect(ev.source_url).toBe(
+      'https://www.doenetwork.org/cases/software/php/mpdatabase.php?id=synthetic&fields=true',
+    );
+  });
+
+  it('source_quote prefixes the field label so the audit trail reads cleanly', () => {
+    const ev = out.events![0];
+    expect(ev.source_quote).toBe('Missing Since: June 13, 1985');
+  });
+
+  it('headline includes the location when location_last_seen is present', () => {
+    const ev = out.events![0];
+    expect(ev.headline).toBe('Last seen — Claremont, Los Angeles County, California');
+  });
+
+  it('does not emit a last_seen event when missing_since is absent', () => {
+    if (doeNetwork.detail.kind !== 'json') throw new Error('expected json detail strategy');
+    const out = doeNetwork.detail.mapJson(
+      {
+        fields: { id: '999NODATE', pname: 'Test' },
+        agencies: [],
+        images: [],
+      },
+      'https://www.doenetwork.org/cases/software/php/mpdatabase.php?id=999NODATE&fields=true',
+    );
+    expect(out.events ?? []).toHaveLength(0);
+  });
+});
+
 describe('doe network extractor — closed-case path', () => {
   it('returns a stub with raw.closed=true when the case is marked is_closed=X', () => {
     if (doeNetwork.detail.kind !== 'json') throw new Error('expected json detail strategy');

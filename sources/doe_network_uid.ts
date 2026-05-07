@@ -30,6 +30,7 @@ import type {
   ExtractedPhoto,
   SourceConfig,
 } from '../supabase/functions/_shared/types.ts';
+import type { CaseEventInput } from '../supabase/functions/_shared/case-events.ts';
 import {
   extractPhone,
   heightToCm,
@@ -261,6 +262,33 @@ export const doeNetworkUid: SourceConfig = {
       }
       const distinguishingMarks = distinguishingParts.join(' · ') || undefined;
 
+      // Timeline event — remains_found. Only emit when date_of_discovery
+      // parsed (no inference from absence). source_quote is the raw
+      // upstream value verbatim per the editorial-noise rule.
+      const events: CaseEventInput[] = [];
+      if (
+        fields.date_of_discovery &&
+        (dateParse.iso || dateParse.quality !== 'unknown')
+      ) {
+        const locationLabel = fields.location_of_discovery?.trim();
+        const isUnknownLocation = !locationLabel || /^unknown$/i.test(locationLabel);
+        events.push({
+          event_kind: 'remains_found',
+          headline:
+            !isUnknownLocation && locationLabel
+              ? `Remains discovered — ${locationLabel}`
+              : 'Remains discovered',
+          event_date: dateParse.iso ?? undefined,
+          event_date_quality: dateParse.quality,
+          event_date_text:
+            fields.date_of_discovery && dateParse.quality !== 'exact'
+              ? fields.date_of_discovery
+              : undefined,
+          source_url: detailUrl,
+          source_quote: `Date of Discovery: ${fields.date_of_discovery}`,
+        });
+      }
+
       return {
         kind: 'unidentified',
         status: 'open',
@@ -311,6 +339,7 @@ export const doeNetworkUid: SourceConfig = {
 
         agency_hint: agencyHint,
         photos,
+        events,
 
         raw: {
           fields,

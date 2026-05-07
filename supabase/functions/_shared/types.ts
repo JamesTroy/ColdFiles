@@ -250,7 +250,11 @@ export interface DetailStrategyCheerio {
   dateFormats?: string[];
   /** Per-field transforms when selectors aren't enough. The transform receives the raw selector text. */
   transforms?: {
-    [field in keyof CaseRecord]?: (raw: string, $: CheerioAPI) => unknown;
+    [field in keyof CaseRecord]?: (
+      raw: string,
+      $: CheerioAPI,
+      pageUrl?: string,
+    ) => unknown;
   };
   /** Inferred case kind if not derivable from URL/selectors. */
   inferKind?: (record: Partial<CaseRecord>) => CaseKind;
