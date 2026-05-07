@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { kindLine } from '../format';
 
 // kindLine builds the mono-caps subtitle that runs above the victim
-// name on case-row + map peek-sheet surfaces. PR #34 added a leading
-// "~" prefix on the year when the source's incident-date precision
-// is non-exact, so a year_only "1985" reads as "~1985" while an
-// exact-precision 1985-06-13 reads as "1985." This file pins that
-// rendering contract.
+// name on case-row + map peek-sheet surfaces.
+//
+// PR #34 added a leading "~" prefix on the year for non-exact
+// precision (year_only / approximate). PR #35 extends that to also
+// surface "DATE UNKNOWN" inline when the source flagged the date
+// unreliable (suspect / unknown) or when the row carries no
+// incident_date at all. The paired user-facing signal for the
+// Same-Period bucket routing decision in lib/period-bucket.ts —
+// rows that fall to "Other Nearby" because they have no temporal
+// claim now visibly say why.
 
 describe('kindLine — precision marker', () => {
   const baseRow = {
@@ -34,19 +39,19 @@ describe('kindLine — precision marker', () => {
     ).toBe('HOMICIDE · ~1985 · CLAREMONT, CA');
   });
 
-  it('suspect quality → year shown with ~ marker', () => {
+  it('suspect quality → "DATE UNKNOWN" (source flagged unreliable)', () => {
+    // Even though the row has 1985 stored, suspect quality means the
+    // source itself flagged the date as unreliable. Don't show the
+    // year as if it were a real signal.
     expect(
       kindLine({ ...baseRow, incident_date_quality: 'suspect' }),
-    ).toBe('HOMICIDE · ~1985 · CLAREMONT, CA');
+    ).toBe('HOMICIDE · DATE UNKNOWN · CLAREMONT, CA');
   });
 
-  it('unknown quality → year shown with ~ marker (defensive)', () => {
-    // Defensive case: parseDate normally returns no incident_date when
-    // quality is 'unknown', so this branch rarely fires in practice.
-    // When it does, ~ is the right signal.
+  it('unknown quality → "DATE UNKNOWN"', () => {
     expect(
       kindLine({ ...baseRow, incident_date_quality: 'unknown' }),
-    ).toBe('HOMICIDE · ~1985 · CLAREMONT, CA');
+    ).toBe('HOMICIDE · DATE UNKNOWN · CLAREMONT, CA');
   });
 
   it('quality=undefined (pre-migration-36 row) → no marker, legacy shape preserved', () => {
@@ -62,14 +67,28 @@ describe('kindLine — precision marker', () => {
     ).toBe('HOMICIDE · 1985 · CLAREMONT, CA');
   });
 
-  it('no incident_date → no year segment regardless of quality', () => {
+  it('no incident_date → "DATE UNKNOWN" segment surfaces the absence', () => {
+    // Previously the row silently dropped the year segment when
+    // incident_date was null. PR #35 makes the absence explicit
+    // because silent dropout could mislead a tipster into reading
+    // the row as a recent / well-documented case.
+    expect(
+      kindLine({
+        ...baseRow,
+        incident_date: null,
+        incident_date_quality: null,
+      }),
+    ).toBe('HOMICIDE · DATE UNKNOWN · CLAREMONT, CA');
+  });
+
+  it('no incident_date AND quality=year_only → "DATE UNKNOWN" wins (no date to format)', () => {
     expect(
       kindLine({
         ...baseRow,
         incident_date: null,
         incident_date_quality: 'year_only',
       }),
-    ).toBe('HOMICIDE · CLAREMONT, CA');
+    ).toBe('HOMICIDE · DATE UNKNOWN · CLAREMONT, CA');
   });
 
   it('missing location → year still rendered with marker', () => {
