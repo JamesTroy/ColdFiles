@@ -78,6 +78,7 @@ export default function TakedownRequestScreen() {
   const slug = typeof params.slug === 'string' ? params.slug : null;
 
   const [caseSummary, setCaseSummary] = useState<CaseSummary | null>(null);
+  const [caseLoadError, setCaseLoadError] = useState(false);
   const [relationship, setRelationship] = useState<Relationship | null>(null);
   const [relationshipOther, setRelationshipOther] = useState('');
   const [resolutions, setResolutions] = useState<Resolution[]>([]);
@@ -90,6 +91,7 @@ export default function TakedownRequestScreen() {
   useEffect(() => {
     if (!slug || !isSupabaseConfigured()) return;
     let cancelled = false;
+    setCaseLoadError(false);
     const supabase = getSupabase();
     supabase
       .from('cases')
@@ -97,24 +99,45 @@ export default function TakedownRequestScreen() {
       .eq('slug', slug)
       .is('deleted_at', null)
       .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return;
-        const r = data as {
-          id: string;
-          slug: string;
-          victim_name: string | null;
-          kind: string;
-          location_city: string | null;
-          location_state: string | null;
-          case_number_primary: string | null;
-        };
-        const title = r.victim_name
-          ?? (r.kind === 'unidentified' || r.kind === 'unclaimed' ? 'Unidentified person' : 'Name not released');
-        const placeParts = [r.location_city, r.location_state].filter(Boolean).join(', ');
-        const idPart = r.case_number_primary ? `${r.case_number_primary}` : r.slug.toUpperCase();
-        const metaLine = [placeParts, idPart].filter(Boolean).join(' · ');
-        setCaseSummary({ id: r.id, slug: r.slug, title, metaLine });
-      });
+      .then(
+        ({ data, error }) => {
+          if (cancelled) return;
+          if (error) {
+            console.warn('[takedown] case summary fetch failed', error.message);
+            setCaseLoadError(true);
+            return;
+          }
+          if (!data) {
+            // Bad slug — show the error block so the user doesn't file
+            // against a non-existent case.
+            setCaseLoadError(true);
+            return;
+          }
+          const r = data as {
+            id: string;
+            slug: string;
+            victim_name: string | null;
+            kind: string;
+            location_city: string | null;
+            location_state: string | null;
+            case_number_primary: string | null;
+          };
+          const title = r.victim_name
+            ?? (r.kind === 'unidentified' || r.kind === 'unclaimed' ? 'Unidentified person' : 'Name not released');
+          const placeParts = [r.location_city, r.location_state].filter(Boolean).join(', ');
+          const idPart = r.case_number_primary ? `${r.case_number_primary}` : r.slug.toUpperCase();
+          const metaLine = [placeParts, idPart].filter(Boolean).join(' · ');
+          setCaseSummary({ id: r.id, slug: r.slug, title, metaLine });
+        },
+        (err: unknown) => {
+          if (cancelled) return;
+          console.warn(
+            '[takedown] case summary fetch rejected',
+            err instanceof Error ? err.message : String(err),
+          );
+          setCaseLoadError(true);
+        },
+      );
     return () => { cancelled = true; };
   }, [slug]);
 
@@ -154,8 +177,14 @@ export default function TakedownRequestScreen() {
       }
       setSuccess({ reference: result.reference, email: email.trim() });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not submit request';
-      Alert.alert("Couldn't submit", msg);
+      console.warn(
+        '[takedown] submit failed',
+        err instanceof Error ? err.message : String(err),
+      );
+      Alert.alert(
+        "Couldn't submit",
+        "We couldn't send your request right now. Check your connection and try again — your draft is still here.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -218,6 +247,23 @@ export default function TakedownRequestScreen() {
                 }}
               >
                 {caseSummary.metaLine}
+              </NarrativeText>
+            </View>
+          </>
+        ) : caseLoadError ? (
+          <>
+            <Divider />
+            <View style={{ paddingHorizontal: 16, paddingTop: 18 }}>
+              <SectionLabel>ABOUT THIS CASE</SectionLabel>
+              <NarrativeText
+                style={{
+                  marginTop: 4,
+                  color: tokens.color.text.secondary,
+                  fontSize: 14,
+                  lineHeight: 20,
+                }}
+              >
+                Couldn&apos;t load this case. Please go back and try again — we can&apos;t accept a request without a case attached.
               </NarrativeText>
             </View>
           </>

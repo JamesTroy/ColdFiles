@@ -62,22 +62,29 @@ export default function NotificationsScreen() {
     try {
       const result = await requestAndRegister();
       if (!result.ok) {
+        if (result.error) {
+          console.warn('[notifications] registration not completed', result.error);
+        }
         Alert.alert(
-          'Registration not completed',
-          result.error
-            ? result.error
-            : `Permission status: ${result.status}. The token was not registered.`,
+          'Notifications not turned on',
+          result.status === 'denied'
+            ? 'Notifications are blocked at the system level. Open Settings to grant permission, then come back and try again.'
+            : "We couldn't finish registering this device for notifications. Check your connection and try again.",
         );
       } else {
         Alert.alert(
-          'Push token issued',
-          'Token registered. If notifications never arrive, check the Notifications screen for the token chip and copy it for the smoke test.',
+          'Notifications on',
+          "You'll start getting alerts for the categories you've turned on below.",
         );
       }
     } catch (err) {
-      Alert.alert(
-        'Registration threw',
+      console.warn(
+        '[notifications] registration threw',
         err instanceof Error ? err.message : String(err),
+      );
+      Alert.alert(
+        "Couldn't turn on notifications",
+        "Something went wrong while turning on notifications. Check your connection and try again.",
       );
     }
   };

@@ -28,6 +28,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BrandSplash } from '@/components/cf/brand-splash';
+import { ErrorBoundary } from '@/components/cf/error-boundary';
 import { tokens } from '@/constants/theme';
 import { useAuthCallback } from '@/lib/hooks/use-auth-callback';
 import { useNotificationRouter } from '@/lib/hooks/use-notification-router';
@@ -137,58 +138,60 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
       <SafeAreaProvider>
         <ThemeProvider value={navTheme}>
-          <OnboardingGate />
-          <Stack
-          screenOptions={{
-            contentStyle: { backgroundColor: tokens.color.bg.base },
-            headerShown: false,
-            animation: 'fade',
-          }}
-        >
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
-          <Stack.Screen name="auth-callback" options={{ animation: 'fade', gestureEnabled: false }} />
-          <Stack.Screen
-            name="case/[slug]"
-            options={{
-              animation: 'slide_from_right',
+          <ErrorBoundary>
+            <OnboardingGate />
+            <Stack
+            screenOptions={{
+              contentStyle: { backgroundColor: tokens.color.bg.base },
+              headerShown: false,
+              animation: 'fade',
             }}
-          />
-          <Stack.Screen
-            name="tip/[slug]"
-            options={{
-              presentation: 'modal',
-              animation: 'slide_from_bottom',
-            }}
-          />
-          <Stack.Screen
-            name="watch-zone"
-            options={{
-              animation: 'slide_from_right',
-            }}
-          />
-          <Stack.Screen name="about" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="terms" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="takedown" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen
-            name="takedown-request/[slug]"
-            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-          />
-          <Stack.Screen
-            name="zone/[id]"
-            options={{ animation: 'slide_from_right' }}
-          />
-          <Stack.Screen name="sign-in" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-          <Stack.Screen name="search" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-          <Stack.Screen name="delete-account" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="data-export" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="diagnostics" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="tip-history" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="region-prefs" options={{ animation: 'slide_from_right' }} />
-        </Stack>
-          <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
+          >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
+            <Stack.Screen name="auth-callback" options={{ animation: 'fade', gestureEnabled: false }} />
+            <Stack.Screen
+              name="case/[slug]"
+              options={{
+                animation: 'slide_from_right',
+              }}
+            />
+            <Stack.Screen
+              name="tip/[slug]"
+              options={{
+                presentation: 'modal',
+                animation: 'slide_from_bottom',
+              }}
+            />
+            <Stack.Screen
+              name="watch-zone"
+              options={{
+                animation: 'slide_from_right',
+              }}
+            />
+            <Stack.Screen name="about" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="terms" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="takedown" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen
+              name="takedown-request/[slug]"
+              options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="zone/[id]"
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen name="sign-in" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+            <Stack.Screen name="search" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+            <Stack.Screen name="delete-account" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="data-export" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="diagnostics" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="tip-history" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="region-prefs" options={{ animation: 'slide_from_right' }} />
+          </Stack>
+            <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
+          </ErrorBoundary>
         </ThemeProvider>
       </SafeAreaProvider>
       {/* Sits last in the tree so it overlays everything during the brand

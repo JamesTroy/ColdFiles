@@ -14,7 +14,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -57,8 +56,9 @@ export default function SignInScreen() {
     setErrorMessage(null);
     const { error } = await signInWithEmail(trimmed);
     if (error) {
+      console.warn('[sign-in] signInWithOtp failed', error.message);
       setStatus('error');
-      setErrorMessage(error.message);
+      setErrorMessage("We couldn't send a sign-in link right now. Check your connection and try again.");
       return;
     }
     setStatus('sent');
