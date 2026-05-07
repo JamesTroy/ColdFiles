@@ -1,0 +1,64 @@
+# CodeQL — GitHub's static analysis for security vulnerabilities.
+#
+# Free for public repos (this repo went public 2026-05-07). Catches
+# bug classes that linters and tests don't typically cover: SSRF
+# patterns, command injection, prototype pollution, hardcoded
+# credentials in code paths, etc. Findings post to the Security tab.
+#
+# Runs on:
+#   - Every PR against main (gating signal alongside vitest)
+#   - Every push to main (drift catch)
+#   - Weekly cron (catches CodeQL pack updates that find things
+#     against unchanged code)
+#
+# Scope: javascript-typescript covers everything we ship — the
+# supabase functions, the mobile app, the scraper CLI, and the
+# Next.js web property. SQL migrations are not analyzed by CodeQL
+# (PostgreSQL isn't in the language matrix).
+#
+# Action versions pinned to SHAs alongside actions/checkout in the
+# rest of the workflow set; updated by Dependabot via the comment.
+
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays at 06:00 UTC — picks up CodeQL pack updates that ship
+    # new security queries without needing a code change to trigger.
+    - cron: "0 6 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # CodeQL needs these to upload results to the Security tab.
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@53e96ec3b35fce51c141c0d6f0e31028a448722d  # v3
+        with:
+          languages: ${{ matrix.language }}
+          # The 'security-and-quality' query suite is the broader
+          # default; 'security-extended' is a tighter set focused on
+          # exploitable issues and produces fewer false positives.
+          # Start with extended; can broaden later if needed.
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@53e96ec3b35fce51c141c0d6f0e31028a448722d  # v3
+        with:
+          category: "/language:${{ matrix.language }}"
