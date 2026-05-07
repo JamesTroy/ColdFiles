@@ -6,10 +6,11 @@ export default function PrivacyScreen() {
   return (
     <LegalDocScreen
       title="Privacy Policy"
-      lastUpdated="2026-05-02"
+      lastUpdated="2026-05-07"
       sections={[
         {
           body: [
+            'The Cold Files is operated by Matte Black Dev LLC, a California limited liability company (registration b20260078079), which is the data controller for the purposes of this policy.',
             'This in-app summary covers the load-bearing claims. The full policy — including retention windows, third-party providers, and your rights under CCPA / CPRA / GDPR — lives at coldfile.app/legal/privacy.',
           ],
         },
