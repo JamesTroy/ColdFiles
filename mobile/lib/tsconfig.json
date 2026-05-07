@@ -1,0 +1,12 @@
+{
+  "_comment": "Halts vite's tsconfig auto-discovery walk for files under mobile/lib so vite/esbuild don't try to resolve mobile/tsconfig.json's expo/tsconfig.base extends (mobile/node_modules isn't installed in CI's root-only npm ci). Doesn't affect the main mobile typecheck — `tsc -p mobile` uses mobile/tsconfig.json as the project root and ignores nested tsconfigs in subdirectories. Pure-helper modules under mobile/lib are imported by the supabase tests via vitest and don't need expo types or path aliases.",
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "isolatedModules": true
+  }
+}
