@@ -163,6 +163,15 @@ export async function persistRecord(
       await mergeIntoExistingCase(ctx, match.case_id, record, payloadHash, payloadJson);
       stats.cases_updated += 1;
       stats.cases_seen += 1;
+      // Status events ride alongside the merge — extractors emit
+      // status_resolved_arrest / status_resolved_other / status_identified
+      // events on record.events when the source published the flip.
+      // Same best-effort posture as the regular path's tail.
+      await persistCaseEvents(
+        { supabase: ctx.supabase, sourceId: ctx.sourceId },
+        match.case_id,
+        record.events,
+      );
       return;
     }
     // No match → log and skip. The structured log line gives operators

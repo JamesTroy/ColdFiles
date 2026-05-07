@@ -445,6 +445,36 @@ export const projectColdCase: SourceConfig = {
         const hintParts = hint.victimNameHint
           ? splitName(hint.victimNameHint)
           : { first: undefined, last: undefined };
+
+        // Timeline status event. PCC's article_published_time on the
+        // status-update post is the editorial milestone for the flip
+        // ("when PCC announced this case resolved") — exact quality.
+        // Source_quote is the yoast description verbatim per the
+        // editorial-noise rule. The event only lands when persist.ts'
+        // status_update_only path finds a dedupe match and merges; on
+        // miss the record (and these events) skip entirely, which is
+        // the correct posture — we don't emit timeline rows for cases
+        // we can't tie to a known victim.
+        const statusEvents: CaseEventInput[] = [];
+        if (yoast.article_published_time) {
+          const publishedIso = yoast.article_published_time.slice(0, 10);
+          statusEvents.push({
+            event_kind:
+              hint.status === 'cleared_arrest'
+                ? 'status_resolved_arrest'
+                : 'status_resolved_other',
+            headline:
+              hint.status === 'cleared_arrest'
+                ? 'Arrest made'
+                : 'Case marked resolved',
+            event_at: yoast.article_published_time,
+            event_date: /^\d{4}-\d{2}-\d{2}$/.test(publishedIso) ? publishedIso : undefined,
+            event_date_quality: 'exact',
+            source_url: post.link,
+            source_quote: description || `Article published: ${yoast.article_published_time}`,
+          });
+        }
+
         return {
           kind: 'homicide',
           status: hint.status,
@@ -452,9 +482,10 @@ export const projectColdCase: SourceConfig = {
           victim_name: hint.victimNameHint ?? undefined,
           victim_first_name: hintParts.first,
           victim_last_name: hintParts.last,
+          events: statusEvents,
           // Nothing else populated — this record is a status flip, not
           // a new case file. The merge path will only touch the status
-          // field on the matched existing case.
+          // field on the matched existing case + emit the status event.
           raw: {
             post_id: post.id,
             slug: post.slug,

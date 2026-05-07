@@ -76,12 +76,13 @@ describe('doe network UID — remains_found event', () => {
     expect(out.events ?? []).toHaveLength(0);
   });
 
-  it('does not emit an event when the case is closed without a date', () => {
-    // Post-PR-#19, is_closed='X' no longer short-circuits to a stub —
-    // the record carries through with status='cleared_other' so the
-    // status flip propagates to the existing case via merge. Events
-    // still suppress because date_of_discovery is absent (the
-    // editorial-noise rule: no date signal → no timeline entry).
+  it('emits status_resolved_other event when case is closed (no remains_found without a date)', () => {
+    // is_closed='X' carries through with status='cleared_other' (PR #19).
+    // The status flip itself emits a timeline event with 'approximate'
+    // quality + a stable event_date_text anchor, since Doe has no
+    // publish-date for the close. remains_found stays suppressed because
+    // date_of_discovery is absent — the editorial-noise rule: no
+    // upstream date signal → no remains_found row.
     const out = doeNetworkUid.detail.mapJson(
       {
         fields: { id: '9001UMCA', is_closed: 'X' },
@@ -90,7 +91,33 @@ describe('doe network UID — remains_found event', () => {
       },
       detailUrl,
     );
-    expect(out.events ?? []).toHaveLength(0);
+    expect(out.events).toHaveLength(1);
+    const ev = out.events![0];
+    expect(ev.event_kind).toBe('status_resolved_other');
+    expect(ev.event_date_quality).toBe('approximate');
+    expect(ev.event_date_text).toMatch(/Doe Network/);
+    expect(ev.source_quote).toBe('is_closed: X');
+  });
+
+  it('emits status_identified event when is_identified=X', () => {
+    // Doe UID's identification signal is the structurally cleanest of
+    // the three status events — when a Doe is identified, a real-name
+    // case sometimes lives in a missing-person feed that another scrape
+    // ingested. The status_identified event marks the moment in the
+    // timeline; future tooling could cross-link the named record.
+    const out = doeNetworkUid.detail.mapJson(
+      {
+        fields: { id: '9001UMCA', is_identified: 'X' },
+        agencies: [],
+        images: [],
+      },
+      detailUrl,
+    );
+    expect(out.events).toHaveLength(1);
+    const ev = out.events![0];
+    expect(ev.event_kind).toBe('status_identified');
+    expect(ev.headline).toBe('Victim identified');
+    expect(ev.source_quote).toBe('is_identified: X');
   });
 });
 
@@ -199,5 +226,100 @@ describe('project_cold_case — incident + case_spotlight_published events', () 
       detailUrl,
     );
     expect(out.events).toBeUndefined();
+  });
+
+  it('emits status_resolved_arrest event from /arrest-made-in-X/ status-update post', () => {
+    // The URL classifier flags arrest-made-* slugs as status-update
+    // posts that should merge into the existing victim case + emit a
+    // timeline event documenting the arrest. Headline is editorial
+    // ("Arrest made"); source_quote is the yoast description sentence
+    // verbatim (the editorial milestone PCC published).
+    const out = projectColdCase.detail.mapJson(
+      {
+        post: {
+          id: 999,
+          slug: 'arrest-made-in-richard-robinson-case',
+          link: 'https://projectcoldcase.org/2026/03/01/arrest-made-in-richard-robinson-case/',
+          date: '2026-03-01T12:00:00',
+          title: { rendered: 'Arrests Made in Richard Robinson Case' },
+          yoast_head_json: {
+            description: 'On March 1, 2026, the LASD arrested two suspects in the death of Richard Robinson.',
+            article_published_time: '2026-03-01T12:00:00+00:00',
+          },
+        },
+      },
+      // The PCC URL classifier reads the SLUG of the post URL, not
+      // the API endpoint URL, so the detailUrl here must be the
+      // user-facing /YYYY/MM/DD/<slug>/ form.
+      'https://projectcoldcase.org/2026/03/01/arrest-made-in-richard-robinson-case/?pcc_id=999',
+    );
+    expect(out.status_update_only).toBe(true);
+    expect(out.status).toBe('cleared_arrest');
+    expect(out.events).toHaveLength(1);
+    const ev = out.events![0];
+    expect(ev.event_kind).toBe('status_resolved_arrest');
+    expect(ev.headline).toBe('Arrest made');
+    expect(ev.event_at).toBe('2026-03-01T12:00:00+00:00');
+    expect(ev.event_date).toBe('2026-03-01');
+    expect(ev.event_date_quality).toBe('exact');
+    expect(ev.source_url).toBe('https://projectcoldcase.org/2026/03/01/arrest-made-in-richard-robinson-case/');
+    expect(ev.source_quote).toMatch(/LASD arrested/);
+  });
+
+  it('emits status_resolved_other event from /solved-cold-case-spotlight-X/ post', () => {
+    const out = projectColdCase.detail.mapJson(
+      {
+        post: {
+          id: 1000,
+          slug: 'solved-cold-case-spotlight-someone',
+          link: 'https://projectcoldcase.org/2026/03/01/solved-cold-case-spotlight-someone/',
+          date: '2026-03-01T12:00:00',
+          title: { rendered: 'Solved Cold Case Spotlight – Someone' },
+          yoast_head_json: {
+            description: 'After 30 years, the murder of Someone has been solved.',
+            article_published_time: '2026-03-01T12:00:00+00:00',
+          },
+        },
+      },
+      'https://projectcoldcase.org/2026/03/01/solved-cold-case-spotlight-someone/?pcc_id=1000',
+    );
+    expect(out.status_update_only).toBe(true);
+    expect(out.status).toBe('cleared_other');
+    expect(out.events).toHaveLength(1);
+    expect(out.events![0].event_kind).toBe('status_resolved_other');
+    expect(out.events![0].headline).toBe('Case marked resolved');
+  });
+});
+
+describe('doe network MP — status_resolved_other event', () => {
+  // Pulls in the doe_network MP extractor (not exported in the
+  // doe_network_uid block above).
+  it('emits status_resolved_other when is_closed=X', async () => {
+    const { doeNetwork } = await import('../../../../sources/doe_network.ts');
+    if (doeNetwork.detail.kind !== 'json') throw new Error('expected json detail strategy');
+    const detailUrl =
+      'https://www.doenetwork.org/cases/software/php/mpdatabase.php?id=999CLOSE&fields=true';
+    const out = doeNetwork.detail.mapJson(
+      {
+        fields: {
+          id: '999CLOSE',
+          pname: 'Test Person',
+          is_closed: 'X',
+        },
+        agencies: [],
+        images: [],
+      },
+      detailUrl,
+    );
+    // status_resolved_other event lands even without missing_since
+    // (the close itself is the structural signal).
+    const statusEvents = (out.events ?? []).filter(
+      (e) => e.event_kind === 'status_resolved_other',
+    );
+    expect(statusEvents).toHaveLength(1);
+    expect(statusEvents[0].event_date_quality).toBe('approximate');
+    expect(statusEvents[0].event_date_text).toMatch(/Doe Network/);
+    expect(statusEvents[0].source_quote).toBe('is_closed: X');
+    expect(statusEvents[0].source_url).toBe(detailUrl);
   });
 });
