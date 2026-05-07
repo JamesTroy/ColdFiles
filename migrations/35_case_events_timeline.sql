@@ -215,15 +215,25 @@ create table public.case_events (
 -- Indexes.
 --
 -- Primary read pattern on the case-detail screen: SELECT every event
--- for a single case_id, ordered by event date desc (or asc — UI policy
--- TBD; the index is bidirectional). The COALESCE puts exact-instant
--- events ahead of date-only events that share the same calendar day
--- — the right ordering for status-update events that arrived later in
--- the same day as a publish-time event.
+-- for a single case_id, ordered by event_date then event_at (matches
+-- the useCaseEvents hook's ORDER BY event_date, event_at). The Btree
+-- index is bidirectional, so ascending (oldest-first, the current UI
+-- policy) and descending (newest-first, future toggle) both work
+-- without rewriting the index.
+--
+-- We deliberately don't COALESCE event_at + event_date here even
+-- though it'd be semantically pleasant ("treat date-only events as
+-- if they happened at start-of-day"): casting `date` to `timestamptz`
+-- isn't IMMUTABLE (depends on the session timezone), and Postgres
+-- rejects non-IMMUTABLE expressions in index definitions with
+-- 42P17. Using the two columns directly is fully IMMUTABLE and the
+-- application's multi-column ORDER BY produces the same end-user
+-- result.
 create index case_events_case_chrono_idx
   on public.case_events (
     case_id,
-    coalesce(event_at, event_date::timestamptz) desc nulls last,
+    event_date desc nulls last,
+    event_at desc nulls last,
     created_at desc
   );
 
