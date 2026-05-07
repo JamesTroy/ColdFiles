@@ -276,18 +276,22 @@ export default function CaseDetailScreen() {
             "next case" engagement loop. Middle (here) frames it as
             context for evaluating the subject case. Section is self-
             suppressing when the subject has no location_point. */}
+        {/* Per-case Timeline Reconstruction (migration 35) —
+            placed ABOVE adjacency. The timeline reads as the
+            chronological "what happened" for the subject case;
+            adjacency reads as "what other cases sit nearby." Order
+            is editorial: subject-case context first, then the
+            broader regional frame. Self-suppressing under 3 events.
+            Reverting this commit restores the order from D1
+            (timeline below adjacency); reverting D1 removes the
+            section entirely. */}
+        <CaseEventsSection caseId={c.id} />
+
         <CasesNearCaseSection
           caseId={c.id}
           caseIncidentDate={c.incident_date}
           hasLocation={c.location_lat != null && c.location_lng != null}
         />
-
-        {/* Per-case Timeline Reconstruction (migration 35).
-            Self-suppressing under 3 events. D1 places this below
-            adjacency; D2 will reorder to "timeline above adjacency"
-            per the user's reorder discipline (separate-revertable
-            commit). */}
-        <CaseEventsSection caseId={c.id} />
 
         {data.sources.length > 0 ? (
           <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
