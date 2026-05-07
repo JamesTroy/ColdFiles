@@ -5,7 +5,7 @@
  * Doe-case display fallback updates every surface that uses it.
  */
 
-import type { CaseKind, CaseRowFull, CaseRowMapNear } from './types/database';
+import type { CaseKind, CaseRowFull, CaseRowMapNear, DateQuality } from './types/database';
 
 const KIND_DISPLAY: Record<CaseKind, string> = {
   homicide: 'HOMICIDE',
@@ -23,16 +23,59 @@ const KIND_DISPLAY: Record<CaseKind, string> = {
  * pill in the map/list surfaces because there's no key-facts table to
  * cross-reference; it's expressed here as the mono-caps label instead.
  */
-export function kindLine(c: Pick<
-  CaseRowMapNear,
-  'kind' | 'incident_date' | 'location_city' | 'location_state'
->): string {
+/**
+ * Inline pick rather than Pick<CaseRowMapNear, ...> so kindLine accepts
+ * rows from any of the map-tier shapes (CaseRowMapNear, CaseRowMapBbox,
+ * CaseRowFull). incident_date_quality is optional — pre-migration-36
+ * rows from cases_in_bbox don't carry it; they fall back to no-marker
+ * rendering, matching the prior behavior so the rollout is graceful.
+ */
+type KindLineRow = {
+  kind: CaseKind;
+  incident_date: string | null;
+  incident_date_quality?: DateQuality | null;
+  location_city: string | null;
+  location_state: string | null;
+};
+
+export function kindLine(c: KindLineRow): string {
   const kind = KIND_DISPLAY[c.kind];
-  const year = c.incident_date ? c.incident_date.slice(0, 4) : null;
+  const year = formatYearWithPrecision(c.incident_date, c.incident_date_quality);
   const city = c.location_city ? c.location_city.toUpperCase() : null;
   const state = c.location_state ? c.location_state.toUpperCase() : null;
   const place = [city, state].filter(Boolean).join(', ');
   return [kind, year, place].filter(Boolean).join(' · ');
+}
+
+/**
+ * Year as a string with a leading "~" when the source's incident-date
+ * precision is anything other than exact. Surfaces the precision
+ * difference inline so two rows in the same subtitle don't read as
+ * identical when one is "1985 (year only)" and the other is
+ * "1985 (June 13)."
+ *
+ *   exact          → "1985"
+ *   year_only      → "~1985"
+ *   approximate    → "~1985"
+ *   suspect        → "~1985"
+ *   unknown        → "~1985"  (year would be visible only if the
+ *                              parser somehow produced one despite
+ *                              flagging quality unknown — defensive)
+ *   null/undefined → "1985"   (rollout-tolerant; pre-migration-36
+ *                              rows that don't carry quality render
+ *                              with the legacy no-marker shape so
+ *                              we don't regress on existing rows)
+ */
+function formatYearWithPrecision(
+  incidentDate: string | null,
+  quality: DateQuality | null | undefined,
+): string | null {
+  if (!incidentDate) return null;
+  const year = incidentDate.slice(0, 4);
+  if (!year) return null;
+  if (!quality) return year;
+  if (quality === 'exact') return year;
+  return `~${year}`;
 }
 
 /**
