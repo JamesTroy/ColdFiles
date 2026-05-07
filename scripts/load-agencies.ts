@@ -42,11 +42,14 @@ interface MetroFile {
 }
 
 async function main() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  // .trim() catches the GitHub Actions secret + trailing-newline footgun
+  // that bit the scrape workflow's first run; same posture as the
+  // sibling scrape-cli readEnv helper. See feedback_silent_whitespace_in_config.
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
   if (!url || !key) {
     console.error(
-      'NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are required.',
+      'NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are required (whitespace-only values are treated as missing).',
     );
     process.exit(2);
   }
