@@ -754,29 +754,56 @@ function formatWeight(kg: number | null): string | null {
  */
 function CaseLocationPreview({ c }: { c: CaseRowFull }) {
   if (c.location_lat == null || c.location_lng == null) return null;
+  // For unidentified/unclaimed cases (Doe Network UID feed), the
+  // location stored on the case is `location_of_discovery` — where
+  // remains were found, NOT where the death occurred. For postmortem-
+  // moved remains, those can be hundreds of miles apart. Surface the
+  // distinction explicitly under the map so a tipster or family member
+  // doesn't act on the pin as if it marked the incident location.
+  // Other case kinds (homicide, missing, suspicious_death) carry an
+  // incident-anchored location and don't need this disclosure.
+  const isDiscoveryLocation = c.kind === 'unidentified' || c.kind === 'unclaimed';
   return (
-    <View
-      style={{
-        marginTop: 22,
-        marginHorizontal: 16,
-        height: 140,
-        borderRadius: 8,
-        overflow: 'hidden',
-        borderWidth: 0.5,
-        borderColor: tokens.color.border.subtle,
-      }}
-    >
-      <CaseLocationMap
-        lat={c.location_lat}
-        lng={c.location_lng}
-        kind={
-          c.kind === 'unidentified' || c.kind === 'unclaimed'
-            ? 'unidentified'
-            : c.kind === 'missing'
-              ? 'missing'
-              : 'homicide'
-        }
-      />
+    <View>
+      <View
+        style={{
+          marginTop: 22,
+          marginHorizontal: 16,
+          height: 140,
+          borderRadius: 8,
+          overflow: 'hidden',
+          borderWidth: 0.5,
+          borderColor: tokens.color.border.subtle,
+        }}
+      >
+        <CaseLocationMap
+          lat={c.location_lat}
+          lng={c.location_lng}
+          kind={
+            c.kind === 'unidentified' || c.kind === 'unclaimed'
+              ? 'unidentified'
+              : c.kind === 'missing'
+                ? 'missing'
+                : 'homicide'
+          }
+        />
+      </View>
+      {isDiscoveryLocation ? (
+        <Text
+          style={{
+            marginTop: 8,
+            marginHorizontal: 16,
+            fontFamily: tokens.font.serif,
+            fontStyle: 'italic',
+            fontSize: 13,
+            lineHeight: 13 * 1.45,
+            color: tokens.color.text.secondary,
+            includeFontPadding: false,
+          }}
+        >
+          Pin shows where remains were found, not where the death occurred.
+        </Text>
+      ) : null}
     </View>
   );
 }
