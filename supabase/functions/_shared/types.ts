@@ -111,6 +111,18 @@ export interface CaseRecord {
    */
   location_lat?: number;
   location_lng?: number;
+  /**
+   * Source's own claim about the precision of the lat/lng pair above.
+   * Optional — when omitted, persist.ts defaults to 'address' to
+   * preserve historical behavior (NamUs UP cases were always treated
+   * as address-precise). Sources that supply neighborhood-level or
+   * city-level fallback coordinates should declare 'city' or 'street'
+   * here so the UI can render an honest precision marker. The same
+   * privacy snap applied to Mapbox-geocoded coords (~111m) is applied
+   * to source-supplied coords too — a 'address'-labeled pin from any
+   * source has the same actual fidelity floor regardless of origin.
+   */
+  location_precision?: 'address' | 'street' | 'city' | 'county' | 'state' | 'unknown';
 
   last_seen_text?: string;
   last_seen_date?: string;

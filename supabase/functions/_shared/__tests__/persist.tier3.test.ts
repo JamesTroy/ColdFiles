@@ -729,6 +729,94 @@ describe('persistRecord — same-source re-scrape lookup (case_sources)', () => 
   });
 });
 
+describe('persistRecord — source-supplied geocode precision honesty + snap consistency', () => {
+  // Source-supplied lat/lng (NamUs publicGeolocation, FBI seeking-info
+  // GPS) used to land at full precision and unconditional
+  // location_precision='address'. That's two separate accuracy
+  // problems:
+  //   1. Two 'address'-labeled pins could have wildly different actual
+  //      fidelity (Mapbox path snapped to ~111m, source path didn't)
+  //   2. A future source feeding neighborhood-level coords would have
+  //      its precision overclaimed
+  // PR #28 fixes both: snap source-supplied coords to ~111m too, and
+  // honor record.location_precision when set.
+
+  it('Source-supplied lat/lng → snapped to ~111m + precision="address" by default', async () => {
+    const { client, calls } = buildMockSupabase({
+      case_dedupe_keys: { selectRows: [] },
+      cases: {
+        insertReturning: { id: 'fresh-case-uuid' },
+        // ensureGeocode reads cases for location_point / location_precision.
+        singleRow: { id: 'fresh-case-uuid', location_point: null, location_precision: null },
+      },
+    });
+
+    await persistRecord(
+      baseCtx(client),
+      baseRecord({
+        // 5-decimal precision input — should snap to 3 decimals (~111m).
+        location_lat: 34.10678,
+        location_lng: -118.20123,
+      }),
+      newStats(),
+    );
+
+    // Find the geocode-shaped cases.update (location_point +
+    // location_precision keys, no victim fields).
+    const casesUpdates = calls.filter((c) => c.table === 'cases' && c.method === 'update');
+    const geocodeUpdate = casesUpdates.find((c) => {
+      const arg = c.args[0] as Record<string, unknown>;
+      return (
+        arg &&
+        'location_point' in arg &&
+        'location_precision' in arg &&
+        !Object.keys(arg).some((k) => k.startsWith('victim_'))
+      );
+    });
+    expect(geocodeUpdate).toBeDefined();
+    const arg = geocodeUpdate!.args[0] as Record<string, unknown>;
+
+    // Snapped to 3 decimals (~111m) — same posture the Mapbox path
+    // applies in geocode.ts:44. WKT shape: SRID=4326;POINT(lng lat).
+    expect(arg.location_point).toBe('SRID=4326;POINT(-118.201 34.107)');
+
+    // No declared precision → defaults to 'address' (historical
+    // behavior preserved).
+    expect(arg.location_precision).toBe('address');
+  });
+
+  it('Source-declared location_precision flows through to the cases row', async () => {
+    const { client, calls } = buildMockSupabase({
+      case_dedupe_keys: { selectRows: [] },
+      cases: {
+        insertReturning: { id: 'fresh-case-uuid' },
+        singleRow: { id: 'fresh-case-uuid', location_point: null, location_precision: null },
+      },
+    });
+
+    await persistRecord(
+      baseCtx(client),
+      baseRecord({
+        location_lat: 34.10678,
+        location_lng: -118.20123,
+        // Source claims neighborhood-level precision instead of address.
+        location_precision: 'city',
+      }),
+      newStats(),
+    );
+
+    const casesUpdates = calls.filter((c) => c.table === 'cases' && c.method === 'update');
+    const geocodeUpdate = casesUpdates.find((c) => {
+      const arg = c.args[0] as Record<string, unknown>;
+      return arg && 'location_point' in arg && 'location_precision' in arg;
+    });
+    expect(geocodeUpdate).toBeDefined();
+    const arg = geocodeUpdate!.args[0] as Record<string, unknown>;
+    // Source-declared precision is honored — no longer hardcoded to 'address'.
+    expect(arg.location_precision).toBe('city');
+  });
+});
+
 describe('persistRecord — payload_hash short-circuit (steady-state optimization)', () => {
   // When the same source re-scrapes a case it already wrote, and the
   // payload hasn't changed, skip the merge entirely. The merge would
