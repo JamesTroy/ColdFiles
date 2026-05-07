@@ -42,6 +42,11 @@ import { Pressable, View } from 'react-native';
 
 import { tokens } from '@/constants/theme';
 import { useCasesNearCase } from '@/lib/hooks/use-cases-near-case';
+import {
+  bucketByPeriod,
+  effectiveRange,
+  type DateRange,
+} from '@/lib/period-bucket';
 import type { CaseKind, CaseRowMapBbox, DateQuality } from '@/lib/types/database';
 
 import { CaseRow } from './case-row';
@@ -66,42 +71,9 @@ const RADIUS_OPTIONS = [10, 25, 50, 100] as const;
 const DEFAULT_RADIUS: (typeof RADIUS_OPTIONS)[number] = 25;
 const HIGH_COUNT_THRESHOLD = 30;
 const RESULT_CAP = 200;
-// "Same period" = a case's effective date range overlaps the subject's
-// effective date range expanded by ±6 months on each side. Boundary
-// is INCLUSIVE on both sides; calendar-month math (Date.setMonth)
-// rather than fixed-day approximation, so months expand to their
-// natural lengths (Feb 28/29 etc.).
-//
-// History:
-//   ±2y (original) — too wide; a case two years apart isn't "around
-//                    the same time" in any tipster's mental model.
-//   ±1y (interim)  — still too loose. Real "same period" intuition is
-//                    closer to "same season / same half of the year."
-//   ±6m (this)     — captures the spirit of "around the same time"
-//                    without overclaiming temporal coincidence.
-//
-// Quality-aware ranges (this commit) — the previous ±6mo math compared
-// each case as a point-date against the subject's point-date. That
-// produced asymmetric matching for year_only-quality dates because
-// parseDate stores them at YYYY-01-01: a year_only "1985" case landed
-// near February-1985 subjects (~1 month apart) but missed October-1985
-// subjects (~9 months apart), even though both are by definition in
-// the same year as the year_only record. Same problem across year
-// boundaries: year_only 1984 (Jan 1, 1984) vs year_only 1985 (Jan 1,
-// 1985) is exactly 12 months apart, falling out — but the underlying
-// truth could be Dec 1984 vs Jan 1985, days apart in real time.
-//
-// Fix: treat each case as a date RANGE based on its quality.
-//   exact     → range = [date, date] (point)
-//   year_only → range = [Jan 1 of year, Dec 31 of year]
-//   approximate → range = the parsed-date's month (best signal we have:
-//                          parseDate sets day to 01 but month is real)
-//   suspect / unknown → no temporal claim; bucket to "Other Nearby"
-//
-// Then check if the subject's range expanded by ±6 months on each
-// side overlaps the candidate's range. Symmetric, intuitive, respects
-// upstream date precision.
-const SAME_PERIOD_MONTHS = 6;
+// Same-period bucketing: contract + quality-aware date-range math
+// lives in @/lib/period-bucket. Tests pin the boundary cases at
+// mobile/lib/__tests__/period-bucket.test.ts.
 
 export function CasesNearCaseSection({
   caseId,
@@ -311,110 +283,6 @@ function EmptyState({ radius }: { radius: number }) {
 }
 
 /* ---------- pure helpers ---------- */
-
-/**
- * A case's effective date range, expressed in millisecond timestamps.
- * Inclusive on both ends. Point-dates have startMs === endMs.
- */
-interface DateRange {
-  startMs: number;
-  endMs: number;
-}
-
-/**
- * Convert (incident_date, quality) into a DateRange that respects
- * the source's date precision. Returns null when the case can't make
- * a temporal claim — those rows fall through to "Other Nearby"
- * because we don't want to silently include them in "Same Period."
- *
- *   exact        → point [date, date]
- *   year_only    → full year [Jan 1 YYYY, Dec 31 YYYY]
- *   approximate  → full year (parseDate sets day=01 either way and
- *                   we can't tell from the iso string alone whether
- *                   the month is real ("June 1985") or a Jan 1 anchor
- *                   for an embedded year ("summer 1985"). Conservative
- *                   call: trust only the year.)
- *   suspect      → null  (source itself flagged the date as unreliable)
- *   unknown      → null  (no temporal signal)
- *   undefined    → falls back to exact-style point — handles the brief
- *                   pre-migration-36 window where the RPC didn't
- *                   return quality. After migration 36 every row has
- *                   a value; this branch is dead but kept for safety.
- *
- * Uses UTC throughout so the same input produces the same range
- * regardless of the device's local timezone — a 1985-06-15 case
- * shouldn't bucket differently for a user in NY vs Tokyo.
- */
-function effectiveRange(
-  isoDate: string | null | undefined,
-  quality: DateQuality | null | undefined,
-): DateRange | null {
-  if (!isoDate) return null;
-  if (quality === 'suspect' || quality === 'unknown') return null;
-
-  if (quality === 'year_only' || quality === 'approximate') {
-    const year = parseInt(isoDate.slice(0, 4), 10);
-    if (!Number.isFinite(year)) return null;
-    return {
-      startMs: Date.UTC(year, 0, 1, 0, 0, 0, 0),
-      endMs: Date.UTC(year, 11, 31, 23, 59, 59, 999),
-    };
-  }
-
-  // exact (or undefined fallback)
-  const ms = Date.parse(isoDate);
-  if (!Number.isFinite(ms)) return null;
-  return { startMs: ms, endMs: ms };
-}
-
-/**
- * Expand a DateRange by `months` calendar months on each side.
- * Calendar-month math via setUTCMonth (rather than fixed-day
- * approximation) so months keep their natural lengths — Feb's
- * 28/29 is honored; June+6mo lands on December not "180 days
- * later." Boundary is INCLUSIVE on both sides via the rangesOverlap
- * comparison below.
- */
-function expandRange(range: DateRange, months: number): DateRange {
-  const start = new Date(range.startMs);
-  start.setUTCMonth(start.getUTCMonth() - months);
-  const end = new Date(range.endMs);
-  end.setUTCMonth(end.getUTCMonth() + months);
-  return { startMs: start.getTime(), endMs: end.getTime() };
-}
-
-/** Inclusive-on-both-sides range overlap. */
-function rangesOverlap(a: DateRange, b: DateRange): boolean {
-  return a.startMs <= b.endMs && a.endMs >= b.startMs;
-}
-
-function bucketByPeriod(
-  rows: CaseRowMapBbox[],
-  subjectRange: DateRange | null,
-): { samePeriod: CaseRowMapBbox[]; otherNearby: CaseRowMapBbox[] } {
-  // No subject date / unreliable subject quality → no temporal
-  // grouping; everything lands in "Other Nearby."
-  if (subjectRange == null) {
-    return { samePeriod: [], otherNearby: rows };
-  }
-  // Subject's matching window: subject's range expanded by ±6 months.
-  const window = expandRange(subjectRange, SAME_PERIOD_MONTHS);
-  const samePeriod: CaseRowMapBbox[] = [];
-  const otherNearby: CaseRowMapBbox[] = [];
-  for (const r of rows) {
-    const rRange = effectiveRange(r.incident_date, r.incident_date_quality);
-    if (rRange == null) {
-      otherNearby.push(r);
-      continue;
-    }
-    if (rangesOverlap(window, rRange)) {
-      samePeriod.push(r);
-    } else {
-      otherNearby.push(r);
-    }
-  }
-  return { samePeriod, otherNearby };
-}
 
 interface Stats {
   total: number;
