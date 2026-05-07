@@ -8,7 +8,53 @@
  * regenerate the native android/ tree.
  */
 
+import {
+  AndroidConfig,
+  withAndroidManifest,
+  type ConfigPlugin,
+} from 'expo/config-plugins';
 import type { ExpoConfig } from 'expo/config';
+
+// Permissions that the audit (docs/audit/2026-05-07/data-security.md, Critical
+// #1) requires removed from the generated AAB manifest. expo-location's plugin
+// always merges in FINE_LOCATION (no opt-out); RN/Expo prebuild auto-injects
+// the storage + overlay perms transitively. Privacy policy + Play Data Safety
+// form commit to approximate-only location and no file-system access, so the
+// manifest must match — `tools:node="remove"` strips them at manifest-merge.
+const PERMISSIONS_TO_REMOVE = [
+  'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
+  'android.permission.SYSTEM_ALERT_WINDOW',
+];
+
+const withTightenedAndroidManifest: ConfigPlugin = (cfg) =>
+  withAndroidManifest(cfg, (modConfig) => {
+    const manifest = AndroidConfig.Manifest.ensureToolsAvailable(
+      modConfig.modResults
+    );
+
+    const existing = manifest.manifest['uses-permission'] ?? [];
+    const filtered = existing.filter(
+      (p) => !PERMISSIONS_TO_REMOVE.includes(p.$['android:name'])
+    );
+    for (const name of PERMISSIONS_TO_REMOVE) {
+      filtered.push({ $: { 'android:name': name, 'tools:node': 'remove' } });
+    }
+    manifest.manifest['uses-permission'] = filtered;
+
+    // allowBackup=false keeps AsyncStorage (Supabase JWT, saved-case slugs,
+    // tip receipts) out of Google Drive auto-backup. fullBackupContent=false
+    // disables the legacy < API 31 path for the same reason.
+    const application =
+      AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
+    application.$['android:allowBackup'] = 'false';
+    (application.$ as Record<string, string>)['android:fullBackupContent'] =
+      'false';
+
+    modConfig.modResults = manifest;
+    return modConfig;
+  });
 
 const config: ExpoConfig = {
   name: 'The Cold Files',
@@ -94,6 +140,21 @@ const config: ExpoConfig = {
     // MapLibre GL Native — open-source map SDK. No API key, no signup, no
     // Google Cloud. Tiles served by openfreemap.org (community-funded OSM).
     '@maplibre/maplibre-react-native',
+    // expo-location plugin — sets the iOS usage strings. Android FINE_LOCATION
+    // is auto-merged by this plugin with no opt-out; the inline manifest
+    // tightener below strips it at manifest-merge time.
+    [
+      'expo-location',
+      {
+        locationAlwaysAndWhenInUsePermission:
+          'Used to center the map on cases near you. Approximate location only; not retained.',
+        locationWhenInUsePermission:
+          'Used to center the map on cases near you. Approximate location only; not retained.',
+        isIosBackgroundLocationEnabled: false,
+        isAndroidBackgroundLocationEnabled: false,
+        isAndroidForegroundServiceEnabled: false,
+      },
+    ],
     // expo-notifications — push delivery for watch-zone alerts, saved-case
     // updates, and tip status changes. Requires a native rebuild (NOT OTA).
     //
@@ -131,4 +192,4 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+export default withTightenedAndroidManifest(config);

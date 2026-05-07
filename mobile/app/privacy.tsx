@@ -88,7 +88,7 @@ export default function PrivacyScreen() {
             'We use a small set of vendors to operate the app. Each is bound by a data processing agreement that prohibits using your data for their own purposes:',
             '• Supabase — database, authentication, row-level-security-gated reads and writes.',
             '• Apple Push Notification service / Google Firebase Cloud Messaging — push notification delivery (only the token you authorized).',
-            '• Mapbox — map tiles. Mapbox sees your approximate map viewport but not who you are.',
+            '• OpenFreeMap and CARTO — map tile servers. Your IP address reaches these tile servers when you scroll the map. They are independent providers, not ColdFiles vendors; their privacy practices apply to your tile requests.',
             '• Resend — transactional email delivery (the magic link for sign-in).',
             '• Vercel — hosting for the web property at coldfile.app.',
             'We do not "sell" personal information as defined by CCPA §1798.140(ad) or "share" it for cross-context behavioral advertising as defined by §1798.140(ah).',
