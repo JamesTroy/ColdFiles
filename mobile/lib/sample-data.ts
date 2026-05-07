@@ -9,6 +9,7 @@
 
 import type {
   AgencyRow,
+  CaseEventRow,
   CaseMediaRow,
   CaseRowFull,
   CaseRowMapNear,
@@ -1050,6 +1051,179 @@ export const SAMPLE_CASE_MEDIA_BY_CASE_ID: Record<string, CaseMediaRow[]> = {
       display_warning: null,
       source_id: null,
     },
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Case events (per-case) — used by the case-detail Timeline section in
+// designer mode. Section renders only at ≥3 events, so the entries here
+// are sized accordingly per case (some hit threshold, some don't, to
+// exercise both branches in design review).
+// ────────────────────────────────────────────────────────────────────────────
+
+function makeEvent(
+  caseId: string,
+  partial: Omit<CaseEventRow, 'id' | 'case_id'> & { id?: string },
+): CaseEventRow {
+  return {
+    id: partial.id ?? `${caseId}-evt-${partial.event_kind}-${partial.event_date ?? 'undated'}`,
+    case_id: caseId,
+    ...partial,
+  };
+}
+
+const SAMPLE_SOURCE_PCC = {
+  id: 'src-pcc',
+  slug: 'project_cold_case',
+  name: 'Project: Cold Case',
+  kind: 'nonprofit' as const,
+  base_url: 'https://projectcoldcase.example',
+  attribution_html: 'Source: Project: Cold Case',
+};
+
+const SAMPLE_SOURCE_DOE = {
+  id: 'src-doe',
+  slug: 'doe_network',
+  name: 'The Doe Network',
+  kind: 'nonprofit' as const,
+  base_url: 'https://doenetwork.example',
+  attribution_html: 'Source: The Doe Network',
+};
+
+const SAMPLE_SOURCE_CHARLEY = {
+  id: 'src-charley',
+  slug: 'charley_project',
+  name: 'The Charley Project',
+  kind: 'nonprofit' as const,
+  base_url: 'https://charleyproject.example',
+  attribution_html: 'Source: The Charley Project',
+};
+
+export const SAMPLE_CASE_EVENTS_BY_CASE_ID: Record<string, CaseEventRow[]> = {
+  // Evans — three events, exercises the threshold-met branch.
+  evans: [
+    makeEvent('evans', {
+      event_kind: 'incident',
+      headline: 'Incident — Claremont, CA',
+      body: null,
+      event_at: null,
+      event_date: '1985-06-13',
+      event_date_end: null,
+      event_date_quality: 'exact',
+      event_date_text: null,
+      source_url: 'https://projectcoldcase.example/case/evans',
+      source_quote:
+        'David Evans was last seen on June 13, 1985 in Claremont, CA and has not been heard from since.',
+      source_id: 'src-pcc',
+      source: SAMPLE_SOURCE_PCC,
+    }),
+    makeEvent('evans', {
+      event_kind: 'last_seen',
+      headline: 'Last seen — Claremont, CA',
+      body: null,
+      event_at: null,
+      event_date: '1985-06-13',
+      event_date_end: null,
+      event_date_quality: 'exact',
+      event_date_text: null,
+      source_url: 'https://charleyproject.example/case/evans',
+      source_quote: 'Missing Since: June 13, 1985',
+      source_id: 'src-charley',
+      source: SAMPLE_SOURCE_CHARLEY,
+    }),
+    makeEvent('evans', {
+      event_kind: 'case_spotlight_published',
+      headline: 'Cold Case Spotlight published',
+      body: null,
+      event_at: '2018-04-12T12:00:00+00:00',
+      event_date: '2018-04-12',
+      event_date_end: null,
+      event_date_quality: 'exact',
+      event_date_text: null,
+      source_url: 'https://projectcoldcase.example/case/evans',
+      source_quote: 'Article published: 2018-04-12T12:00:00+00:00',
+      source_id: 'src-pcc',
+      source: SAMPLE_SOURCE_PCC,
+    }),
+  ],
+  // Doe-2003 — three events; exercises Doe UID emission shape.
+  'doe-2003': [
+    makeEvent('doe-2003', {
+      event_kind: 'remains_found',
+      headline: 'Remains discovered — Ventura, CA',
+      body: null,
+      event_at: null,
+      event_date: '2003-11-08',
+      event_date_end: null,
+      event_date_quality: 'exact',
+      event_date_text: null,
+      source_url: 'https://doenetwork.example/case/2003UMCA',
+      source_quote: 'Date of Discovery: November 8, 2003',
+      source_id: 'src-doe',
+      source: SAMPLE_SOURCE_DOE,
+    }),
+    makeEvent('doe-2003', {
+      event_kind: 'last_seen',
+      headline: 'Last seen — area unknown',
+      body: null,
+      event_at: null,
+      event_date: '2003-08-01',
+      event_date_end: null,
+      event_date_quality: 'approximate',
+      event_date_text: 'summer 2003',
+      source_url: 'https://doenetwork.example/case/2003UMCA',
+      source_quote: 'Missing Since: summer 2003',
+      source_id: 'src-doe',
+      source: SAMPLE_SOURCE_DOE,
+    }),
+    makeEvent('doe-2003', {
+      event_kind: 'case_spotlight_published',
+      headline: 'Cold Case Spotlight published',
+      body: null,
+      event_at: '2019-09-22T12:00:00+00:00',
+      event_date: '2019-09-22',
+      event_date_end: null,
+      event_date_quality: 'exact',
+      event_date_text: null,
+      source_url: 'https://projectcoldcase.example/case/doe-2003',
+      source_quote: 'Article published: 2019-09-22T12:00:00+00:00',
+      source_id: 'src-pcc',
+      source: SAMPLE_SOURCE_PCC,
+    }),
+  ],
+  // Hernandez — two events, intentionally below the 3-event threshold so
+  // the section doesn't render. Designer review can verify the suppression
+  // path on this case.
+  hernandez: [
+    makeEvent('hernandez', {
+      event_kind: 'incident',
+      headline: 'Incident — Camarillo, CA',
+      body: null,
+      event_at: null,
+      event_date: '1992-03-04',
+      event_date_end: null,
+      event_date_quality: 'exact',
+      event_date_text: null,
+      source_url: 'https://projectcoldcase.example/case/hernandez',
+      source_quote:
+        'Hernandez was killed on March 4, 1992 in Camarillo, CA.',
+      source_id: 'src-pcc',
+      source: SAMPLE_SOURCE_PCC,
+    }),
+    makeEvent('hernandez', {
+      event_kind: 'case_spotlight_published',
+      headline: 'Cold Case Spotlight published',
+      body: null,
+      event_at: '2020-02-14T12:00:00+00:00',
+      event_date: '2020-02-14',
+      event_date_end: null,
+      event_date_quality: 'exact',
+      event_date_text: null,
+      source_url: 'https://projectcoldcase.example/case/hernandez',
+      source_quote: 'Article published: 2020-02-14T12:00:00+00:00',
+      source_id: 'src-pcc',
+      source: SAMPLE_SOURCE_PCC,
+    }),
   ],
 };
 

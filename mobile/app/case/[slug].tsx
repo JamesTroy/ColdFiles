@@ -34,6 +34,7 @@ import {
   SerifTitle,
 } from '@/components/cf/text';
 import { TrustDisclosureCallout, TrustDisclosureCaption } from '@/components/cf/trust-disclosure';
+import { CaseEventsSection } from '@/components/cf/case-events-section';
 import { CasesNearCaseSection } from '@/components/cf/cases-near-case-section';
 import { tokens } from '@/constants/theme';
 import { displayName, formatDateLedger, formatDateMonthDay, formatPlace } from '@/lib/format';
@@ -280,6 +281,13 @@ export default function CaseDetailScreen() {
           caseIncidentDate={c.incident_date}
           hasLocation={c.location_lat != null && c.location_lng != null}
         />
+
+        {/* Per-case Timeline Reconstruction (migration 35).
+            Self-suppressing under 3 events. D1 places this below
+            adjacency; D2 will reorder to "timeline above adjacency"
+            per the user's reorder discipline (separate-revertable
+            commit). */}
+        <CaseEventsSection caseId={c.id} />
 
         {data.sources.length > 0 ? (
           <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
