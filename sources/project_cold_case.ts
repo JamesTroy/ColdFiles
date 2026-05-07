@@ -57,6 +57,146 @@ const COLD_CASE_SPOTLIGHT_CATEGORY = 4;
 const PER_PAGE = 100;
 const MAX_PAGES = 10; // safety cap; ~376 posts as of 2026-05-02 → 4 pages
 
+// ────────────────────────────────────────────────────────────────────────────
+// URL classifier — sorts PCC posts into three branches at the discovery
+// layer. Replaces the prior "ingest everything, hope the title heuristic
+// catches the noise" approach that audit (2026-05-04) found leaving
+// ~10-15 garbage records in `cases` and producing 183 dedupe-failure
+// errors per scrape pass.
+//
+// Three classes:
+//
+//   victim         — original case file ("Aaron Bustamante", date-based
+//                    permalink, victim_name = post title). Normal
+//                    extraction.
+//
+//   status-update  — post about an existing case's resolution ("Arrest
+//                    Made in Isaac Hodges Case", "Solved Cold Case
+//                    Spotlight – Jamal Fleming"). Routed to a status-
+//                    update path that finds the existing case by name
+//                    and propagates the status flip; never inserts.
+//
+//   editorial      — generic content unrelated to a specific case
+//                    (Grief Diaries interview series, 2nd Annual Year
+//                    of Hope fundraiser, "Arrests Don't Always Equal
+//                    Justice" commentary). Skipped entirely at
+//                    discovery — never hits the extractor, never
+//                    produces a record, never logs an error.
+//
+// See feedback_extractor_editorial_noise.md memory note for the
+// pattern this is solving (second instance after FBI Wanted's
+// editorial-misfit retirement).
+// ────────────────────────────────────────────────────────────────────────────
+
+export type PccUrlClass = 'victim' | 'status-update' | 'editorial';
+
+export interface PccStatusUpdateHint {
+  /** Mapped resolution status from the post title. */
+  status: 'cleared_arrest' | 'cleared_other';
+  /**
+   * Victim name extracted from the title. Used by the status-update
+   * handler to find the existing case in `cases`. May be null when
+   * the title parse fails — caller skips in that case.
+   */
+  victimNameHint: string | null;
+}
+
+export interface PccClassification {
+  class: PccUrlClass;
+  /** Set only when class === 'status-update'. */
+  statusUpdate?: PccStatusUpdateHint;
+}
+
+// Editorial-noise URL slugs (matched against the slug portion after the
+// /YYYY/MM/DD/ date prefix). Patterns are anchored at slug start with
+// a word boundary at end so partial-prefix collisions are avoided.
+const EDITORIAL_NOISE_SLUG_PATTERNS: readonly RegExp[] = [
+  /^grief-diaries(-|$)/i,
+  /^year-of-hope(-|$)/i,
+  /^\d+(st|nd|rd|th)?-annual(-|$)/i,
+  /^annual-year-of-hope(-|$)/i,
+  /^arrests?-don.?t-always-equal-justice(-|$)/i,
+  /(^|-)fundraiser(-|$)/i,
+  // "Cold Case Spotlight – <Name>" summary roundup posts (editorial,
+  // not individual victim files). The prior discoverFn skipped these
+  // with /\/cold-case-spotlight-/i; the classifier carries that forward.
+  // NOTE: this pattern is anchored at slug start, so it does NOT match
+  // /solved-cold-case-spotlight-/ or /update-solved-cold-case-spotlight-/
+  // — those classify as status-update below. Order is preserved.
+  /^cold-case-spotlight(-|$)/i,
+];
+
+// Status-update slug patterns. Order matters — more-specific patterns
+// first so they classify correctly. "arrest-made-solved-cold-case-
+// spotlight-…" is an arrest update (cleared_arrest); plain "solved-
+// cold-case-spotlight-…" is generic resolution (cleared_other).
+const STATUS_UPDATE_SLUG_PATTERNS: ReadonlyArray<{
+  re: RegExp;
+  status: PccStatusUpdateHint['status'];
+}> = [
+  { re: /^arrest-made-solved-cold-case-spotlight-/i, status: 'cleared_arrest' },
+  { re: /^arrests?-made(-in)?-/i, status: 'cleared_arrest' },
+  { re: /^update-solved-cold-case-spotlight-/i, status: 'cleared_other' },
+  { re: /^solved-cold-case-spotlight-/i, status: 'cleared_other' },
+];
+
+// Title-based victim-name extraction for status-update posts. Each
+// pattern's first capture group is the victim name. Order matches the
+// status-update slug patterns so a post matched by URL gets a parallel
+// title regex applied.
+const TITLE_NAME_PATTERNS: readonly RegExp[] = [
+  /^Arrests?\s+Made\s+(?:in\s+)?(.+?)\s+(?:Case|case|Investigation)\s*$/i,
+  /^Arrest\s+Made:?\s*Solved\s+Cold\s+Case\s+Spotlight\s*[–\-:]\s*(.+?)\s*$/i,
+  /^(?:Update:?\s*)?Solved\s+Cold\s+Case\s+Spotlight\s*[–\-:]\s*(.+?)\s*$/i,
+];
+
+/** Pull the slug portion after the /YYYY/MM/DD/ date prefix. */
+function slugFromUrl(url: string): string | null {
+  // PCC permalinks: https://projectcoldcase.org/2018/04/24/<slug>/?pcc_id=...
+  // OR /<slug>/ (no date) for some legacy paths.
+  const m = url.match(/projectcoldcase\.org\/(?:\d{4}\/\d{2}\/\d{2}\/)?([^/?#]+)/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+/** Try each title pattern in order; return the first non-empty capture. */
+function extractVictimNameFromTitle(title: string): string | null {
+  for (const re of TITLE_NAME_PATTERNS) {
+    const m = title.match(re);
+    if (m && m[1]) {
+      const name = m[1].trim();
+      if (name) return name;
+    }
+  }
+  return null;
+}
+
+/**
+ * Classify a PCC URL + title into one of three branches. The title is
+ * optional at discovery (we may only have the URL); when classified as
+ * status-update without a title, the victim-name hint stays null and
+ * the consumer skips. When the title is available, the hint is filled.
+ */
+export function classifyPccUrl(url: string, title?: string): PccClassification {
+  const slug = slugFromUrl(url);
+  if (!slug) return { class: 'victim' }; // can't classify; treat as victim
+
+  for (const re of EDITORIAL_NOISE_SLUG_PATTERNS) {
+    if (re.test(slug)) return { class: 'editorial' };
+  }
+
+  for (const { re, status } of STATUS_UPDATE_SLUG_PATTERNS) {
+    if (re.test(slug)) {
+      const victimNameHint = title ? extractVictimNameFromTitle(title) : null;
+      return {
+        class: 'status-update',
+        statusUpdate: { status, victimNameHint },
+      };
+    }
+  }
+
+  return { class: 'victim' };
+}
+
 interface YoastImage {
   url?: string;
   width?: number;
@@ -226,13 +366,17 @@ export const projectColdCase: SourceConfig = {
         if (!Array.isArray(items) || items.length === 0) break;
         for (const item of items) {
           if (typeof item?.id !== 'number' || typeof item?.link !== 'string') continue;
-          // Skip "Cold Case Spotlight – <Name>" editorial roundup posts.
-          // PCC's category 4 mixes individual case posts with these
-          // summaries; the summary URLs always start with
-          // /cold-case-spotlight-. Their title parses to victim_first_name
-          // ='Cold' and the body has Avada-theme CSS leakage, so they're
-          // unusable as cases.
-          if (/\/cold-case-spotlight-/i.test(item.link)) continue;
+          // Three-way classification at discovery (classifyPccUrl above):
+          //   editorial      → skip entirely (Grief Diaries, Year of Hope,
+          //                    fundraisers, "Cold Case Spotlight – <Name>"
+          //                    roundup summaries).
+          //   status-update  → keep — extractor will produce a
+          //                    status_update_only-flagged record so
+          //                    persistRecord merges into an existing case
+          //                    or skips, never inserts.
+          //   victim         → keep — normal extraction path.
+          const klass = classifyPccUrl(item.link).class;
+          if (klass === 'editorial') continue;
           const sep = item.link.includes('?') ? '&' : '?';
           urls.push(`${item.link}${sep}pcc_id=${item.id}`);
           if (urls.length >= target) break;
@@ -261,7 +405,7 @@ export const projectColdCase: SourceConfig = {
       }
       return { post: `${API_BASE}/posts/${id}` };
     },
-    mapJson: (data, _detailUrl): Partial<CaseRecord> => {
+    mapJson: (data, detailUrl): Partial<CaseRecord> => {
       const post = data.post as PccPost | null;
       if (!post) return { raw: { empty: true } };
 
@@ -281,6 +425,45 @@ export const projectColdCase: SourceConfig = {
       // the persist path treats it as a no-op.
       if (/^cold case spotlight\b/i.test(titleRendered)) {
         return { raw: { skipped: 'cold-case-spotlight-summary' } };
+      }
+
+      // Status-update routing. URLs that classify as status-update at
+      // discovery (e.g. /arrests-made-in-X-case/, /solved-cold-case-
+      // spotlight-X/) document a resolution event for an EXISTING case
+      // — not a new case file. Produce a minimal record carrying just
+      // the resolution status + the victim-name hint extracted from
+      // the title; persistRecord (with status_update_only=true) merges
+      // into the matching existing case, or logs + skips when no match.
+      //
+      // We re-classify here (rather than threading state from discovery)
+      // because classifyPccUrl is pure + cheap, and re-running with the
+      // title in hand fills the victimNameHint that URL-only
+      // classification couldn't.
+      const classification = classifyPccUrl(detailUrl, titleRendered);
+      if (classification.class === 'status-update' && classification.statusUpdate) {
+        const hint = classification.statusUpdate;
+        const hintParts = hint.victimNameHint
+          ? splitName(hint.victimNameHint)
+          : { first: undefined, last: undefined };
+        return {
+          kind: 'homicide',
+          status: hint.status,
+          status_update_only: true,
+          victim_name: hint.victimNameHint ?? undefined,
+          victim_first_name: hintParts.first,
+          victim_last_name: hintParts.last,
+          // Nothing else populated — this record is a status flip, not
+          // a new case file. The merge path will only touch the status
+          // field on the matched existing case.
+          raw: {
+            post_id: post.id,
+            slug: post.slug,
+            link: post.link,
+            classification: 'status-update',
+            proposed_status: hint.status,
+            title: titleRendered,
+          },
+        };
       }
 
       const nameParts = titleRendered ? splitName(titleRendered) : { first: undefined, last: undefined };

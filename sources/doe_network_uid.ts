@@ -198,12 +198,33 @@ export const doeNetworkUid: SourceConfig = {
     mapJson: (data, detailUrl): Partial<CaseRecord> => {
       const fields = (data.fields ?? null) as DoeUidFields | null;
       if (!fields) return { raw: { closed: true } };
-      // Skip cases that have been closed-and-removed OR have been ID'd. A
-      // Doe who's been identified is no longer a Doe — re-linking to a
-      // missing-person record is a future migration, not v1.
-      if (fields.is_closed === 'X' || fields.is_identified === 'X') {
-        return { raw: { closed: true, identified: fields.is_identified === 'X' } };
-      }
+      // Closed/identified branch: prior behavior was to skip entirely
+      // (return { raw: { closed: true, ... } }), which threw away the
+      // resolution signal — cases ingested while open stayed at
+      // status=open in our DB even after Doe flipped them. The audit
+      // (2026-05-04) found 6,314 of 6,314 cases at status=open, none
+      // resolved, because every extractor discarded these signals.
+      //
+      // Fix: ingest closed/identified cases with the appropriate status
+      // so the merge path propagates the flip on existing case rows.
+      // Two distinct signals on the UID feed:
+      //
+      //   is_identified='X' → status='identified'
+      //     The Doe has been identified; the remains have a name. The
+      //     case stops being a "Doe" but stays in the dataset with the
+      //     identified status surfacing the resolution.
+      //
+      //   is_closed='X' (and not identified) → status='cleared_other'
+      //     Closed for a non-identification reason (returned remains,
+      //     case withdrawn, etc.). Map to cleared_other since the UID
+      //     feed doesn't carry the specific resolution kind.
+      const isIdentified = fields.is_identified === 'X';
+      const isClosed = fields.is_closed === 'X';
+      const resolvedStatus: 'identified' | 'cleared_other' | null = isIdentified
+        ? 'identified'
+        : isClosed
+          ? 'cleared_other'
+          : null;
 
       const agencies = (Array.isArray(data.agencies) ? data.agencies : []) as DoeAgency[];
       const images = (Array.isArray(data.images) ? data.images : []) as DoeImage[];
@@ -291,7 +312,7 @@ export const doeNetworkUid: SourceConfig = {
 
       return {
         kind: 'unidentified',
-        status: 'open',
+        status: resolvedStatus ?? 'open',
         // Doe cases have no name. Leave undefined.
         victim_name: undefined,
         victim_first_name: undefined,

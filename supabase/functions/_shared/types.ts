@@ -148,6 +148,25 @@ export interface CaseRecord {
   primary_agency_phone_raw?: string;
   photos: ExtractedPhoto[];
 
+  /**
+   * When true, persistRecord runs the dedupe lookup and either merges
+   * into a matched existing case OR skips entirely — never inserts a
+   * new case. Used by status-update sources (PCC's "Arrest Made in X
+   * Case" / "Solved Cold Case Spotlight: X" posts) where the post
+   * documents a resolution event for an EXISTING case rather than a
+   * new case file. Without this flag, a status-update post whose
+   * dedupe lookup misses (e.g., name+state+year doesn't match — common
+   * because PCC update posts often carry only the victim name) would
+   * insert a new garbage row carrying just `status: 'cleared_arrest'`
+   * with empty everything else.
+   *
+   * The merge path's existing field-merge behavior handles the status
+   * propagation correctly when a match IS found — trust-weighted
+   * resolution covers the case where multiple sources disagree on
+   * status.
+   */
+  status_update_only?: boolean;
+
   /** Everything we extracted, kept verbatim for re-scoring when we improve the parser. */
   raw: Record<string, unknown>;
 }

@@ -164,10 +164,23 @@ export const doeNetwork: SourceConfig = {
     },
     mapJson: (data, detailUrl): Partial<CaseRecord> => {
       const fields = (data.fields ?? null) as DoeFields | null;
-      if (!fields || fields.is_closed === 'X') {
-        // Closed-and-removed cases come back null or with is_closed='X'. Skip.
+      if (!fields) {
+        // Genuine no-data — null fields object, page 404 / removed entirely.
+        // Skip; nothing to ingest or update.
         return { raw: { closed: true } };
       }
+      // Closed-or-resolved branch: the case still has data but Doe has
+      // marked it closed. PRIOR behavior was `return { raw: { closed: true } }`,
+      // which threw the resolution signal away — cases ingested while
+      // open stayed at status=open in our DB even after Doe flipped them.
+      // Fix: ingest with `status: 'cleared_other'` so the merge path
+      // propagates the flip on existing case rows, and a brand-new
+      // closed-case-discovery still lands as a real record (not skipped).
+      // Doe's MP feed doesn't distinguish "found alive" / "located
+      // remains" / other resolution kinds — `cleared_other` is the
+      // honest mapping. The UID feed (separate is_identified field) gets
+      // a more specific mapping in doe_network_uid.ts.
+      const isClosed = fields.is_closed === 'X';
 
       const agencies = (Array.isArray(data.agencies) ? data.agencies : []) as DoeAgency[];
       const images = (Array.isArray(data.images) ? data.images : []) as DoeImage[];
@@ -230,7 +243,7 @@ export const doeNetwork: SourceConfig = {
 
       return {
         kind: 'missing',
-        status: 'open',
+        status: isClosed ? 'cleared_other' : 'open',
         victim_name: fields.pname || undefined,
         victim_first_name: nameParts.first,
         victim_last_name: nameParts.last,
