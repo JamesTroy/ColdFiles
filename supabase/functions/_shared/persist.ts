@@ -13,6 +13,7 @@ import { buildSlug } from './normalize.ts';
 import { PoliteFetcher, sha256Hex } from './http.ts';
 import { cacheMediaForCase } from './media.ts';
 import { resolveGeocode, makePointWkt } from './geocode-resolver.ts';
+import { persistCaseEvents } from './case-events.ts';
 
 interface PersistContext {
   supabase: SupabaseClient;
@@ -129,6 +130,16 @@ export async function persistRecord(
   stats.cases_seen += 1;
 
   // Side effects that don't block the dedupe transaction.
+  // Timeline events are best-effort: persistCaseEvents internally swallows
+  // upsert errors as structured warnings so a timeline write failure
+  // doesn't roll back the case row write. Idempotent via the
+  // unique(case_id, ingest_signature) constraint — safe to re-call on
+  // re-scrapes.
+  await persistCaseEvents(
+    { supabase: ctx.supabase, sourceId: ctx.sourceId },
+    caseId,
+    record.events,
+  );
   await ensureGeocode(ctx, caseId, record);
   if (record.photos?.length) {
     await cacheMediaForCase(

@@ -374,6 +374,47 @@ describe('persistRecord — Tier-3 routing (CLAUDE.md anchor)', () => {
     expect(rpcCalls.filter((r) => r.fn === 'claim_dedupe_key').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('Timeline events on the record → forwarded to case_events upsert', async () => {
+    // PR #16 contract: any record.events on the CaseRecord lands in
+    // case_events alongside the case row write, regardless of whether
+    // the case was created or merged. This pins the integration so a
+    // future refactor can't silently drop the call.
+    const { client, calls } = buildMockSupabase({
+      case_dedupe_keys: { selectRows: [] },
+      cases: {
+        insertReturning: { id: 'fresh-case-uuid' },
+        singleRow: { id: 'fresh-case-uuid', location_point: null },
+      },
+    });
+
+    const stats = newStats();
+    await persistRecord(
+      baseCtx(client),
+      baseRecord({
+        events: [
+          {
+            event_kind: 'last_seen',
+            headline: 'Last seen 1985-06-13',
+            event_date: '1985-06-13',
+            source_url: 'https://example.com/case/1',
+            source_quote: 'Missing Since: June 13, 1985',
+          },
+        ],
+      }),
+      stats,
+    );
+
+    const eventInserts = calls.filter(
+      (c) => c.table === 'case_events' && c.method === 'upsert',
+    );
+    expect(eventInserts).toHaveLength(1);
+    const rows = eventInserts[0].args[0] as Record<string, unknown>[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].case_id).toBe('fresh-case-uuid');
+    expect(rows[0].event_kind).toBe('last_seen');
+    expect(rows[0].ingest_signature).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   it('Split-conflict on secondary key → logs structured warning, does NOT auto-merge', async () => {
     // Strongest key (name_state_year) lands cleanly for our new case;
     // a SECONDARY key (lastname_age_sex) already points to a DIFFERENT
