@@ -14,6 +14,7 @@ import { PoliteFetcher, sha256Hex } from './http.ts';
 import { cacheMediaForCase } from './media.ts';
 import { resolveGeocode, makePointWkt } from './geocode-resolver.ts';
 import { persistCaseEvents } from './case-events.ts';
+import { snapToBlock } from './normalize.ts';
 
 interface PersistContext {
   supabase: SupabaseClient;
@@ -331,16 +332,29 @@ async function ensureGeocode(
   // Pre-supplied coordinates (NamUs UP cases include publicGeolocation;
   // FBI seeking-info posters sometimes embed GPS). When the source has
   // already done the geocoding work, trust it — saves an upstream Mapbox
-  // call per case and gives us address-level precision for free.
+  // call per case.
+  //
+  // Precision honesty: trust the source's declared precision when it
+  // provides one, default to 'address' otherwise (preserves historical
+  // behavior for sources like NamUs that have always been treated as
+  // address-precise).
+  //
+  // Snap consistency: apply the same ~111m privacy snap that the Mapbox
+  // path applies in geocode.ts:44. Without this, source-supplied coords
+  // landed at full precision while Mapbox-supplied coords were snapped —
+  // two pins both labeled 'address'-precision could have wildly different
+  // actual fidelity. Snap-on-store gives every 'address'-labeled pin the
+  // same fidelity floor regardless of origin.
   if (
     typeof record.location_lat === 'number' &&
     typeof record.location_lng === 'number'
   ) {
+    const snapped = snapToBlock(record.location_lat, record.location_lng);
     await ctx.supabase
       .from('cases')
       .update({
-        location_point: makePointWkt(record.location_lng, record.location_lat),
-        location_precision: 'address',
+        location_point: makePointWkt(snapped.lng, snapped.lat),
+        location_precision: record.location_precision ?? 'address',
       })
       .eq('id', caseId);
     return;
