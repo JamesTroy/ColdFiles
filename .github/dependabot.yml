@@ -1,0 +1,62 @@
+# Dependabot configuration for The Cold Files.
+#
+# Three ecosystems get tracked: npm at the root (supabase functions +
+# shared libs + scraper CLI), npm under mobile/ (Expo + RN deps), and
+# github-actions for the workflow files. Security updates fire
+# automatically (no schedule); the schedules below are for non-security
+# version updates.
+#
+# Weekly cadence is loud enough to keep current without becoming noise.
+# Monthly was tempting but means a ~3-month lag on real CVEs slipping
+# the auto-merge net.
+#
+# Group rules: minor + patch updates land as a single PR per ecosystem
+# per week; major updates open as their own PRs because they nearly
+# always need a manual look.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "deps"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/mobile"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "deps"
+      - "mobile"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "deps"
+      - "ci"
+    # Once we pin actions to SHAs (this PR), Dependabot keeps the SHA
+    # refresh while preserving the version comment we set:
+    #   uses: actions/checkout@<sha>  # v4.3.1
+    # That comment is what Dependabot reads to know which release line
+    # to track; pinning + Dependabot is the way to get both safety and
+    # freshness.
