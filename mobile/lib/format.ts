@@ -95,11 +95,22 @@ function formatYearWithPrecision(
  * Display-safe victim name. Doe cases (kind = 'unidentified', no name) get
  * a respectful demographic fallback. The em-dash treatment for no-photo
  * cases is the parallel rule for missing photos.
+ *
+ * Accepts the narrower map-tier row shapes (CaseRowMapBbox / CaseRowMapNear),
+ * which don't carry victim_sex / victim_age_min / victim_age_max — the demo-
+ * graphic fallback degrades gracefully to "Unidentified" when those fields
+ * are absent. Keeps every list/zone/case-row surface consistent with the
+ * fuller "Unidentified Female, est. 25–35" rendering on case-detail.
  */
-export function displayName(c: Pick<
-  CaseRowFull,
-  'kind' | 'victim_name' | 'victim_sex' | 'victim_age_min' | 'victim_age_max'
->): string {
+type DisplayNameRow = {
+  kind: CaseKind;
+  victim_name: string | null;
+  victim_sex?: CaseRowFull['victim_sex'];
+  victim_age_min?: number | null;
+  victim_age_max?: number | null;
+};
+
+export function displayName(c: DisplayNameRow): string {
   if (c.victim_name) return c.victim_name;
 
   if (c.kind === 'unidentified' || c.kind === 'unclaimed') {
@@ -119,6 +130,22 @@ export function displayName(c: Pick<
   }
 
   return 'Name not released';
+}
+
+/**
+ * Stepwise recency_alpha → representative day count for the Pin renderer
+ * and the List tab's date buckets. Server emits 1.0 for 0–3 days,
+ * 0.5 for 4–10 days, 0 (or null) for everything older.
+ *
+ * Returns null when the row has no recency signal at all — the caller
+ * decides whether to fall back to a sample-data day count or treat the
+ * row as stale.
+ */
+export function alphaToDays(alpha: number | null | undefined): number | null {
+  if (alpha == null) return null;
+  if (alpha >= 0.99) return 1;
+  if (alpha >= 0.49) return 7;
+  return null;
 }
 
 /** "1.4 mi away" or "" when distance unknown. */

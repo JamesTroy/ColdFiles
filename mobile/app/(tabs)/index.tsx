@@ -41,6 +41,7 @@ import {
 import { FilterChip } from '@/components/cf/pill';
 import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
+import { alphaToDays } from '@/lib/format';
 import { useCaseCount } from '@/lib/hooks/use-case-count';
 import { useCasesInBbox, type CaseBounds } from '@/lib/hooks/use-cases-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
@@ -59,13 +60,6 @@ const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   missing: ['missing'],
   unidentified: ['unidentified', 'unclaimed'],
 };
-
-/** Stepwise recency_alpha → representative day count for the Pin renderer. */
-function alphaToDays(alpha: number): number | null {
-  if (alpha >= 0.99) return 1;
-  if (alpha >= 0.49) return 7;
-  return null;
-}
 
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
@@ -158,15 +152,9 @@ export default function MapScreen() {
     setSelectedSlug(id);
   }, []);
 
-  const handleClearSelection = useCallback(() => setSelectedSlug(null), []);
-
   // Stepwise recency_alpha → days, mirroring use across the list tab.
   const daysFor = useCallback((c: CaseRowMapBbox) => {
-    if (c.recency_alpha != null) {
-      if (c.recency_alpha >= 0.99) return 1;
-      if (c.recency_alpha >= 0.49) return 7;
-    }
-    return SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? 999;
+    return alphaToDays(c.recency_alpha) ?? SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? 999;
   }, []);
 
   // Viewport-bounded query: as the user pans/zooms the map, onRegionChange
@@ -541,7 +529,11 @@ function NativeRenderer({
   onMarkerPress: (id: string) => void;
   here: { lat: number; lng: number; fresh: boolean };
 }) {
-  const markers: MapsMarker[] = useMemo(() => {
+  // Two-stage memo: the heavy pass (filter + position) only re-runs when
+  // `cases` changes; the cheap selection toggle re-runs when the user picks
+  // a different pin. Splitting prevents a per-pin-tap recompute of the
+  // whole list.
+  const baseMarkers = useMemo(() => {
     return cases
       .filter((c) => c.lat != null && c.lng != null)
       .map((c) => ({
@@ -549,13 +541,17 @@ function NativeRenderer({
         lat: c.lat as number,
         lng: c.lng as number,
         kind: c.kind,
-        selected: c.slug === selectedSlug,
         recentDays:
           c.recency_alpha != null
             ? alphaToDays(c.recency_alpha)
             : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null),
       }));
-  }, [cases, selectedSlug]);
+  }, [cases]);
+
+  const markers: MapsMarker[] = useMemo(
+    () => baseMarkers.map((m) => ({ ...m, selected: m.id === selectedSlug })),
+    [baseMarkers, selectedSlug],
+  );
 
   return (
     <MapsView
@@ -590,7 +586,14 @@ function LeafletRenderer({
   zonesVisible: boolean;
   onRegionChange?: (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => void;
 }) {
-  const markers: LeafletMarker[] = useMemo(() => {
+  // Two-stage memo (Wave 1C performance audit):
+  //   baseMarkers — heavy pass: filter to placeable rows, group by 5-decimal
+  //                 coord, apply deterministic ring-jitter, build popup
+  //                 preview text. Keyed on `cases` only so pin-tap doesn't
+  //                 recompute jitter or popup strings.
+  //   markers     — cheap pass: maps over baseMarkers and stamps `selected`.
+  //                 Re-runs on `selectedSlug` change.
+  const baseMarkers = useMemo(() => {
     // Many cases land on the same fallback coordinate (city centroid,
     // county centroid, etc.) when the source didn't carry precise
     // location data. Stacks at the same lat/lng force markercluster
@@ -669,7 +672,6 @@ function LeafletRenderer({
         lat,
         lng,
         kind: c.kind,
-        selected: c.slug === selectedSlug,
         recentDays:
           c.recency_alpha != null
             ? alphaToDays(c.recency_alpha)
@@ -680,7 +682,12 @@ function LeafletRenderer({
         },
       };
     });
-  }, [cases, selectedSlug]);
+  }, [cases]);
+
+  const markers: LeafletMarker[] = useMemo(
+    () => baseMarkers.map((m) => ({ ...m, selected: m.id === selectedSlug })),
+    [baseMarkers, selectedSlug],
+  );
 
   return (
     <LeafletMap

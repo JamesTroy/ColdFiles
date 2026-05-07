@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Mobile pre-push gate — typecheck + lint before any push reaches the remote
+# that produces an AAB.
+#
+# Why this exists: eas.json has cli.requireCommit:true, which means `eas build`
+# refuses to build a dirty tree. That alone forces commits — but doesn't catch
+# a tsc/lint regression that compiled clean for the author and breaks once
+# someone else's branch lands. Running the preflight at push time means the
+# regression bounces locally instead of riding to Play Console as a broken
+# AAB.
+#
+# ACTIVATION (one-time per clone):
+#   The repo already wires `.githooks/pre-push` at the repo root for the
+#   server-side smoke gate. To also run this mobile gate, append this to
+#   /Users/jtroy/Desktop/ColdFiles/.githooks/pre-push (or any active hook):
+#
+#     echo "→ pre-push: mobile preflight"
+#     (cd mobile && npm run preflight)
+#
+#   Alternative — if you want ONLY this file to run on push, point
+#   git at it directly from the mobile/ directory:
+#
+#     cd mobile && git config core.hooksPath .githooks
+#
+#   (That redirects the whole repo's hooks to mobile/.githooks, which means
+#   the root .githooks/pre-push smoke gate stops running. Don't do this
+#   unless you know that's the trade you want.)
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "→ mobile pre-push: tsc --noEmit + expo lint --max-warnings 0"
+npm run preflight
+
+echo "✓ mobile pre-push: ok"
