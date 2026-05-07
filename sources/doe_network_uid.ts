@@ -310,6 +310,32 @@ export const doeNetworkUid: SourceConfig = {
         });
       }
 
+      // Timeline event — incident, derived from estimated_date_of_death.
+      // For an unidentified Doe, the death itself is the case-level
+      // incident; remains_found is the downstream discovery. Only emit
+      // when Doe surfaced a date that parsed (no inference from
+      // absence). The verbatim upstream value is preserved in
+      // source_quote and event_date_text per the editorial-noise rule —
+      // an operator can audit any row by reading the quote against the
+      // upstream JSON. Suppressed when "Unknown" or empty so a
+      // sentinel-text doesn't pollute the timeline.
+      const estDodRaw = fields.estimated_date_of_death?.trim();
+      if (estDodRaw && !/^unknown$/i.test(estDodRaw)) {
+        const estDodParse = parseDate(estDodRaw);
+        if (estDodParse.iso || estDodParse.quality !== 'unknown') {
+          events.push({
+            event_kind: 'incident',
+            headline: 'Estimated date of death',
+            event_date: estDodParse.iso ?? undefined,
+            event_date_quality: estDodParse.quality,
+            event_date_text:
+              estDodParse.quality !== 'exact' ? estDodRaw : undefined,
+            source_url: detailUrl,
+            source_quote: `Estimated Date of Death: ${estDodRaw}`,
+          });
+        }
+      }
+
       // Status flip event — same posture as Doe MP's is_closed branch.
       // Doe surfaces only the boolean signals (is_identified, is_closed),
       // not a publish-date for the flip. Per migration 35: 'approximate'
