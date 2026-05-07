@@ -39,6 +39,26 @@ interface Args {
   tick: boolean;
 }
 
+/**
+ * Read the first set + non-whitespace env var from `names`, trimmed.
+ * Whitespace-only values resolve to undefined — same posture as missing.
+ *
+ * Why this exists: GitHub Actions secret entry trims nothing on save, so a
+ * pasted value with a stray newline survives into env and then trips
+ * supabase-js's URL validator with "Must be a valid HTTP or HTTPS URL"
+ * — confusing because the secret IS set. This helper makes whitespace
+ * a no-op instead of a silent footgun. Same hazard the
+ * `feedback_silent_whitespace_in_config.md` memory pinned for the Vault
+ * watch_zone_hit alerts incident — once is enough.
+ */
+function readEnv(...names: string[]): string | undefined {
+  for (const n of names) {
+    const v = process.env[n]?.trim();
+    if (v) return v;
+  }
+  return undefined;
+}
+
 function parseArgs(argv: string[]): Args {
   const out: Args = { dryrun: false, tick: false, concurrency: 1 };
   for (const a of argv.slice(2)) {
@@ -104,11 +124,17 @@ async function main() {
   }
 
   // Real run.
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-    { auth: { persistSession: false } },
-  );
+  const supabaseUrl = readEnv('NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL');
+  const supabaseKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !supabaseKey) {
+    console.error(
+      'NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are required (whitespace-only values are treated as missing).',
+    );
+    process.exit(2);
+  }
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false },
+  });
 
   const sourceId = await ensureSourceRow(supabase, source);
   const fetcher = new PoliteFetcher(source.rateLimitMs, source.userAgent);
@@ -131,10 +157,10 @@ async function main() {
     sourceId,
     trustWeight: source.trustWeight,
     fetcher,
-    mapboxToken: process.env.MAPBOX_ACCESS_TOKEN,
+    mapboxToken: readEnv('MAPBOX_ACCESS_TOKEN'),
     // Kill-switch: DEDUPE_TIER3_TO_REVIEW=false reverts to the old
     // auto-merge path for Tier-3 candidates. Default on.
-    tier3ToReview: process.env.DEDUPE_TIER3_TO_REVIEW !== 'false',
+    tier3ToReview: process.env.DEDUPE_TIER3_TO_REVIEW?.trim() !== 'false',
   };
 
   for (const u of urls) {
@@ -174,11 +200,17 @@ async function main() {
 async function runTick() {
   // Local --tick: walk every active source from the registry, run if due.
   // The Edge Function ingest-tick is the real production cron; this is for dev.
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-    { auth: { persistSession: false } },
-  );
+  const supabaseUrl = readEnv('NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL');
+  const supabaseKey = readEnv('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !supabaseKey) {
+    console.error(
+      'NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are required (whitespace-only values are treated as missing).',
+    );
+    process.exit(2);
+  }
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false },
+  });
 
   const { data: due } = await supabase
     .from('sources')
