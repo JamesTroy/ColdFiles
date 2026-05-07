@@ -104,34 +104,87 @@ export async function persistRecord(
   if (record.source_external_id) {
     const { data: priorSource, error: lookupErr } = await ctx.supabase
       .from('case_sources')
-      .select('case_id')
+      .select('case_id, payload_hash')
       .eq('source_id', ctx.sourceId)
       .eq('source_external_id', record.source_external_id)
       .maybeSingle();
     if (lookupErr) throw lookupErr;
     if (priorSource?.case_id) {
-      await mergeIntoExistingCase(
-        ctx,
-        priorSource.case_id as string,
-        record,
-        payloadHash,
-        payloadJson,
-      );
+      const priorCaseId = priorSource.case_id as string;
+      const priorHash = priorSource.payload_hash as string | null | undefined;
+
+      // Steady-state optimization: if the upstream payload hasn't
+      // changed since we last ingested this source's row for this
+      // case, skip the merge entirely. The merge would be a
+      // no-op against unchanged content (mergeRecord is field-by-
+      // field idempotent against the same input), and writing
+      // identical fields back wastes ~5-10 round-trips per case.
+      //
+      // What we DO bump: case_sources.last_ingested_at — the
+      // per-source "we re-fetched and verified" signal that
+      // ingest-alive monitoring already reads.
+      //
+      // What we DON'T bump: cases.last_seen_at /
+      // cases.last_changed_at. Those are case-level signals
+      // ("anything new on this case row?") and the answer is
+      // no — nothing changed. The user's prior memory pinned
+      // last_changed_at as the right axis for ingest-alive
+      // alerts because it correctly stays put when nothing's
+      // actually new (memory: feedback_ingest_metric_axis).
+      //
+      // Side-effect skip is also safe:
+      //   - persistCaseEvents: events have unique(case_id,
+      //     ingest_signature). Re-emitting the same events
+      //     would no-op anyway, but skipping saves the upsert
+      //     round-trip.
+      //   - ensureGeocode: idempotent (early-returns if a
+      //     point is already set).
+      //   - cacheMediaForCase: same payload → same photo URLs →
+      //     same mirror state. Skip safely.
+      //
+      // Cross-source merge through the natural-key path doesn't
+      // get this optimization yet — would need an extra round-
+      // trip per match to fetch this source's prior payload_hash
+      // (since match.case_id was found via a different source's
+      // key). Cost-benefit unclear; deferred until per-scrape
+      // wall-clock matters more than it does today.
+      if (priorHash && priorHash === payloadHash) {
+        const { error: bumpErr } = await ctx.supabase
+          .from('case_sources')
+          .update({ last_ingested_at: new Date().toISOString() })
+          .eq('source_id', ctx.sourceId)
+          .eq('source_external_id', record.source_external_id);
+        if (bumpErr) {
+          console.warn(
+            JSON.stringify({
+              msg: 'persist: payload-unchanged last_ingested_at bump failed',
+              case_id: priorCaseId,
+              source_slug: ctx.source.slug,
+              error: bumpErr.message,
+            }),
+          );
+        }
+        stats.cases_updated += 1;
+        stats.cases_seen += 1;
+        return;
+      }
+
+      await mergeIntoExistingCase(ctx, priorCaseId, record, payloadHash, payloadJson);
       stats.cases_updated += 1;
       stats.cases_seen += 1;
       // Side effects (geocode, media) follow the same pattern as the
       // tail of persistRecord — best-effort, idempotent.
       await persistCaseEvents(
         { supabase: ctx.supabase, sourceId: ctx.sourceId },
-        priorSource.case_id as string,
+        priorCaseId,
         record.events,
       );
-      await ensureGeocode(ctx, priorSource.case_id as string, record);
+      await ensureGeocode(ctx, priorCaseId, record);
       if (record.photos?.length) {
         await cacheMediaForCase(
           {
             supabase: ctx.supabase,
-            caseId: priorSource.case_id as string,
+            caseId: priorCaseId,
             sourceId: ctx.sourceId,
             fetcher: ctx.fetcher,
           },
