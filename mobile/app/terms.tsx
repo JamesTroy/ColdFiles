@@ -4,7 +4,7 @@ export default function TermsScreen() {
   return (
     <LegalDocScreen
       title="Terms of Service"
-      lastUpdated="2026-05-07"
+      lastUpdated="2026-05-08"
       sections={[
         {
           body: [
@@ -21,7 +21,7 @@ export default function TermsScreen() {
           heading: 'What this app does NOT do',
           body: [
             '• We do not investigate cases.',
-            '• We do not store, read, or moderate the tips you submit.',
+            '• We do not read or moderate the content of the tips you submit. The tip content itself never reaches our servers — we only log that a routing happened (timestamp, case ID, a one-way hash of your tip, the agency we sent you to, and your user ID if signed in). See the Privacy Policy for the full list.',
             '• We are not affiliated with any law enforcement agency.',
             '• We do not guarantee that the information shown is current, accurate, or complete. Always verify with the investigating agency before acting on it.',
           ],
@@ -29,7 +29,7 @@ export default function TermsScreen() {
         {
           heading: 'Tips',
           body: [
-            'When you submit a tip, the app routes you to the agency\'s existing tip channel. The tip itself never passes through our servers. We log only that a tip was submitted (for abuse rate-limiting), not the content.',
+            'When you submit a tip, the app routes you to the agency\'s existing tip channel. The tip text itself never passes through our servers — it is hashed locally on your device. We do log that a routing happened (timestamp, case ID, the one-way hash, a hashed approximation of your IP for abuse rate-limiting, the agency / URL we sent you to, and your user ID if signed in). This routing log is retained for 12 months and then purged. The Privacy Policy has the full breakdown.',
           ],
         },
         {

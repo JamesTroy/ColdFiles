@@ -212,6 +212,10 @@ export default function SignInScreen() {
               />
             </View>
 
+            {/* Notice at Collection per CCPA §1798.100(b) — must
+                appear at or before the point of collection. The two
+                policy links must be tappable, not plain text, so a
+                user can actually read what they're agreeing to. */}
             <NarrativeText
               style={{
                 marginTop: 24,
@@ -219,8 +223,28 @@ export default function SignInScreen() {
                 fontSize: tokens.size.meta,
               }}
             >
-              By continuing you agree to our Terms of Service and Privacy Policy.
-              We use your email only for account contact — no marketing.
+              We collect your email to authenticate you. No marketing. By
+              continuing you agree to our{' '}
+              <NarrativeText
+                style={{
+                  color: tokens.color.accent.amber,
+                  textDecorationLine: 'underline',
+                }}
+                onPress={() => router.push('/terms')}
+              >
+                Terms of Service
+              </NarrativeText>
+              {' '}and{' '}
+              <NarrativeText
+                style={{
+                  color: tokens.color.accent.amber,
+                  textDecorationLine: 'underline',
+                }}
+                onPress={() => router.push('/privacy')}
+              >
+                Privacy Policy
+              </NarrativeText>
+              .
             </NarrativeText>
           </>
         )}
