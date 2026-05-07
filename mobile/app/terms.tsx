@@ -4,10 +4,12 @@ export default function TermsScreen() {
   return (
     <LegalDocScreen
       title="Terms of Service"
-      lastUpdated="2026-04-28"
+      lastUpdated="2026-05-07"
       sections={[
         {
-          body: ['By using The Cold Files, you agree to these terms.'],
+          body: [
+            'The Cold Files is operated by Matte Black Dev LLC, a California limited liability company (registration b20260078079). By using The Cold Files, you agree to these terms.',
+          ],
         },
         {
           heading: 'What this app does',
@@ -50,7 +52,7 @@ export default function TermsScreen() {
         {
           heading: 'No warranty',
           body: [
-            'This app is provided "as is." We make no guarantees about uptime, data accuracy, or fitness for any particular purpose. Cold cases are sensitive — verify before you act.',
+            'The app is provided "as is" by Matte Black Dev LLC. We make no guarantees about uptime, data accuracy, or fitness for any particular purpose. Cold cases are sensitive — verify before you act.',
           ],
         },
         {

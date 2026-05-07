@@ -3,6 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "description": "The Cold File — map-first directory of cold cases with one-tap tip routing",
+  "author": "Matte Black Dev LLC",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "next dev",
