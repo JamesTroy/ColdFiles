@@ -727,3 +727,140 @@ describe('persistRecord — same-source re-scrape lookup (case_sources)', () => 
     expect(stats.cases_new).toBe(1);
   });
 });
+
+describe('persistRecord — payload_hash short-circuit (steady-state optimization)', () => {
+  // When the same source re-scrapes a case it already wrote, and the
+  // payload hasn't changed, skip the merge entirely. The merge would
+  // be a no-op against unchanged content; the round-trip cost is
+  // pure waste in steady-state cron operation. This pins the contract:
+  //   - hash matches → bump last_ingested_at, skip everything else
+  //   - hash differs → fall through to full merge
+  //   - no prior hash → fall through to full merge (covered by the
+  //     prior describe block's "merges directly" test)
+
+  // Compute the expected payload hash the way persistRecord computes it.
+  async function computePayloadHash(record: CaseRecord): Promise<string> {
+    const payloadJson = JSON.stringify({
+      ...record,
+      photos: record.photos.map((p) => p.url),
+    });
+    const buf = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(payloadJson),
+    );
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  it('Payload hash matches prior → skips merge, bumps last_ingested_at only', async () => {
+    // Persistence layer's job here: read prior payload_hash from
+    // case_sources, see it matches, do nothing except bump
+    // last_ingested_at on case_sources. No cases.update, no merge,
+    // no event upsert, no geocode call, no media work.
+    const record = baseRecord();
+    const expectedHash = await computePayloadHash(record);
+
+    const { client, calls } = buildMockSupabase({
+      case_sources: {
+        // Prior row hash matches what THIS scrape will compute.
+        singleRow: {
+          case_id: 'prior-same-source-case-uuid',
+          payload_hash: expectedHash,
+        },
+      },
+    });
+
+    const stats = newStats();
+    await persistRecord(baseCtx(client), record, stats);
+
+    // No merge → no cases.update / cases.insert.
+    const casesUpdates = calls.filter(
+      (c) => c.table === 'cases' && (c.method === 'update' || c.method === 'insert'),
+    );
+    expect(casesUpdates).toHaveLength(0);
+
+    // No dedupe-keys lookup either — same-source short-circuited
+    // before the natural-key path.
+    const dedupeLookups = calls.filter(
+      (c) => c.table === 'case_dedupe_keys' && c.method === 'select',
+    );
+    expect(dedupeLookups).toHaveLength(0);
+
+    // No event upsert.
+    const eventUpserts = calls.filter(
+      (c) => c.table === 'case_events' && c.method === 'upsert',
+    );
+    expect(eventUpserts).toHaveLength(0);
+
+    // The ONE write that DOES happen: bump case_sources.last_ingested_at.
+    const caseSourcesUpdates = calls.filter(
+      (c) => c.table === 'case_sources' && c.method === 'update',
+    );
+    expect(caseSourcesUpdates).toHaveLength(1);
+    const updateArg = caseSourcesUpdates[0].args[0] as Record<string, unknown>;
+    // The update payload should set last_ingested_at and nothing else
+    // — payload_hash, raw_payload, trust_weight all stay put.
+    expect(Object.keys(updateArg)).toEqual(['last_ingested_at']);
+
+    // Stats: counted as updated (we observed the case again) and seen.
+    expect(stats.cases_updated).toBe(1);
+    expect(stats.cases_seen).toBe(1);
+    expect(stats.cases_new).toBe(0);
+  });
+
+  it('Payload hash differs from prior → falls through to merge path', async () => {
+    // Prior hash exists but doesn't match the incoming payload —
+    // content changed since last scrape (a field updated, an alias
+    // added, etc.). Take the full merge path.
+    const { client, calls } = buildMockSupabase({
+      case_sources: {
+        singleRow: {
+          case_id: 'prior-same-source-case-uuid',
+          payload_hash: 'sha256-from-an-earlier-scrape-that-no-longer-matches',
+        },
+        selectRows: [{ trust_weight: 40 }],
+      },
+      cases: {
+        singleRow: {
+          id: 'prior-same-source-case-uuid',
+          kind: 'missing',
+          victim_first_name: 'Jane',
+          victim_last_name: 'Doe',
+          victim_age: 23,
+          victim_sex: 'female',
+          has_photo: false,
+          has_sketch: false,
+          has_reconstruction: false,
+          location_point: null,
+        },
+      },
+    });
+
+    const stats = newStats();
+    await persistRecord(baseCtx(client), baseRecord(), stats);
+
+    // Merge ran — cases.update with merge-shaped fields.
+    const casesUpdates = calls.filter((c) => c.table === 'cases' && c.method === 'update');
+    const mergeUpdates = casesUpdates.filter((c) => {
+      const arg = c.args[0] as Record<string, unknown>;
+      return (
+        arg &&
+        Object.keys(arg).some(
+          (k) => k.startsWith('victim_') || k === 'narrative' || k === 'has_photo',
+        )
+      );
+    });
+    expect(mergeUpdates.length).toBeGreaterThanOrEqual(1);
+
+    // last_ingested_at-only update should NOT appear (the merge path's
+    // upsert handles last_ingested_at as part of its full row).
+    const noopBump = casesUpdates.filter((c) => {
+      const arg = c.args[0] as Record<string, unknown>;
+      return arg && Object.keys(arg).length === 1 && 'last_ingested_at' in arg;
+    });
+    expect(noopBump).toHaveLength(0);
+
+    expect(stats.cases_updated).toBe(1);
+  });
+});
