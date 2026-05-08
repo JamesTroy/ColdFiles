@@ -3,6 +3,7 @@
 // for "which sources are wired in."
 
 import type { SourceConfig } from '../supabase/functions/_shared/types.ts';
+import { caMups } from './ca_mups.ts';
 import { charleyProject } from './charley.ts';
 import { doeNetwork } from './doe_network.ts';
 import { doeNetworkUid } from './doe_network_uid.ts';
@@ -12,6 +13,7 @@ import { nysDcjs } from './ny_dcjs.ts';
 import { projectColdCase } from './project_cold_case.ts';
 
 export const SOURCES: SourceConfig[] = [
+  caMups,
   charleyProject,
   doeNetwork,
   doeNetworkUid,
