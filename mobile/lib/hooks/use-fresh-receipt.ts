@@ -35,6 +35,15 @@ import { useEffect, useState } from 'react';
 let pendingSlug: string | null = null;
 const subscribers = new Set<() => void>();
 
+/**
+ * Mark a case slug as having a fresh tip-receipt event. Call from the tip
+ * submit handler immediately after the routing succeeds so the case-detail
+ * screen for that slug picks up the flag and re-runs its <SuccessFlash>
+ * animation when navigated to next.
+ *
+ * One-shot: the flag is consumed by the first useFreshReceiptCount() that
+ * matches the slug. Subsequent calls overwrite the pending slug.
+ */
 export function markReceiptFresh(slug: string): void {
   pendingSlug = slug;
   // Notify any mounted case-detail screens so they pick up the flag without
