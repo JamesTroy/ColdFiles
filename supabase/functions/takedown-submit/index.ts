@@ -33,6 +33,8 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+import { corsHeaders, preflightResponse } from '../_shared/cors.ts';
+
 // Spam-guard tiers — per the spec, the (case_id, email)-per-24h check is the
 // real one (catches the legitimate-abuse pattern of someone hitting submit
 // multiple times on the same case). IP-per-hour is secondary; mostly defense
@@ -91,7 +93,39 @@ const VALID_RESOLUTIONS: ReadonlySet<string> = new Set([
 const REF_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return preflight();
+  // Per-request closures so the response helpers can attach the right
+  // Origin-echoing ACAO header without threading req through every call.
+  const cors = corsHeaders(req);
+  const jsonInit = (status: number, extra: Record<string, string> = {}): ResponseInit => ({
+    status,
+    headers: {
+      'content-type': 'application/json',
+      ...cors,
+      ...extra,
+    },
+  });
+  const err400 = (error: string, message: string, status = 400): Response =>
+    new Response(JSON.stringify({ error, message }), jsonInit(status));
+  const errField = (field: string, message: string): Response =>
+    new Response(
+      JSON.stringify({ error: 'validation', field, message }),
+      jsonInit(400),
+    );
+  // Opaque rate-limit copy — we never disclose which threshold was hit.
+  // The form's success-state already commits to "we'll reply to your
+  // earlier message," which handles the social side without telling
+  // abusers what limit to probe.
+  const rateLimited = (): Response =>
+    new Response(
+      JSON.stringify({
+        error: 'rate_limit',
+        message:
+          "It looks like you've already sent us a request about this case. We'll reply to your earlier message — no need to submit again.",
+      }),
+      jsonInit(429, { 'retry-after': '86400' }),
+    );
+
+  if (req.method === 'OPTIONS') return preflightResponse(req);
   if (req.method !== 'POST') return err400('method_not_allowed', 'POST only', 405);
 
   const contentLength = parseInt(req.headers.get('content-length') ?? '', 10);
@@ -262,21 +296,6 @@ Deno.serve(async (req) => {
     jsonInit(200),
   );
 });
-
-function rateLimited(): Response {
-  // Opaque copy — we never disclose which threshold was hit. The form's
-  // success-state already commits to "we'll reply to your earlier message,"
-  // which handles the social side without telling abusers what limit to
-  // probe.
-  return new Response(
-    JSON.stringify({
-      error: 'rate_limit',
-      message:
-        "It looks like you've already sent us a request about this case. We'll reply to your earlier message — no need to submit again.",
-    }),
-    jsonInit(429, { 'retry-after': '86400' }),
-  );
-}
 
 interface CaseRow {
   slug: string | null;
@@ -471,37 +490,3 @@ function isEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim()) && s.trim().length <= 254;
 }
 
-function preflight(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'access-control-allow-origin': '*',
-      'access-control-allow-methods': 'POST, OPTIONS',
-      'access-control-allow-headers': 'authorization, x-client-info, content-type, apikey',
-      'access-control-max-age': '86400',
-    },
-  });
-}
-
-function jsonInit(status: number, extra: Record<string, string> = {}): ResponseInit {
-  return {
-    status,
-    headers: {
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'authorization, x-client-info, content-type, apikey',
-      ...extra,
-    },
-  };
-}
-
-function err400(error: string, message: string, status = 400): Response {
-  return new Response(JSON.stringify({ error, message }), jsonInit(status));
-}
-
-function errField(field: string, message: string): Response {
-  return new Response(
-    JSON.stringify({ error: 'validation', field, message }),
-    jsonInit(400),
-  );
-}

@@ -21,6 +21,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+import { corsHeaders, preflightResponse } from '../_shared/cors.ts';
 import { resolveTipRoute } from '../_shared/tip-route.ts';
 import type { ResolvedRoute, TipRouteAgency } from '../_shared/tip-route.ts';
 
@@ -53,8 +54,21 @@ function mustEnv(name: string): string {
 }
 
 Deno.serve(async (req) => {
+  // Per-request closures so json() can attach the right Origin-echoing
+  // ACAO header without threading req through every call site.
+  const cors = corsHeaders(req);
+  const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: {
+        'content-type': 'application/json',
+        ...cors,
+        ...extra,
+      },
+    });
+
   if (req.method === 'OPTIONS') {
-    return preflight();
+    return preflightResponse(req);
   }
   if (req.method !== 'POST') {
     return json({ error: 'method not allowed' }, 405);
@@ -230,29 +244,6 @@ function isUuid(s: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }
 
-function preflight(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'access-control-allow-origin': '*',
-      'access-control-allow-methods': 'POST, OPTIONS',
-      'access-control-allow-headers': 'authorization, x-client-info, content-type, apikey',
-      'access-control-max-age': '86400',
-    },
-  });
-}
-
-function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'authorization, x-client-info, content-type, apikey',
-      ...extra,
-    },
-  });
-}
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);

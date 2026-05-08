@@ -24,6 +24,8 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+import { corsHeaders, preflightResponse } from '../_shared/cors.ts';
+
 const SUPABASE_URL = mustEnv('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = mustEnv('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -47,7 +49,21 @@ interface RequestBody {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return preflight();
+  // Per-request closures so the response helpers can attach the right
+  // Origin-echoing ACAO header without threading req through every call.
+  const cors = corsHeaders(req);
+  const ok = (body: unknown): Response =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'content-type': 'application/json', ...cors },
+    });
+  const errResponse = (status: number, error: string): Response =>
+    new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'content-type': 'application/json', ...cors },
+    });
+
+  if (req.method === 'OPTIONS') return preflightResponse(req);
   if (req.method !== 'POST') return errResponse(405, 'method_not_allowed');
 
   let body: RequestBody;
@@ -198,36 +214,3 @@ const US_STATE_TO_ABBREV: Record<string, string> = {
   'district of columbia': 'DC',
 };
 
-function preflight(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'access-control-allow-origin': '*',
-      'access-control-allow-methods': 'POST, OPTIONS',
-      'access-control-allow-headers': 'authorization, x-client-info, content-type, apikey',
-      'access-control-max-age': '86400',
-    },
-  });
-}
-
-function ok(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: {
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'authorization, x-client-info, content-type, apikey',
-    },
-  });
-}
-
-function errResponse(status: number, error: string): Response {
-  return new Response(JSON.stringify({ error }), {
-    status,
-    headers: {
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'authorization, x-client-info, content-type, apikey',
-    },
-  });
-}
