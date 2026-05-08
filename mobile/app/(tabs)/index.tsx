@@ -410,6 +410,7 @@ export default function MapScreen() {
             selectedSlug={selectedSlug}
             onMarkerPress={handleMarkerPress}
             here={here}
+            onRegionChange={handleRegionChange}
           />
         ) : (
           <LeafletRenderer
@@ -523,11 +524,13 @@ function NativeRenderer({
   selectedSlug,
   onMarkerPress,
   here,
+  onRegionChange,
 }: {
   cases: CaseRowMapBbox[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
   here: { lat: number; lng: number; fresh: boolean };
+  onRegionChange?: (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => void;
 }) {
   // Two-stage memo: the heavy pass (filter + position) only re-runs when
   // `cases` changes; the cheap selection toggle re-runs when the user picks
@@ -563,6 +566,7 @@ function NativeRenderer({
       markers={markers}
       here={{ lat: here.lat, lng: here.lng }}
       onMarkerPress={onMarkerPress}
+      onRegionChange={onRegionChange}
     />
   );
 }
