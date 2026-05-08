@@ -12,6 +12,7 @@
 
 import { Inter, JetBrains_Mono, Newsreader } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
 
 import './globals.css';
@@ -104,7 +105,13 @@ const ORG_LD = {
   ],
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Nonce stamped by middleware.ts so the CSP nonce-source-list entry
+  // accepts this inline JSON-LD <script>. `application/ld+json` is
+  // technically a data block (browsers don't execute it as JS), but
+  // CSP3 still applies script-src to the element, so the nonce is
+  // load-bearing here.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     <html
       lang="en"
@@ -113,6 +120,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <script
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_LD) }}
         />
         {children}
