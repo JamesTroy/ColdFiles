@@ -8,6 +8,7 @@ import { doeNetwork } from './doe_network.ts';
 import { doeNetworkUid } from './doe_network_uid.ts';
 import { fbiWanted } from './fbi_wanted.ts';
 import { namusUp } from './namus.ts';
+import { nysDcjs } from './ny_dcjs.ts';
 import { projectColdCase } from './project_cold_case.ts';
 
 export const SOURCES: SourceConfig[] = [
@@ -16,6 +17,7 @@ export const SOURCES: SourceConfig[] = [
   doeNetworkUid,
   fbiWanted,
   namusUp,
+  nysDcjs,
   projectColdCase,
   // Week 4: lapd_unsolved, lasd_homicide (per LASD coverage probe on
   // 2026-05-02, LASD's public homicide bureau corpus is too thin to
