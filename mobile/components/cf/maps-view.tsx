@@ -9,25 +9,29 @@
  * map SDKs; investigate layout/measurement, not the renderer." The fix is
  * almost certainly in our layout chain, not in the map SDK.
  *
- * This file used to short-circuit (throw + return false) so the project
- * built/ran even on dev clients without the native module linked. That's
- * no longer needed: `@maplibre/maplibre-react-native` is in package.json
- * and the matching Expo config plugin is registered in app.config.ts, so
- * every prebuild links the native module.
+ * IMPORTANT — top-level imports are TYPE-ONLY. The runtime MapLibre
+ * import is a `require()` inside MapsView's body so the native-module
+ * lookup (TurboModuleRegistry.getEnforcing('MLRNCameraModule')) only
+ * fires when the component actually renders. This keeps the file safe
+ * to import in Expo Go, which doesn't link MapLibre — without this, a
+ * top-level `import` would crash the app at module-load time.
  *
- * The half-render diagnosis is a development-only workflow:
+ * Diagnostic flow (requires a CUSTOM DEV CLIENT — Expo Go cannot run
+ * MapLibre regardless of the env var):
  *
- *   1. Build a dev client with MapLibre linked (already the case after
- *      `npx expo prebuild --clean -p android` + `npx expo run:android`).
- *   2. Set `EXPO_PUBLIC_ENABLE_NATIVE_MAP=1` in `mobile/.env` (or pass it
+ *   1. Build a dev client: `cd mobile && npx expo run:android`. The
+ *      first build takes 5–10 minutes; subsequent JS-only changes
+ *      hot-reload via `npx expo start`. Requires Android Studio + an
+ *      AVD or a USB-debug device.
+ *   2. Set `EXPO_PUBLIC_ENABLE_NATIVE_MAP=1` in `mobile/.env` (or pass
  *      via `EXPO_PUBLIC_ENABLE_NATIVE_MAP=1 npx expo start`).
- *   3. Open the Map tab. `isNativeMapAvailable()` returns true, so
- *      consumers route to <MapsView> (this file) instead of <LeafletMap>.
- *   4. Reproduce the half-render. Diagnose the parent layout chain in
- *      `app/(tabs)/index.tsx` and `app/watch-zone.tsx` per the memory's
- *      hint.
+ *   3. Open the Map tab in the dev client. `isNativeMapAvailable()`
+ *      returns true, consumers route to <MapsView>, lazy require fires,
+ *      and the half-render bug should reproduce.
+ *   4. Diagnose the parent layout chain in `app/(tabs)/index.tsx` and
+ *      `app/watch-zone.tsx` per the memory's hint.
  *
- * Production builds (no env var set) → `isNativeMapAvailable()` returns
+ * Production builds (env var unset) → `isNativeMapAvailable()` returns
  * false → consumers route to <LeafletMap> → ships unchanged.
  *
  * The pin grammar is preserved by construction: each <Marker> renders the
@@ -36,12 +40,7 @@
  * recency ring decay all work unchanged.
  */
 
-import {
-  Camera,
-  Map as MapLibreMap,
-  Marker,
-  type ViewStateChangeEvent,
-} from '@maplibre/maplibre-react-native';
+import type { ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
 import { useRef } from 'react';
 import { type NativeSyntheticEvent, Pressable, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -84,6 +83,29 @@ export function MapsView({
   onMarkerPress,
   onRegionChange,
 }: MapsViewProps) {
+  // Lazy require — the native MapLibre module lookup only fires when this
+  // component actually renders. If MapsView is gated off (env var unset)
+  // or the consumer never reaches this component, MapLibre is never loaded
+  // and Expo Go / dev-clients-without-MapLibre keep working.
+  //
+  // If require fails (e.g., the env var was set in Expo Go by mistake),
+  // we throw a clear error message that the top-level <ErrorBoundary> in
+  // app/_layout.tsx catches and renders as the "Something broke" fallback.
+  // Better than crashing the whole app at module-load time.
+  let MapLibre: typeof import('@maplibre/maplibre-react-native');
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    MapLibre = require('@maplibre/maplibre-react-native');
+  } catch (err) {
+    throw new Error(
+      'MapLibre native module not linked. ' +
+        'EXPO_PUBLIC_ENABLE_NATIVE_MAP=1 only works in a custom dev client ' +
+        '(`npx expo run:android`), not Expo Go. ' +
+        `Underlying error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const { Camera, Map: MapLibreMap, Marker } = MapLibre;
+
   const mapRef = useRef<unknown>(null);
 
   const handleRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
@@ -175,6 +197,10 @@ function YouAreHereDot() {
  * native MapLibre renderer for diagnosis (set
  * EXPO_PUBLIC_ENABLE_NATIVE_MAP=1 in mobile/.env). Production builds
  * leave the env var unset and route to the LeafletMap WebView path.
+ *
+ * NOTE: turning this on in Expo Go will throw when MapsView renders —
+ * MapLibre's native module isn't linked into Expo Go. Build a custom
+ * dev client (`npx expo run:android`) to actually exercise the path.
  *
  * The known-broken behavior under Fabric is a layout-side measurement
  * issue (per project memory `feedback_map_top_half_not_render.md`),

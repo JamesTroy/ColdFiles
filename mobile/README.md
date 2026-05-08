@@ -132,11 +132,22 @@ The app is shipping. Most of what was previously listed here as "stubbed" is now
 
 ## Still stubbed / deferred
 
-- **Native MapLibre renderer**: `components/cf/maps-view.tsx` is restored but gated behind `EXPO_PUBLIC_ENABLE_NATIVE_MAP=1`. Production builds leave the env var unset → `isNativeMapAvailable()` returns false → consumers route to `LeafletMap`. The half-render bug is a layout/measurement issue in our parent chain (per memory `feedback_map_top_half_not_render.md`), not an SDK bug — diagnosis is the next step before we can flip the env var on for production. To diagnose locally:
+- **Native MapLibre renderer**: `components/cf/maps-view.tsx` is restored but gated behind `EXPO_PUBLIC_ENABLE_NATIVE_MAP=1`. Production builds leave the env var unset → `isNativeMapAvailable()` returns false → consumers route to `LeafletMap`. The half-render bug is a layout/measurement issue in our parent chain (per memory `feedback_map_top_half_not_render.md`), not an SDK bug — diagnosis is the next step before we can flip the env var on for production.
+
+  **Expo Go cannot run MapLibre.** The native module isn't linked into Expo Go regardless of the env var. To exercise this path you need a custom dev client. To diagnose locally:
 
   ```sh
-  echo 'EXPO_PUBLIC_ENABLE_NATIVE_MAP=1' >> mobile/.env
-  npx expo start          # or rebuild dev client if you haven't yet
+  cd mobile
+
+  # First time only — builds a dev client APK with MapLibre linked.
+  # Requires Android Studio + an AVD or a USB-debug device. Takes 5–10 min.
+  npx expo run:android
+
+  # Set the diagnostic flag (DO NOT commit this — it's in .gitignore)
+  echo 'EXPO_PUBLIC_ENABLE_NATIVE_MAP=1' >> .env
+
+  # Day-to-day after the first build
+  npx expo start          # press 'a' to open the dev client
   ```
 
   Open the Map tab in the dev client; the half-render should reproduce. The fix lives upstream of `<MapsView>` in `app/(tabs)/index.tsx` / `app/watch-zone.tsx`.
