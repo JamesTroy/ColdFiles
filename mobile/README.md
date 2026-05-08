@@ -14,13 +14,13 @@ cp .env.example .env                 # only Supabase config; map needs no key
 
 This app ships with `@maplibre/maplibre-react-native` — **Expo Go does not work**. You need a custom dev client built once via `expo run:android` or EAS Build, then iterate against that.
 
-### The map (V1)
+### The map
 
-V1 ships the SVG `MapCanvas` as the map renderer — pins at deterministic-hash positions, not real geography. The case-file design language is intact; only the spatial ground truth is a stub.
+The production renderer is `components/cf/leaflet-map.tsx` — Leaflet 1.9 inside a WebView with OpenStreetMap raster tiles (served by CARTO + OpenFreeMap CDNs; see `app/legal/privacy/page.tsx` for the vendor disclosure). The WebView path bypasses the React Native layout chain entirely so it's not affected by the upstream MapLibre/Mapbox/@rnmapbox GL-surface measurement bug under Fabric.
 
-This is a deliberate, time-boxed choice — see `docs/00_DECISIONS.md` "V1 ships the SVG MapCanvas." MapLibre Native (and its Mapbox / @rnmapbox forks) have an upstream GL-surface measurement bug under Fabric that causes the basemap to half-render. The MapLibre integration is committed but gated off; re-enabling is a one-line flip in `components/cf/maps-view.tsx` once the upstream fix ships.
+The native MapLibre integration lives in `components/cf/maps-view.tsx` but is **stubbed at module scope** — the runtime imports are commented out so the dev client builds even when the native module isn't linked. `isNativeMapAvailable()` returns false; consumers (`app/(tabs)/index.tsx`, `app/watch-zone.tsx`) fall back to `LeafletMap` automatically. Re-enabling is a one-file flip when the upstream Fabric fix ships — re-add the runtime imports + body in `maps-view.tsx`, no consumer changes needed.
 
-To restore a real basemap before that fix lands, the cleanest path is a WebView-Leaflet wrapper that bypasses the native layout chain entirely. See the decision-log entry for context.
+The pin grammar (filled / ring+dot / open ring + selection halo + recency ring) is identical across both renderers — it serializes to inline SVG inside Leaflet `divIcon`s today, and the same SVG primitives drive the native marker layer when MapLibre is restored.
 
 ### First build (one time)
 
@@ -66,17 +66,43 @@ mobile/
 │   └── tip/[slug].tsx           Submit-tip modal
 ├── components/
 │   ├── cf/                    Cold File design-system primitives
+│   │   Visual / typography:
 │   │   ├── text.tsx             SerifTitle / SansBody / MonoLabel / NarrativeText / InfoText
+│   │   ├── brand-mark.tsx       Wordmark + glyph
+│   │   ├── brand-splash.tsx     Boot splash overlay
 │   │   ├── pin.tsx              Case-kind shape encoding (filled / ring+dot / open ring)
 │   │   ├── pill.tsx             UnsolvedPill / ColdPill / ResolvedPill / FilterChip
-│   │   ├── radio-card.tsx       Submit-tip route picker pattern
+│   │   ├── cta-button.tsx       AmberCTA + SecondaryCTA
+│   │   Map / location:
+│   │   ├── leaflet-map.tsx      Production renderer (Leaflet WebView + OSM raster tiles)
+│   │   ├── leaflet-watch-zone.tsx  Watch-zone polygon variant of leaflet-map
+│   │   ├── maps-view.tsx        Native MapLibre wrapper — currently stubbed
+│   │   ├── map-bottom-sheet.tsx Map pin-tap bottom sheet
+│   │   ├── case-location-map.tsx Static-map preview on case detail
+│   │   └── draw-zone-map.tsx    Watch-zone polygon drawer
+│   │   Case detail:
 │   │   ├── key-facts.tsx        Verifiable case data table
 │   │   ├── photo-frame.tsx      Evidence-register hero photo (corner brackets + caption)
+│   │   ├── photo-gallery.tsx    Thumb strip + warning gating
+│   │   ├── photo-lightbox.tsx   Full-screen viewer
 │   │   ├── source-chip.tsx      Trust-weight ordered source links
 │   │   ├── trust-disclosure.tsx Full callout + short caption variants
-│   │   ├── peek-sheet.tsx       Map pin-tap bottom sheet
-│   │   ├── map-canvas.tsx       SVG map placeholder (Mapbox lands behind this contract)
-│   │   └── cta-button.tsx       AmberCTA + SecondaryCTA
+│   │   ├── case-events-section.tsx
+│   │   ├── cases-near-case-section.tsx
+│   │   └── case-row.tsx
+│   │   Tip / takedown / legal:
+│   │   ├── radio-card.tsx       Submit-tip route picker pattern
+│   │   ├── legal-doc.tsx        Privacy / terms / takedown layout
+│   │   └── terms-update-banner.tsx Material-change banner (PR #57)
+│   │   App shell + reliability:
+│   │   ├── screen-shell.tsx     Standard screen wrapper
+│   │   ├── tab-bar.tsx          Bottom tab styling
+│   │   ├── error-boundary.tsx   Top-level catch (PR #63)
+│   │   ├── error-state.tsx      Inline error UI
+│   │   ├── empty-state.tsx      Inline empty-list UI
+│   │   ├── success-flash.tsx    Tip-submitted confirmation
+│   │   ├── source-health-list.tsx Diagnostics screen content
+│   │   └── amber-slider.tsx     Range input
 │   └── haptic-tab.tsx         Template — iOS haptic on tab press
 ├── constants/
 │   └── theme.ts               Single source of truth for design tokens
@@ -89,17 +115,23 @@ Every component imports `tokens` from `constants/theme.ts`. **Do not hard-code h
 
 The tokens file mirrors the snapshot in the design doc exactly. Geometry math (`pin.strokeForDiameter`, `pin.recent.alphaByAge`, `cluster.diameterFor`) is in the tokens, not scattered across components, so design rules and implementation stay coupled.
 
-## What's wired vs. what's stubbed
+## What's wired (as of v1.0.4)
 
-**Wired:**
-- Design system tokens, fonts, navigation skeleton
-- All four tabs render with the correct visual language
-- The Pin renderer enforces the geometry contract (filled / ring+dot / open ring, stroke scaling, recency decay, selected halo)
-- **Supabase data layer**: `lib/supabase.ts` + typed schema in `lib/types/database.ts` + per-screen hooks in `lib/hooks/`. Map / List / Case-detail screens call the live RPCs and table reads when env is configured; designer-mode sample data otherwise.
+The app is shipping. Most of what was previously listed here as "stubbed" is now live:
 
-**Stubbed (Week 5b–5c):**
-- **Mapbox native** — the SVG canvas is a visual placeholder; real markers replace it behind the same `<MapCanvas>` contract. Pin xy positions on the map screen are deterministic hashes of case slug today; real coordinates land with Mapbox.
-- **Auth** — Supabase client runs with `persistSession: false` for now. When auth lands, swap in `@react-native-async-storage/async-storage` as the storage adapter; the saved tab and watch zones go live then.
-- **Expo Notifications + FCM** — needed for watch-zone alerts.
-- **Tip-routing wire-up** — the modal calls `router.back()` on submit; should POST to a tip-routing Edge Function and transition to the success state with the `tip.success` flash.
-- **Premium upsell** — the Me tab has a placeholder row.
+- **Design system + navigation**: tokens, fonts, four tabs, all screens render with the correct visual language.
+- **Pin renderer**: enforces the geometry contract (filled / ring+dot / open ring, stroke scaling, recency decay, selected halo). Identical SVG primitives across the Leaflet + (deferred) MapLibre paths.
+- **Supabase data layer**: `lib/supabase.ts` (auth session in `expo-secure-store` post v1.0.4 — Android Keystore / iOS Keychain) + typed schema in `lib/types/database.ts` + per-screen hooks in `lib/hooks/`. Live RPCs (`cases_within_radius`, `cases_in_bbox`, `cases_in_polygon`) + RLS-gated table reads. Designer-mode sample data when env vars are unset.
+- **Auth**: magic-link sign-in (PKCE), expired-link Alert, Android intent-hijack defense, account deletion that unregisters push + clears local storage. Auth-state changes re-register / clear push tokens.
+- **Push notifications + FCM**: `expo-notifications` registered, push token persisted server-side via `notify-fanout` Edge Function. Watch-zone hits and saved-case events fan out as alerts.
+- **Tip routing**: `tip/[slug].tsx` modal POSTs to the `tip-route-submit` Edge Function, resolves to a real per-agency target (Crime Stoppers P3, FBI, NamUs, agency form, agency phone, email — see `docs/05_TIP_ROUTING.md`), and transitions to the `tip.success` flash.
+- **Watch zones**: polygon drawing on `draw-zone-map.tsx`, persisted to Supabase, alerts via `notify-fanout` when ingested cases fall inside.
+- **Takedown intake**: `takedown-request/[slug].tsx` modal posts to the `takedown-submit` Edge Function (rate-limited per case+email).
+- **Top-level error boundary**: `error-boundary.tsx` (PR #63) wraps the Stack in `app/_layout.tsx` with a "Something broke. Tap to reload." fallback. Crash-reporter seam (`reportError`) is unused — Sentry/Crashlytics plug in there when wanted.
+- **CI pre-push gate**: `.githooks/pre-push` runs `npm run preflight` (`tsc --noEmit && expo lint --max-warnings 0`) so a tsc/lint regression bounces locally instead of riding to Play Console as a broken AAB.
+
+## Still stubbed / deferred
+
+- **Native MapLibre renderer**: `components/cf/maps-view.tsx` runtime imports are commented out pending the upstream Fabric GL-surface fix. Production runs Leaflet WebView; visual contract is identical.
+- **Premium upsell**: the Me tab has a placeholder row. No billing wired yet.
+- **iOS build**: Android-only AAB shipping today. iOS is a config flip + App Store provisioning when the audience expands.
