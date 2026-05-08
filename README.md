@@ -5,9 +5,9 @@ Map-first directory of cold cases (unsolved homicides, long-term missing, uniden
 **Owner:** Matte Black Dev LLC
 **Distribution:** Android (Google Play) primary, iOS later. Public web at `coldfile.app`.
 **Stack:**
-- **Mobile (Play Store / App Store):** Expo (React Native) + Supabase JS + MapLibre / Leaflet WebView (basemap path is the V1 SVG `MapCanvas` placeholder; see `docs/00_DECISIONS.md` 2026-04-28 entry) + Expo Notifications (FCM) + EAS Build *(BarkPark Mobile shape)*
-- **Web (`coldfile.app`):** Next.js App Router — marketing site + read-only case viewer + shareable case URLs for SEO and press
-- **Backend (shared):** Supabase (Postgres 15 + PostGIS + RLS) + Supabase Edge Functions (Deno) + Mapbox geocoding
+- **Mobile (Play Store / App Store):** Expo (React Native) + Supabase JS + MapLibre GL Native (preferred renderer; OpenFreeMap public tiles) with a Leaflet/CARTO WebView fallback (see `mobile/components/cf/maps-view.tsx`) + Expo Notifications (FCM) + EAS Build
+- **Web (`coldfile.app`):** Next.js App Router — marketing site + read-only case viewer + shareable case URLs for SEO and press. CSP nonce middleware (`middleware.ts`) + tightened security headers in `next.config.ts`.
+- **Backend (shared):** Supabase (Postgres 15 + PostGIS + RLS) + Supabase Edge Functions (Deno) + OpenStreetMap Nominatim reverse-geocoding (proxied through our `reverse-geocode` Edge Function, not called from clients).
 - **Payments:** Google Play Billing (mobile premium) + Stripe (web premium)
 
 **Architecture rule:** Two thin frontends, one Supabase backend. All reads must be callable from a bare Supabase JS client — Postgres functions or RLS-gated table reads, never Next.js route handlers. The only valid Next.js route handlers are Stripe webhooks, admin moderation UI, and OG-image / sitemap generation. Everything else lives in Postgres or in an Edge Function so the mobile app and the web app share the same data contract with zero divergence.
@@ -32,13 +32,19 @@ coldfile/
 ├── scripts/
 │   └── scrape-cli.ts             Local dryrun + run CLI
 ├── sources/                      One file per source — config-driven
+├── middleware.ts                Next.js CSP nonce middleware (strict-dynamic)
 ├── supabase/functions/
-│   ├── ingest-source/            Single runner. Takes ?source=namus
-│   ├── ingest-tick/              Cron entrypoint
-│   ├── geocode-pending/          Geocodes cases that came in without coords
-│   ├── photo-cache/              Downloads media to Supabase Storage
-│   ├── dedupe-resolver/          Background dedupe re-checker
-│   └── _shared/                  Shared utilities (fetcher, extractor, dedupe, ...)
+│   ├── ingest-source/            Single runner. Takes ?source=<slug>
+│   ├── ingest-tick/              Cron entrypoint — dispatches due sources
+│   ├── geocode-pending/          Forward-geocodes cases that came in without coords
+│   ├── reverse-geocode/          OSM Nominatim proxy — short label from lat/lng
+│   ├── photo-cache/              Downloads media to Supabase Storage (mirror policy)
+│   ├── notify-fanout/            Watch-zone hit alerts → Expo Push relay
+│   ├── tip-route-submit/         Resolves tip-routing target + audit-log row
+│   ├── takedown-submit/          Privacy/photo takedown intake (rate-limited)
+│   └── _shared/                  Shared utilities (fetcher, extractor, dedupe,
+│                                 persist with inline Tier-3 review queueing,
+│                                 cors helpers, tip-route resolver, ...)
 └── types/                        Shared TypeScript types
 ```
 
