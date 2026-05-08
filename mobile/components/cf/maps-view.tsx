@@ -109,20 +109,14 @@ export function MapsView({
   }
   const { Camera, Map: MapLibreMap, Marker } = MapLibre;
 
+  // Ref carries the imperative handle from MapLibreMap (see Map.js's
+  // useImperativeHandle). Typed loose because the library doesn't export
+  // its MapRef shape from its memo wrapper.
   const mapRef = useRef<unknown>(null);
 
-  const handleRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
-    console.log('[diag] MapsView onRegionDidChange fired', {
-      bounds: e.nativeEvent.bounds,
-      animated: e.nativeEvent.animated,
-      userInteraction: e.nativeEvent.userInteraction,
-    });
+  const dispatchBounds = (b: readonly [number, number, number, number] | null | undefined) => {
     if (!onRegionChange) return;
-    const b = e.nativeEvent.bounds;
-    if (!b) {
-      console.log('[diag] MapsView bounds was falsy — skipping');
-      return;
-    }
+    if (!b || b.length < 4) return;
     // LngLatBounds is the flat GeoJSON ordering [west, south, east, north].
     onRegionChange({
       minLng: b[0],
@@ -130,6 +124,34 @@ export function MapsView({
       maxLng: b[2],
       maxLat: b[3],
     });
+  };
+
+  const handleRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+    dispatchBounds(e.nativeEvent.bounds);
+  };
+
+  // Initial-bounds dispatch. The onRegionDidChange event in @maplibre/
+  // maplibre-react-native@11 only fires on user-driven pan/zoom, NOT on
+  // the initial render — so without this seam, useCasesInBbox stays at
+  // bounds=null forever, never queries cases_in_bbox, and the Map tab
+  // shows "No cases in this view" indefinitely.
+  //
+  // onDidFinishLoadingMap fires once the basemap tiles + style finish
+  // loading; querying getBounds() at that point returns the camera's
+  // current bounds, which we forward through onRegionChange to populate
+  // the hook's bounds state.
+  const handleDidFinishLoadingMap = async () => {
+    const ref = mapRef.current;
+    // Imperative handle exposes getBounds(); see Map.js useImperativeHandle.
+    const getBounds = (ref as unknown as { getBounds?: () => Promise<readonly [number, number, number, number]> })?.getBounds;
+    if (typeof getBounds !== 'function') return;
+    try {
+      const bounds = await getBounds();
+      dispatchBounds(bounds);
+    } catch {
+      // Fallback: best-effort. If getBounds() fails, the user's first
+      // pan still triggers onRegionDidChange normally.
+    }
   };
 
   return (
@@ -144,6 +166,7 @@ export function MapsView({
         compass={false}
         scaleBar={false}
         onRegionDidChange={handleRegionDidChange}
+        onDidFinishLoadingMap={handleDidFinishLoadingMap}
       >
         <Camera
           center={[center.lng, center.lat]}
