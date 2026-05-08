@@ -26,14 +26,52 @@ origin via `new URL(...).origin`, inject into CSP. Falls back to the
 wildcard when the env is missing (fresh-clone / preview builds before
 `vercel env pull`) so build doesn't 502.
 
-### A2 — `script-src 'unsafe-inline'` (Medium → Deferred)
+### A2 — `script-src 'unsafe-inline'` (Medium → Fixed in feat/csp-nonce-middleware)
 
-**Status:** Acknowledged. Not fixed in this PR.
+**Was:** [next.config.ts](../../../next.config.ts) shipped
+`script-src 'self' 'unsafe-inline'`. The static CSP couldn't carry a
+per-request nonce, so inline scripts (the JSON-LD organization block,
+Next.js's runtime boot script) needed `'unsafe-inline'` to load —
+which defangs CSP's main XSS protection (an injected
+`<script>alert(1)</script>` would execute despite the CSP).
 
-**Why deferred:** Real fix is nonce-based CSP via Next.js Middleware
-(per-request nonce header → layout reads + injects into `<Script
-nonce={...}>`). Half-day of work; better as its own PR
-(`feat/csp-nonce-middleware`) than bundled with quick wins.
+**Fix:** New [middleware.ts](../../../middleware.ts) mints a
+per-request 16-byte base64 nonce, attaches it to the request headers
+as `x-nonce` (so Server Components can read it via `next/headers()`),
+and writes a dynamic `Content-Security-Policy` header on the response
+naming that nonce. CSP value:
+
+```
+script-src 'self' 'nonce-{NONCE}' 'strict-dynamic' 'unsafe-inline'
+```
+
+`'strict-dynamic'` is the modern hardening directive — in CSP3
+browsers, `'self'` and `https:` source-list entries are IGNORED, so
+the only way for a script to load is to carry the nonce or be loaded
+by an already-trusted nonced script. `'unsafe-inline'` is left as
+a CSP2-fallback for older Safari that doesn't recognize
+`'strict-dynamic'`; CSP3-aware browsers ignore `'unsafe-inline'`
+when a nonce is present, so the practical effect is nonce-only on
+modern browsers.
+
+[app/layout.tsx](../../../app/layout.tsx) reads the nonce via
+`(await headers()).get('x-nonce')` and stamps it on its inline
+JSON-LD `<script>`. Next.js framework scripts (the runtime boot, RSC
+chunks) get the nonce automatically because middleware sets the CSP
+on the request — Next.js's documented behavior.
+
+**Trade:** the legal pages (`/legal/privacy`, `/legal/takedown`,
+`/legal/terms`) move from static prerender (`○`) to dynamic
+server-rendered (`ƒ`) because `headers()` is a dynamic API. For a
+low-traffic legal property, the security win (real XSS defense vs.
+defanged CSP) outweighs the per-request render cost on Vercel's
+Fluid Compute. If traffic ever justifies static prerender, the
+JSON-LD nonce can be removed and a Subresource-Integrity hash
+allowlist can replace it — but that's premature today.
+
+**Skipped on prefetches** via the middleware matcher's `missing`
+clause — prefetch responses don't render fresh content, and the
+cached non-prefetch response carries the right CSP.
 
 ### A3 — COOP + CORP headers added (Low → Fixed)
 
