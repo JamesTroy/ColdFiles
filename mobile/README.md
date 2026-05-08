@@ -132,6 +132,14 @@ The app is shipping. Most of what was previously listed here as "stubbed" is now
 
 ## Still stubbed / deferred
 
-- **Native MapLibre renderer**: `components/cf/maps-view.tsx` runtime imports are commented out pending the upstream Fabric GL-surface fix. Production runs Leaflet WebView; visual contract is identical.
+- **Native MapLibre renderer**: `components/cf/maps-view.tsx` is restored but gated behind `EXPO_PUBLIC_ENABLE_NATIVE_MAP=1`. Production builds leave the env var unset → `isNativeMapAvailable()` returns false → consumers route to `LeafletMap`. The half-render bug is a layout/measurement issue in our parent chain (per memory `feedback_map_top_half_not_render.md`), not an SDK bug — diagnosis is the next step before we can flip the env var on for production. To diagnose locally:
+
+  ```sh
+  echo 'EXPO_PUBLIC_ENABLE_NATIVE_MAP=1' >> mobile/.env
+  npx expo start          # or rebuild dev client if you haven't yet
+  ```
+
+  Open the Map tab in the dev client; the half-render should reproduce. The fix lives upstream of `<MapsView>` in `app/(tabs)/index.tsx` / `app/watch-zone.tsx`.
+
 - **Premium upsell**: the Me tab has a placeholder row. No billing wired yet.
 - **iOS build**: Android-only AAB shipping today. iOS is a config flip + App Store provisioning when the audience expands.

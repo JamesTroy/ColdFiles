@@ -1,30 +1,54 @@
 /**
- * MapsView — disabled native MapLibre renderer (kept as a stub).
+ * MapsView — MapLibre GL Native + OpenFreeMap public tiles.
  *
- * The MapLibre RN runtime is intentionally NOT imported at module scope.
- * Top-level `import { Map } from '@maplibre/maplibre-react-native'` triggers
- * `TurboModuleRegistry.getEnforcing('MLRNCameraModule')` at module-load time,
- * which throws if the native module isn't linked into the dev client APK.
- * Since `isNativeMapAvailable()` returns false (V1 ships WebView Leaflet —
- * see docs/00_DECISIONS.md "V1 ships the SVG MapCanvas"), we don't want to
- * pay that load cost or require the native module to be present. Stubbing
- * the runtime here lets the project build and run even if the dev client
- * was compiled without MapLibre linked.
+ * Currently gated off in production. The map renders at half-height under
+ * Fabric (newArchEnabled = true, which Reanimated 4 forces). Symptom
+ * reproduces across @rnmapbox/maps, react-native-maps, and
+ * @maplibre/maplibre-react-native — see the project memory
+ * `feedback_map_top_half_not_render.md`: "symptom reproduces across four
+ * map SDKs; investigate layout/measurement, not the renderer." The fix is
+ * almost certainly in our layout chain, not in the map SDK.
  *
- * Restoring the real implementation:
- *   1. Wait for the upstream MapLibre Native Fabric fix, OR
- *   2. Re-add the runtime imports + body below the comment, OR
- *   3. Use a dynamic require() inside the component so the native module
- *      lookup only fires when isNativeMapAvailable() === true.
+ * This file used to short-circuit (throw + return false) so the project
+ * built/ran even on dev clients without the native module linked. That's
+ * no longer needed: `@maplibre/maplibre-react-native` is in package.json
+ * and the matching Expo config plugin is registered in app.config.ts, so
+ * every prebuild links the native module.
  *
- * The MapsMarker type and isNativeMapAvailable() function remain so
- * consumers (app/(tabs)/index.tsx, app/watch-zone.tsx) keep compiling
- * without changes.
+ * The half-render diagnosis is a development-only workflow:
+ *
+ *   1. Build a dev client with MapLibre linked (already the case after
+ *      `npx expo prebuild --clean -p android` + `npx expo run:android`).
+ *   2. Set `EXPO_PUBLIC_ENABLE_NATIVE_MAP=1` in `mobile/.env` (or pass it
+ *      via `EXPO_PUBLIC_ENABLE_NATIVE_MAP=1 npx expo start`).
+ *   3. Open the Map tab. `isNativeMapAvailable()` returns true, so
+ *      consumers route to <MapsView> (this file) instead of <LeafletMap>.
+ *   4. Reproduce the half-render. Diagnose the parent layout chain in
+ *      `app/(tabs)/index.tsx` and `app/watch-zone.tsx` per the memory's
+ *      hint.
+ *
+ * Production builds (no env var set) → `isNativeMapAvailable()` returns
+ * false → consumers route to <LeafletMap> → ships unchanged.
+ *
+ * The pin grammar is preserved by construction: each <Marker> renders the
+ * existing <Pin /> SVG component as its child, so filled-circle / ring-
+ * plus-dot / open-ring shape encoding, the selection halo, and the
+ * recency ring decay all work unchanged.
  */
 
-import type { ReactElement } from 'react';
+import {
+  Camera,
+  Map as MapLibreMap,
+  Marker,
+  type ViewStateChangeEvent,
+} from '@maplibre/maplibre-react-native';
+import { useRef } from 'react';
+import { type NativeSyntheticEvent, Pressable, View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 
-import type { PinKind } from './pin';
+import { tokens } from '@/constants/theme';
+
+import { Pin, type PinKind } from './pin';
 
 export interface MapsMarker {
   id: string;
@@ -41,6 +65,10 @@ interface MapsViewProps {
   markers: MapsMarker[];
   here?: { lat: number; lng: number } | null;
   onMarkerPress?: (id: string) => void;
+  /**
+   * Fires when the visible region settles after pan/zoom. Drives a debounced
+   * cases_in_bbox refetch upstream (tokens.map.viewportDebounceMs).
+   */
   onRegionChange?: (bounds: {
     minLng: number;
     minLat: number;
@@ -49,28 +77,110 @@ interface MapsViewProps {
   }) => void;
 }
 
-/**
- * Stub. `isNativeMapAvailable()` is false so this component is never
- * rendered; consumers always hit the LeafletMap path. If a caller does
- * reach here despite the gate, fail loudly rather than render an empty box —
- * silent renders make the underlying logic bug harder to find.
- */
-export function MapsView(_props: MapsViewProps): ReactElement {
-  throw new Error(
-    'MapsView is disabled while native MapLibre is gated off. Use LeafletMap.',
+export function MapsView({
+  center,
+  markers,
+  here,
+  onMarkerPress,
+  onRegionChange,
+}: MapsViewProps) {
+  const mapRef = useRef<unknown>(null);
+
+  const handleRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+    if (!onRegionChange) return;
+    const b = e.nativeEvent.bounds;
+    if (!b) return;
+    // LngLatBounds is the flat GeoJSON ordering [west, south, east, north].
+    onRegionChange({
+      minLng: b[0],
+      minLat: b[1],
+      maxLng: b[2],
+      maxLat: b[3],
+    });
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
+      <MapLibreMap
+        ref={mapRef as never}
+        style={{ flex: 1 }}
+        mapStyle={tokens.map.styleUrl}
+        attribution
+        attributionPosition={{ bottom: 8, right: 8 }}
+        logo={false}
+        compass={false}
+        scaleBar={false}
+        onRegionDidChange={handleRegionDidChange}
+      >
+        <Camera
+          center={[center.lng, center.lat]}
+          zoom={center.zoomLevel ?? tokens.map.defaultCenter.zoomLevel}
+        />
+
+        {markers.map((m) => (
+          <Marker
+            key={m.id}
+            lngLat={[m.lng, m.lat]}
+            anchor="center"
+          >
+            <Pressable
+              onPress={() => onMarkerPress?.(m.id)}
+              hitSlop={8}
+              style={{ alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Pin
+                kind={m.kind}
+                diameter={m.selected ? 16 : 14}
+                selected={m.selected}
+                recentDays={m.recentDays ?? null}
+              />
+            </Pressable>
+          </Marker>
+        ))}
+
+        {here ? (
+          <Marker lngLat={[here.lng, here.lat]} anchor="center">
+            <YouAreHereDot />
+          </Marker>
+        ) : null}
+      </MapLibreMap>
+    </View>
+  );
+}
+
+function YouAreHereDot() {
+  return (
+    <Svg width={28} height={28}>
+      <Path
+        d="M 14 14 m -10 0 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0"
+        fill={tokens.color.you.here}
+        fillOpacity={0.1}
+      />
+      <Circle
+        cx={14}
+        cy={14}
+        r={7}
+        fill="none"
+        stroke={tokens.color.you.here}
+        strokeWidth={1}
+        strokeOpacity={0.5}
+      />
+      <Circle cx={14} cy={14} r={5} fill={tokens.color.you.here} />
+    </Svg>
   );
 }
 
 /**
- * NATIVE MAP RENDERER IS DISABLED FOR V1.
+ * Returns true only when the developer has explicitly opted into the
+ * native MapLibre renderer for diagnosis (set
+ * EXPO_PUBLIC_ENABLE_NATIVE_MAP=1 in mobile/.env). Production builds
+ * leave the env var unset and route to the LeafletMap WebView path.
  *
- * MapLibre Native (and its forks Mapbox + the @rnmapbox/maps SDK) all hit the
- * same GL-surface measurement bug under Fabric (newArchEnabled = true, which
- * Reanimated 4 forces). V1 ships the WebView Leaflet renderer instead.
- *
- * Flip back by returning true once the upstream MapLibre Native Fabric fix
- * lands AND the runtime imports are restored above.
+ * The known-broken behavior under Fabric is a layout-side measurement
+ * issue (per project memory `feedback_map_top_half_not_render.md`),
+ * not an SDK bug — flipping this on without fixing the layout chain
+ * upstream of <MapsView> will reproduce the half-render.
  */
 export function isNativeMapAvailable(): boolean {
-  return false;
+  return process.env.EXPO_PUBLIC_ENABLE_NATIVE_MAP === '1';
 }
