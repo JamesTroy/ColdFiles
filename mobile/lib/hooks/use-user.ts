@@ -76,6 +76,14 @@ export function useUser(): UseUserResult {
   };
 }
 
+/**
+ * Send a magic-link email to start a PKCE sign-in. Resolves once Supabase
+ * has accepted the request — the actual session lands later when the user
+ * taps the email and `useAuthCallback` exchanges the code.
+ *
+ * In designer mode (Supabase env unset) returns an error explaining that
+ * auth requires a configured Supabase project; never silently succeeds.
+ */
 export async function signInWithEmail(email: string): Promise<{ error: Error | null }> {
   if (!isSupabaseConfigured()) {
     return {
@@ -96,6 +104,12 @@ export async function signInWithEmail(email: string): Promise<{ error: Error | n
   return { error: error ? new Error(error.message) : null };
 }
 
+/**
+ * Sign the current user out. No-op in designer mode (returns success).
+ * `useUser`'s onAuthStateChange listener picks up the SIGNED_OUT event
+ * and clears local state; `use-push-token` clears the device's push
+ * registration in the same listener.
+ */
 export async function signOut(): Promise<{ error: Error | null }> {
   if (!isSupabaseConfigured()) return { error: null };
   const supabase = getSupabase();

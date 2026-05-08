@@ -42,6 +42,36 @@ interface PersistContext {
   tier3ToReview?: boolean;
 }
 
+/**
+ * Persist one extracted CaseRecord into the Cold File schema.
+ *
+ * Pipeline (each step is idempotent — re-running the same record is a no-op):
+ *   1. Normalize derivative fields (e.g., dual-write last_seen_date for
+ *      missing-kind cases).
+ *   2. Generate dedupe keys (`generateDedupeKeys` in dedupe.ts) and look
+ *      them up in `case_dedupe_keys`. Stronger keys win.
+ *   3. If the strongest match is Tier 3 only (`lastname_age_sex`) AND
+ *      `tier3ToReview` is true (the default), queue the pair into
+ *      `dedupe_review_queue` and persist as a NEW case — visible duplicate
+ *      in the user's list, but never a wrongful merge. See CLAUDE.md
+ *      "Dedupe trades silent-wrongful-merges for visible-duplicates."
+ *   4. Otherwise: trust-weight merge field-by-field (`mergeRecord` in
+ *      trust-merge.ts) and update the existing row.
+ *   5. Insert/update `case_sources` row with this source's trust weight.
+ *   6. If a Mapbox token is present in `ctx`, geocode the case (skip
+ *      otherwise — case persists with null point).
+ *   7. Mirror media bytes into Supabase Storage per the photo policy
+ *      (`cacheMediaForCase` in media.ts).
+ *   8. Persist case_events rows.
+ *
+ * Mutates `record` in place during the normalize step (terminal stage,
+ * fine). Mutates `stats` to record per-source counters.
+ *
+ * Throws only on unrecoverable failures (DB connection lost, schema
+ * mismatch). Recoverable failures (geocode rate-limit, single source row
+ * conflict, photo 404) are logged and the persist continues so a single
+ * source's bad row doesn't break the rest of the run.
+ */
 export async function persistRecord(
   ctx: PersistContext,
   record: CaseRecord,
