@@ -170,6 +170,7 @@ export interface CaseRowFull {
   narrative_short: string | null;
   case_number_primary: string | null;
   reward_text: string | null;
+  reward_amount_usd: number | null;
   has_photo: boolean;
   has_sketch: boolean;
   is_featured: boolean;

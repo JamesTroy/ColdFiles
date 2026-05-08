@@ -834,6 +834,23 @@ function buildKeyFacts(c: CaseRowFull): KeyFact[] {
     out.push({ label: 'AGENCY', value: c.primary_agency.name });
   }
 
+  // Prefer reward_text verbatim — preserves source phrasing ("Up to $20,000",
+  // "$30,000 from city + family"). Fall back to formatting reward_amount_usd
+  // when only the numeric column is populated. Mono only when the displayed
+  // value leads with a dollar sign (it's a numeric fact); free-text rewards
+  // render as sans prose.
+  const rewardValue = c.reward_text
+    ?? (c.reward_amount_usd != null
+      ? `$${c.reward_amount_usd.toLocaleString('en-US')}`
+      : null);
+  if (rewardValue) {
+    out.push({
+      label: 'REWARD',
+      value: rewardValue,
+      mono: rewardValue.trimStart().startsWith('$'),
+    });
+  }
+
   return out;
 }
 
