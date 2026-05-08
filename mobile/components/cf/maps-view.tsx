@@ -41,7 +41,7 @@
  */
 
 import type { ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { type NativeSyntheticEvent, Pressable, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -130,29 +130,37 @@ export function MapsView({
     dispatchBounds(e.nativeEvent.bounds);
   };
 
-  // Initial-bounds dispatch. The onRegionDidChange event in @maplibre/
-  // maplibre-react-native@11 only fires on user-driven pan/zoom, NOT on
-  // the initial render — so without this seam, useCasesInBbox stays at
-  // bounds=null forever, never queries cases_in_bbox, and the Map tab
-  // shows "No cases in this view" indefinitely.
+  // Initial-bounds dispatch on mount. The onRegionDidChange event in
+  // @maplibre/maplibre-react-native@11 only fires on user-driven
+  // pan/zoom, NOT on the initial render — so without this seam,
+  // useCasesInBbox stays at bounds=null forever, never queries
+  // cases_in_bbox, and the Map tab shows "No cases in this view"
+  // indefinitely.
   //
-  // onDidFinishLoadingMap fires once the basemap tiles + style finish
-  // loading; querying getBounds() at that point returns the camera's
-  // current bounds, which we forward through onRegionChange to populate
-  // the hook's bounds state.
-  const handleDidFinishLoadingMap = async () => {
-    const ref = mapRef.current;
-    // Imperative handle exposes getBounds(); see Map.js useImperativeHandle.
-    const getBounds = (ref as unknown as { getBounds?: () => Promise<readonly [number, number, number, number]> })?.getBounds;
-    if (typeof getBounds !== 'function') return;
-    try {
-      const bounds = await getBounds();
-      dispatchBounds(bounds);
-    } catch {
-      // Fallback: best-effort. If getBounds() fails, the user's first
-      // pan still triggers onRegionDidChange normally.
-    }
-  };
+  // We synthesize an initial bbox synchronously from the `center` prop
+  // rather than asking the native ref for its real bounds (which
+  // requires async getBounds() that has been unreliable in dev). The
+  // synthetic bbox is roughly the visual viewport at zoom ~9 — large
+  // enough to catch nearby cases, small enough that the parent's 50%
+  // expansion in handleRegionChange doesn't blow the result_limit cap.
+  // The first user pan replaces it with real bounds.
+  useEffect(() => {
+    if (!onRegionChange) return;
+    // ~1° lat = 111 km. cos(34°) ~= 0.83, so at lat 34 a 1° lng spans
+    // ~92 km. The dispatched 2°×1° box is roughly 184 km × 111 km,
+    // which is wider than the LA metro and catches typical first-frame
+    // viewports without being so large that it pushes against the
+    // 8s statement_timeout server-side.
+    onRegionChange({
+      minLng: center.lng - 1,
+      minLat: center.lat - 0.5,
+      maxLng: center.lng + 1,
+      maxLat: center.lat + 0.5,
+    });
+    // Mount-only — re-syncing on center changes is what the
+    // onRegionDidChange path is for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.bg.base }}>
@@ -166,7 +174,6 @@ export function MapsView({
         compass={false}
         scaleBar={false}
         onRegionDidChange={handleRegionDidChange}
-        onDidFinishLoadingMap={handleDidFinishLoadingMap}
       >
         <Camera
           center={[center.lng, center.lat]}
