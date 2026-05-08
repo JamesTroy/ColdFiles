@@ -83,6 +83,9 @@ export function MapsView({
   onMarkerPress,
   onRegionChange,
 }: MapsViewProps) {
+  // Diagnostic log — confirms the native MapLibre path is active. Remove
+  // before merging this branch to main.
+  console.log('[diag] MapsView rendering — native MapLibre path active');
   // Lazy require — the native MapLibre module lookup only fires when this
   // component actually renders. If MapsView is gated off (env var unset)
   // or the consumer never reaches this component, MapLibre is never loaded

@@ -113,6 +113,9 @@ export function LeafletMap({
   onMarkerOpen,
   onRegionChange,
 }: LeafletMapProps) {
+  // Diagnostic log — confirms the WebView Leaflet path is active. Pairs
+  // with the matching log in maps-view.tsx. Remove before merging.
+  console.log('[diag] LeafletMap rendering — WebView Leaflet path active');
   const webRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
 
