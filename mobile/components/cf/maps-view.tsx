@@ -112,9 +112,17 @@ export function MapsView({
   const mapRef = useRef<unknown>(null);
 
   const handleRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+    console.log('[diag] MapsView onRegionDidChange fired', {
+      bounds: e.nativeEvent.bounds,
+      animated: e.nativeEvent.animated,
+      userInteraction: e.nativeEvent.userInteraction,
+    });
     if (!onRegionChange) return;
     const b = e.nativeEvent.bounds;
-    if (!b) return;
+    if (!b) {
+      console.log('[diag] MapsView bounds was falsy — skipping');
+      return;
+    }
     // LngLatBounds is the flat GeoJSON ordering [west, south, east, north].
     onRegionChange({
       minLng: b[0],
