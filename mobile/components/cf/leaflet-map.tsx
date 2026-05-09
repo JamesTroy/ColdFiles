@@ -60,11 +60,14 @@ export interface LeafletZoneOverlay {
 }
 
 /**
- * Aggregated centroid badge — rendered when >threshold cases share a
- * lat/lng (city-centroid pile-ups, etc.). Sourced from the
- * cases_centroids_in_bbox RPC (migration 33). Carries per-kind counts
- * so the badge can tint toward the dominant kind when one is >60% of
- * the total; mixed cases render as neutral amber.
+ * Aggregated centroid badge — rendered when ≥2 cases share a lat/lng
+ * (post-migration-35 rebuild: the threshold collapsed to coincidence-
+ * only). Sourced from the cases_centroids_in_bbox RPC.
+ *
+ * Carries per-kind counts so the badge can tint toward the dominant
+ * kind when one is >60% of the total; mixed clusters render as neutral
+ * amber. Carries an optional server-built "City, ST" locale_label
+ * that the badge prints under the count when resolved.
  */
 export interface LeafletCentroid {
   lat: number;
@@ -73,6 +76,8 @@ export interface LeafletCentroid {
   kinds_homicide: number;
   kinds_missing: number;
   kinds_doe: number;
+  /** Optional "City, ST" label, NULL when cases at the centroid don't share a single locale. */
+  locale_label?: string | null;
 }
 
 interface LeafletMapProps {
@@ -253,7 +258,7 @@ export function LeafletMap({
       centroids
         .map(
           (c) =>
-            `${c.lat.toFixed(5)}|${c.lng.toFixed(5)}|${c.case_count}|${c.kinds_homicide}|${c.kinds_missing}|${c.kinds_doe}`,
+            `${c.lat.toFixed(5)}|${c.lng.toFixed(5)}|${c.case_count}|${c.kinds_homicide}|${c.kinds_missing}|${c.kinds_doe}|${c.locale_label ?? ''}`,
         )
         .sort()
         .join(','),
@@ -357,8 +362,8 @@ export function LeafletMap({
         onMarkerOpen?.(msg.id);
       } else if (msg.type === 'centroid') {
         // Centroid badge tap — light haptic same as marker tap, fire
-        // optional onCentroidPress. PR 2 callers may pass a no-op;
-        // PR 3 wires this to a list-of-cases sheet keyed on (lat, lng).
+        // optional onCentroidPress. Callers can pass a no-op; the
+        // tap-drill side-list (cases at this coord) is a follow-up PR.
         Haptics.selectionAsync().catch(() => {});
         onCentroidPress?.({
           lat: msg.lat,
@@ -367,6 +372,7 @@ export function LeafletMap({
           kinds_homicide: msg.kinds_homicide,
           kinds_missing: msg.kinds_missing,
           kinds_doe: msg.kinds_doe,
+          locale_label: msg.locale_label ?? null,
         });
       } else if (msg.type === 'region') {
         // Capture center+zoom for the next mount's initial position so
@@ -541,6 +547,39 @@ function buildLeafletHtml(
     .cf-centroid--doe-heavy {
       border-color: ${tokens.color.pin.doe};
       background: rgba(213, 205, 184, 0.18);
+    }
+    /* Centroid wrapper — disc on top, optional locale label hanging
+       underneath. The wrapper itself has no visual; the iconAnchor is
+       set to the disc's center so the disc sits on the lat/lng and the
+       label is decorative context attached below. */
+    .cf-centroid-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+    .cf-centroid-wrap .cf-centroid {
+      pointer-events: auto;
+    }
+    /* Locale label ("Belen, NM" etc.) — small mono text under the disc
+       with a soft pill background so it stays legible against the
+       dimmed OSM tiles. The label is purely contextual; tap target is
+       the disc itself, not the label. */
+    .cf-centroid-label {
+      margin-top: 2px;
+      padding: 1px 5px;
+      font-family: 'JetBrainsMono', 'Menlo', monospace;
+      font-weight: 500;
+      font-size: 9px;
+      letter-spacing: 0.04em;
+      color: ${tokens.color.cluster.text};
+      background: rgba(10, 10, 10, 0.55);
+      border-radius: 3px;
+      max-width: 120px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
     }
     /* "You are here" — solid blue dot, no concentric rings (those collide
        with the open-ring Doe pin grammar). The halo is a separate element
@@ -1110,26 +1149,46 @@ function buildLeafletHtml(
       }
 
       function buildCentroid(c) {
-        // Size scales with log2(case_count): 21 cases → ~28px, 100 → ~40px,
-        // 500 → ~52px. Clamped at 28-60 so a tiny centroid is still a
-        // legible disc and a huge one doesn't dominate the viewport.
+        // Size scales with log2(case_count). Clamped 28-60 so a tiny
+        // pair (count=2) is still a legible disc and a huge centroid
+        // doesn't dominate the viewport.
+        //
+        // Post-migration-35 rebuild: badges now appear for ANY shared
+        // coord (count ≥ 2), not just >20-share pile-ups. Smaller
+        // counts get smaller discs — keeps the visual density manageable
+        // when many cities have only a handful of shared cases.
         var n = Math.max(2, c.case_count);
         var size = Math.max(28, Math.min(60, Math.round(28 + Math.log(n) / Math.log(2) * 6)));
-        // Font size tracks the disc — 11px at 28, 13px at 60.
-        var font = Math.max(11, Math.round(size * 0.22));
+        var countFont = Math.max(11, Math.round(size * 0.22));
         var dom = dominantKind(c);
         var modClass = dom ? ' cf-centroid--' + dom + '-heavy' : '';
-        var html =
+        var label = c.locale_label || '';
+        // Total icon height: disc + (small label gap + label line) when label present.
+        // The label sits OUTSIDE the disc, attached underneath. Anchor stays at the
+        // disc center so the disc itself sits on the lat/lng — the label hangs
+        // from there as decorative context, not the marker's actual position.
+        var labelPad = 2;
+        var labelHeight = label ? 12 : 0;
+        var totalHeight = size + labelHeight + (label ? labelPad : 0);
+        var inner =
           '<div class="cf-centroid' + modClass + '"' +
-          ' style="width:' + size + 'px;height:' + size + 'px;font-size:' + font + 'px;">' +
+          ' style="width:' + size + 'px;height:' + size + 'px;font-size:' + countFont + 'px;">' +
           c.case_count +
+          '</div>';
+        if (label) {
+          inner +=
+            '<div class="cf-centroid-label">' + escapeHtml(label) + '</div>';
+        }
+        var html =
+          '<div class="cf-centroid-wrap" style="width:' + size + 'px;height:' + totalHeight + 'px;">' +
+          inner +
           '</div>';
         var icon = L.divIcon({
           // Empty className avoids leaflet's default "leaflet-div-icon"
           // which adds its own white background.
           className: '',
           html: html,
-          iconSize: [size, size],
+          iconSize: [size, totalHeight],
           iconAnchor: [size / 2, size / 2],
         });
         var marker = L.marker([c.lat, c.lng], {
@@ -1146,6 +1205,7 @@ function buildLeafletHtml(
             kinds_homicide: c.kinds_homicide || 0,
             kinds_missing: c.kinds_missing || 0,
             kinds_doe: c.kinds_doe || 0,
+            locale_label: c.locale_label || null,
           });
         });
         return marker;
