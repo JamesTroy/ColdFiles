@@ -8,6 +8,7 @@ import { charleyProject } from './charley.ts';
 import { doeNetwork } from './doe_network.ts';
 import { doeNetworkUid } from './doe_network_uid.ts';
 import { fbiWanted } from './fbi_wanted.ts';
+import { mtMmpd } from './mt_mmpd.ts';
 import { namusUp } from './namus.ts';
 import { nmDps } from './nm_dps.ts';
 import { nysDcjs } from './ny_dcjs.ts';
@@ -19,6 +20,7 @@ export const SOURCES: SourceConfig[] = [
   doeNetwork,
   doeNetworkUid,
   fbiWanted,
+  mtMmpd,
   namusUp,
   nmDps,
   nysDcjs,
