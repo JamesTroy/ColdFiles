@@ -7,8 +7,8 @@
 #
 # Runtime budget per run is the GitHub-hosted runner's 6-hour hard cap.
 # `timeout-minutes: 350` enforces an 8-minute safety margin under the
-# cap so the runner can shut down cleanly. Two sources fit a full run
-# inside this budget; two need a per-run --limit and accumulate
+# cap so the runner can shut down cleanly. Three sources fit a full run
+# inside this budget; the rest need a per-run --limit and accumulate
 # coverage across multiple cron firings (the dedupe key on
 # source_external_id makes re-scrapes idempotent — landing the same
 # row twice is a no-op merge, so partial passes are safe). Coverage
@@ -24,6 +24,12 @@
 #                       → --limit=3000 per monthly run; full corpus
 #                         in ~5-6 months via overlap accumulation
 #   project_cold_case:  rate=5000ms × ~376 URLs ≈ 31min → fits, no --limit
+#   nys_dcjs:           rate=1000ms × ~177 URLs ≈ 3min → fits, no --limit
+#   ca_mups:            rate=10000ms × ~3104 URLs ≈ 8.6h full
+#                       → --limit=1800 per weekly run; full corpus
+#                         in ~2 weeks via overlap accumulation
+#   nm_dps:             rate=2000ms × ~933 URLs ≈ 31min → fits, no --limit
+#   mt_mmpd:            rate=10000ms × ~165 URLs ≈ 28min → fits, no --limit
 #
 # When a long source needs faster coverage, the path forward is either
 # a self-hosted runner (no GitHub timeout) or adding a cursor to the
@@ -53,6 +59,14 @@ on:
     - cron: '0 9 1 * *'
     # Project: Cold Case — 5th of each month, 09:00 UTC (monthly)
     - cron: '0 9 5 * *'
+    # NY DCJS — daily at 05:00 UTC (matches sources/ny_dcjs.ts scheduleCron)
+    - cron: '0 5 * * *'
+    # CA MUPS — Saturday at 02:00 UTC (matches sources/ca_mups.ts scheduleCron)
+    - cron: '0 2 * * 6'
+    # NM DPS — Monday at 06:00 UTC (matches sources/nm_dps.ts scheduleCron)
+    - cron: '0 6 * * 1'
+    # MT DOJ MMPD — Sunday at 06:00 UTC (matches sources/mt_mmpd.ts scheduleCron)
+    - cron: '0 6 * * 0'
 
   workflow_dispatch:
     inputs:
@@ -65,6 +79,10 @@ on:
           - doe_network_uid
           - charley_project
           - project_cold_case
+          - nys_dcjs
+          - ca_mups
+          - nm_dps
+          - mt_mmpd
       limit:
         description: 'Detail-URL cap (blank = use the per-source default below; 0 = no limit)'
         required: false
@@ -107,6 +125,10 @@ jobs:
               "0 4 15 */3 *") SOURCE=doe_network_uid ;;
               "0 9 1 * *")    SOURCE=charley_project ;;
               "0 9 5 * *")    SOURCE=project_cold_case ;;
+              "0 5 * * *")    SOURCE=nys_dcjs ;;
+              "0 2 * * 6")    SOURCE=ca_mups ;;
+              "0 6 * * 1")    SOURCE=nm_dps ;;
+              "0 6 * * 0")    SOURCE=mt_mmpd ;;
               *) echo "Unknown cron schedule: $EVENT_SCHEDULE" >&2; exit 2 ;;
             esac
           fi
@@ -118,6 +140,10 @@ jobs:
             doe_network_uid)    DEFAULT_LIMIT=5000 ;;
             charley_project)    DEFAULT_LIMIT=3000 ;;
             project_cold_case)  DEFAULT_LIMIT=  ;;  # no cap
+            nys_dcjs)           DEFAULT_LIMIT=  ;;  # no cap (~3min full)
+            ca_mups)            DEFAULT_LIMIT=1800 ;;  # 8.6h corpus across ~2 weekly runs
+            nm_dps)             DEFAULT_LIMIT=  ;;  # no cap (~31min full)
+            mt_mmpd)            DEFAULT_LIMIT=  ;;  # no cap (~28min full)
           esac
 
           if [ -n "${DISPATCH_LIMIT:-}" ]; then
