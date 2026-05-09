@@ -66,6 +66,25 @@ export interface CaseRowMapBbox {
   location_city: string | null;
   /** 2-letter US state code. Drives kindLine's place segment. */
   location_state: string | null;
+  /**
+   * Geocoder precision tier. Added to cases_in_bbox by migration 34
+   * for the centroid-badge renderer's worst-precision-wins routing:
+   * a coincident-coord cluster with all-address precision stays as
+   * ring-jittered pins (genuine co-location), anything ≤ city-level
+   * routes to a centroid badge (no spatial claim).
+   *
+   * Optional on the type because rows from older RPCs that don't
+   * return it still typecheck — PostgREST omits unset fields. NULL
+   * is theoretically possible (column is nullable upstream); the
+   * audit at migration 31 showed point_without_precision = 0, so
+   * the renderer should rarely see it. Renderers normalize undefined
+   * | null → 'unknown' before ranking.
+   *
+   * 'state' is filtered out server-side by cases_in_bbox and never
+   * reaches the renderer, so it's intentionally absent from the
+   * type union.
+   */
+  location_precision?: 'address' | 'street' | 'city' | 'county' | 'unknown' | null;
   /** WGS84 latitude. */
   lat: number | null;
   /** WGS84 longitude. */
@@ -121,6 +140,24 @@ export interface CaseCentroidRow {
   kinds_missing: number;
   /** Subset of case_count where kind in ('unidentified','unclaimed'). */
   kinds_doe: number;
+  /**
+   * Coarsest precision among the cases at this centroid. Added to
+   * cases_centroids_in_bbox by migration 34. "Floor" not "max" — a
+   * cluster mixing address + city precisions reads as 'city' (the
+   * floor), not 'address' (the majority). Mislabeling would be the
+   * same lie ring-jitter was making, just at a different layer.
+   *
+   * Powers the badge label ("12 cases logged to Belen, NM, city-
+   * level"). Renderer also uses it for routing: a centroid with
+   * precision_floor='address' or 'street' is a real address pile-up
+   * (rare — apartment building, jail, etc.) and routes back to ring
+   * jitter; coarser values stay as a badge.
+   *
+   * Optional on the type because rows from older RPCs that don't
+   * return it still typecheck. NULL maps to 'unknown' at the
+   * renderer. ('state' is filtered server-side and never appears.)
+   */
+  precision_floor?: 'address' | 'street' | 'city' | 'county' | 'unknown' | null;
 }
 
 /**
