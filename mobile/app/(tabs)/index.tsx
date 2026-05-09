@@ -256,13 +256,24 @@ export default function MapScreen() {
     limit: 6000,
   });
 
-  // Centroid badges — the >20-share aggregation that cases_in_bbox
-  // excludes via dense_points. Pairs with casesAll to form the full
-  // map: individual pins for unique coordinates, centroid badges for
-  // city-centroid pile-ups. See feedback_low_pin_count_is_dense_
-  // points_filter memory for the full diagnostic context.
+  // Centroid badges — every coincident-coord aggregation that
+  // cases_in_bbox excludes via the >1-share dense_points filter
+  // (migration 35). Pairs with casesAll to form the full map:
+  // individual pins for unique coordinates, centroid badges for
+  // every shared coord (≥2 cases). See feedback_low_pin_count_is_
+  // dense_points_filter memory for diagnostic context.
+  //
+  // Limit set well above the active centroid count so a continental-
+  // zoom bbox returns every centroid, never silently clipping smaller
+  // cities off the bottom of ORDER BY case_count DESC. As of 2026-05-09
+  // the corpus has ~844 unique coincident-coord groups; 6,000 headroom
+  // covers many scrape cycles. Without this explicit pass, the hook's
+  // default of 500 was clipping ~344 small-city centroids and they
+  // silently disappeared from the map — symptom: "cases removed from
+  // some parts of the map," scattered across less-populated regions.
   const { data: centroids } = useCentroidsInBbox({
     bounds: fetchBounds,
+    limit: 6000,
   });
 
   // Headline corpus-size stat for the bottom-sheet header. Cached at

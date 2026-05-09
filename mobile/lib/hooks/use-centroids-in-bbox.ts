@@ -33,8 +33,13 @@ interface UseCentroidsInBboxOptions {
   status?: CaseStatus[] | null;
   /** Threshold for centroid eligibility — RPC default is 20. */
   threshold?: number;
-  /** Max number of centroids returned. RPC default is 500; the
-   *  realistic count for a continental US bbox is well under 100. */
+  /** Max number of centroids returned. RPC default is 500. As of
+   *  migration 35 (threshold dropped to 1, every coincident coord
+   *  aggregates) there are ~844 centroid groups in the live corpus,
+   *  so callers rendering the full map should pass a value above
+   *  that — see app/(tabs)/index.tsx for the headroom explanation.
+   *  Hook default kept at 500 for ad-hoc / future callers; the
+   *  screen overrides explicitly. */
   limit?: number;
 }
 
