@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/cf/empty-state';
 import { ErrorState } from '@/components/cf/error-state';
-import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
+import { LeafletMap, type LeafletCentroid, type LeafletMarker } from '@/components/cf/leaflet-map';
 import {
   MapBottomSheet,
   type MapBottomSheetHandle,
@@ -44,6 +44,7 @@ import { tokens } from '@/constants/theme';
 import { alphaToDays } from '@/lib/format';
 import { useCaseCount } from '@/lib/hooks/use-case-count';
 import { useCasesInBbox, type CaseBounds } from '@/lib/hooks/use-cases-in-bbox';
+import { useCentroidsInBbox } from '@/lib/hooks/use-centroids-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
 import { useWatchZones } from '@/lib/hooks/use-watch-zones';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
@@ -242,7 +243,26 @@ export default function MapScreen() {
     // individual rows at high zoom — instead of shipping the entire
     // corpus to the client and clustering there. Queue once corpus
     // growth makes the per-call payload meaningful (~10k+).
+    //
+    // Partial fix shipped via migration 33: the cases_centroids_in_bbox
+    // companion RPC now handles the dense_points subset (>20-share
+    // city centroids that cases_in_bbox excludes). Those land in this
+    // screen as `centroids` via useCentroidsInBbox below, rendered as
+    // aggregated badges instead of individual pins. The 6000 limit
+    // here only governs the OTHER half — unique-or-low-density
+    // coordinates that still ship as individual rows. Continental
+    // bbox traffic dropped substantially since the dense pile-ups
+    // moved off this RPC's payload.
     limit: 6000,
+  });
+
+  // Centroid badges — the >20-share aggregation that cases_in_bbox
+  // excludes via dense_points. Pairs with casesAll to form the full
+  // map: individual pins for unique coordinates, centroid badges for
+  // city-centroid pile-ups. See feedback_low_pin_count_is_dense_
+  // points_filter memory for the full diagnostic context.
+  const { data: centroids } = useCentroidsInBbox({
+    bounds: fetchBounds,
   });
 
   // Headline corpus-size stat for the bottom-sheet header. Cached at
@@ -268,6 +288,26 @@ export default function MapScreen() {
     if (!allowed) return casesAll;
     return casesAll.filter((c) => allowed.includes(c.kind));
   }, [casesAll, filter]);
+
+  // Centroid filtering — when the user selects a kind chip, recompute
+  // each centroid's case_count from the per-kind breakdown columns
+  // and drop centroids whose filtered count is zero. Kept client-side
+  // for the same reason useCasesInBbox is: filter chips toggle without
+  // refetching, the breakdown is small, the math is cheap.
+  const filteredCentroids = useMemo(() => {
+    if (filter === 'all') return centroids;
+    return centroids
+      .map((c) => {
+        const filteredCount =
+          filter === 'homicide'
+            ? c.kinds_homicide
+            : filter === 'missing'
+              ? c.kinds_missing
+              : c.kinds_doe;
+        return filteredCount > 0 ? { ...c, case_count: filteredCount } : null;
+      })
+      .filter((c): c is typeof centroids[number] => c !== null);
+  }, [centroids, filter]);
 
   const allCount = casesAll.length;
 
@@ -414,6 +454,7 @@ export default function MapScreen() {
         ) : (
           <LeafletRenderer
             cases={cases}
+            centroids={filteredCentroids}
             selectedSlug={selectedSlug}
             onMarkerPress={handleMarkerPress}
             onMarkerOpen={(slug) => router.push({ pathname: '/case/[slug]', params: { slug } })}
@@ -569,6 +610,7 @@ function NativeRenderer({
 
 function LeafletRenderer({
   cases,
+  centroids,
   selectedSlug,
   onMarkerPress,
   onMarkerOpen,
@@ -578,6 +620,7 @@ function LeafletRenderer({
   onRegionChange,
 }: {
   cases: CaseRowMapBbox[];
+  centroids: LeafletCentroid[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
   onMarkerOpen?: (id: string) => void;
@@ -697,6 +740,7 @@ function LeafletRenderer({
         zoomLevel: tokens.map.defaultCenter.zoomLevel,
       }}
       markers={markers}
+      centroids={centroids}
       here={{ lat: here.lat, lng: here.lng, fresh: here.fresh }}
       zones={zones}
       zonesVisible={zonesVisible}
