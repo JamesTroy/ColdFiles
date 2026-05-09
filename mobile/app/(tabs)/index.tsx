@@ -26,13 +26,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  CentroidCasesSheet,
-  type CentroidContext,
-} from '@/components/cf/centroid-cases-sheet';
 import { EmptyState } from '@/components/cf/empty-state';
 import { ErrorState } from '@/components/cf/error-state';
-import { LeafletMap, type LeafletCentroid, type LeafletMarker } from '@/components/cf/leaflet-map';
+import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
 import {
   MapBottomSheet,
   type MapBottomSheetHandle,
@@ -48,7 +44,6 @@ import { tokens } from '@/constants/theme';
 import { alphaToDays } from '@/lib/format';
 import { useCaseCount } from '@/lib/hooks/use-case-count';
 import { useCasesInBbox, type CaseBounds } from '@/lib/hooks/use-cases-in-bbox';
-import { useCentroidsInBbox } from '@/lib/hooks/use-centroids-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
 import { useWatchZones } from '@/lib/hooks/use-watch-zones';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
@@ -157,23 +152,6 @@ export default function MapScreen() {
     setSelectedSlug(id);
   }, []);
 
-  // Centroid badge tap-drill state. When the user taps a centroid badge
-  // (e.g. the "211" at the LA city centroid), set this to the badge's
-  // metadata; CentroidCasesSheet renders a stacked side-list of the
-  // cases sharing that exact lat/lng. null = no drill open.
-  const [openCentroid, setOpenCentroid] = useState<CentroidContext | null>(
-    null,
-  );
-  const handleCentroidPress = useCallback((c: LeafletCentroid) => {
-    setOpenCentroid({
-      lat: c.lat,
-      lng: c.lng,
-      label: c.locale_label ?? null,
-      count: c.case_count,
-    });
-  }, []);
-  const handleCentroidClose = useCallback(() => setOpenCentroid(null), []);
-
   // Stepwise recency_alpha → days, mirroring use across the list tab.
   const daysFor = useCallback((c: CaseRowMapBbox) => {
     return alphaToDays(c.recency_alpha) ?? SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? 999;
@@ -259,41 +237,11 @@ export default function MapScreen() {
     // path index-walked, so RPC time scales with limit not with
     // corpus size.
     //
-    // Long-term: this is a stopgap. The proper answer is server-
-    // side aggregation — return cluster centroids at low zoom,
-    // individual rows at high zoom — instead of shipping the entire
-    // corpus to the client and clustering there. Queue once corpus
-    // growth makes the per-call payload meaningful (~10k+).
-    //
-    // Partial fix shipped via migration 33: the cases_centroids_in_bbox
-    // companion RPC now handles the dense_points subset (>20-share
-    // city centroids that cases_in_bbox excludes). Those land in this
-    // screen as `centroids` via useCentroidsInBbox below, rendered as
-    // aggregated badges instead of individual pins. The 6000 limit
-    // here only governs the OTHER half — unique-or-low-density
-    // coordinates that still ship as individual rows. Continental
-    // bbox traffic dropped substantially since the dense pile-ups
-    // moved off this RPC's payload.
-    limit: 6000,
-  });
-
-  // Centroid badges — every coincident-coord aggregation that
-  // cases_in_bbox excludes via the >1-share dense_points filter
-  // (migration 35). Pairs with casesAll to form the full map:
-  // individual pins for unique coordinates, centroid badges for
-  // every shared coord (≥2 cases). See feedback_low_pin_count_is_
-  // dense_points_filter memory for diagnostic context.
-  //
-  // Limit set well above the active centroid count so a continental-
-  // zoom bbox returns every centroid, never silently clipping smaller
-  // cities off the bottom of ORDER BY case_count DESC. As of 2026-05-09
-  // the corpus has ~844 unique coincident-coord groups; 6,000 headroom
-  // covers many scrape cycles. Without this explicit pass, the hook's
-  // default of 500 was clipping ~344 small-city centroids and they
-  // silently disappeared from the map — symptom: "cases removed from
-  // some parts of the map," scattered across less-populated regions.
-  const { data: centroids } = useCentroidsInBbox({
-    bounds: fetchBounds,
+    // Post-migration-39: cases_in_bbox returns ALL cases in the bbox
+    // (no dense_points filter). Coincident-coord cases stack at the
+    // shared lat/lng and markercluster groups them visually at low
+    // zoom. The earlier centroid-badge layer was retired — see the
+    // migration 39 header comment for the editorial rationale.
     limit: 6000,
   });
 
@@ -320,26 +268,6 @@ export default function MapScreen() {
     if (!allowed) return casesAll;
     return casesAll.filter((c) => allowed.includes(c.kind));
   }, [casesAll, filter]);
-
-  // Centroid filtering — when the user selects a kind chip, recompute
-  // each centroid's case_count from the per-kind breakdown columns
-  // and drop centroids whose filtered count is zero. Kept client-side
-  // for the same reason useCasesInBbox is: filter chips toggle without
-  // refetching, the breakdown is small, the math is cheap.
-  const filteredCentroids = useMemo(() => {
-    if (filter === 'all') return centroids;
-    return centroids
-      .map((c) => {
-        const filteredCount =
-          filter === 'homicide'
-            ? c.kinds_homicide
-            : filter === 'missing'
-              ? c.kinds_missing
-              : c.kinds_doe;
-        return filteredCount > 0 ? { ...c, case_count: filteredCount } : null;
-      })
-      .filter((c): c is typeof centroids[number] => c !== null);
-  }, [centroids, filter]);
 
   // If the previously-selected pin disappears from the filtered set (e.g.
   // user toggled away from "all"), drop the selection so the sheet header
@@ -484,11 +412,9 @@ export default function MapScreen() {
         ) : (
           <LeafletRenderer
             cases={cases}
-            centroids={filteredCentroids}
             selectedSlug={selectedSlug}
             onMarkerPress={handleMarkerPress}
             onMarkerOpen={(slug) => router.push({ pathname: '/case/[slug]', params: { slug } })}
-            onCentroidPress={handleCentroidPress}
             here={here}
             zones={zoneOverlays}
             zonesVisible={zonesVisible}
@@ -585,17 +511,6 @@ export default function MapScreen() {
         watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
       />
 
-      {/* Centroid tap-drill — stacks above the persistent MapBottomSheet
-          when the user taps a centroid badge. Conditional render (rather
-          than always-mounted with index=-1) avoids gorhom's hidden-sheet
-          gesture conflicts with the underlying MapBottomSheet. */}
-      {openCentroid ? (
-        <CentroidCasesSheet
-          centroid={openCentroid}
-          filterKinds={KIND_FILTER_TO_RPC[filter]}
-          onClose={handleCentroidClose}
-        />
-      ) : null}
     </View>
   );
 }
@@ -653,22 +568,18 @@ function NativeRenderer({
 
 function LeafletRenderer({
   cases,
-  centroids,
   selectedSlug,
   onMarkerPress,
   onMarkerOpen,
-  onCentroidPress,
   here,
   zones,
   zonesVisible,
   onRegionChange,
 }: {
   cases: CaseRowMapBbox[];
-  centroids: LeafletCentroid[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
   onMarkerOpen?: (id: string) => void;
-  onCentroidPress?: (centroid: LeafletCentroid) => void;
   here: { lat: number; lng: number; fresh: boolean };
   zones: { id: string; geojson: { type: 'Polygon'; coordinates: [number, number][][] }; label: string | null }[];
   zonesVisible: boolean;
@@ -681,13 +592,13 @@ function LeafletRenderer({
   //   markers     — cheap pass: maps over baseMarkers and stamps `selected`.
   //                 Re-runs on `selectedSlug` change.
   //
-  // Post-migration-35 rebuild: the data layer guarantees that every row
-  // returned by cases_in_bbox has a non-shared coordinate (any coincident
-  // coord is moved to cases_centroids_in_bbox as an aggregate). The
-  // renderer therefore has nothing to disambiguate — no group
-  // computation, no jitter, no precision-rank routing. The whole
-  // editorial responsibility for "this point lies about position"
-  // sits server-side now.
+  // Post-migration-39: cases_in_bbox returns every case in the bbox,
+  // including coincident-coord cases. They stack at the shared lat/lng
+  // and markercluster's clusterIconFor handles the visual aggregation
+  // at low zoom (the standard amber ringed-circle look the rest of the
+  // app uses). No client-side jitter, no precision-rank routing — the
+  // editorial responsibility for handling "many cases here" sits with
+  // markercluster's spatial-clustering behavior.
   const baseMarkers = useMemo(() => {
     return cases
       .filter((c) => c.lat != null && c.lng != null)
@@ -744,13 +655,11 @@ function LeafletRenderer({
         zoomLevel: tokens.map.defaultCenter.zoomLevel,
       }}
       markers={markers}
-      centroids={centroids}
       here={{ lat: here.lat, lng: here.lng, fresh: here.fresh }}
       zones={zones}
       zonesVisible={zonesVisible}
       onMarkerPress={onMarkerPress}
       onMarkerOpen={onMarkerOpen}
-      onCentroidPress={onCentroidPress}
       onRegionChange={onRegionChange}
     />
   );
