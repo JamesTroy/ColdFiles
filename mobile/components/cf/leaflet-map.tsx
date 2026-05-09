@@ -59,6 +59,22 @@ export interface LeafletZoneOverlay {
   label?: string | null;
 }
 
+/**
+ * Aggregated centroid badge — rendered when >threshold cases share a
+ * lat/lng (city-centroid pile-ups, etc.). Sourced from the
+ * cases_centroids_in_bbox RPC (migration 33). Carries per-kind counts
+ * so the badge can tint toward the dominant kind when one is >60% of
+ * the total; mixed cases render as neutral amber.
+ */
+export interface LeafletCentroid {
+  lat: number;
+  lng: number;
+  case_count: number;
+  kinds_homicide: number;
+  kinds_missing: number;
+  kinds_doe: number;
+}
+
 interface LeafletMapProps {
   center: { lat: number; lng: number; zoomLevel?: number };
   markers: LeafletMarker[];
@@ -79,6 +95,19 @@ interface LeafletMapProps {
   zones?: LeafletZoneOverlay[];
   /** Defaults to true. Tied to the layer-stack Z toggle. */
   zonesVisible?: boolean;
+  /**
+   * Aggregated centroid badges for coordinate pile-ups (>20 cases sharing
+   * one lat/lng). Rendered above the marker-cluster layer; full rebuild
+   * on every change (no spiderfy / selection state to preserve, count is
+   * small — typically <50 per continental viewport).
+   */
+  centroids?: LeafletCentroid[];
+  /**
+   * Fired when the user taps a centroid badge. PR 2 ships with no rich
+   * drill-in — pass a no-op or omit. PR 3 wires this to a list-of-cases
+   * sheet keyed on (lat, lng).
+   */
+  onCentroidPress?: (centroid: LeafletCentroid) => void;
   /** Fired when the user taps a marker — selects it without opening detail. */
   onMarkerPress?: (id: string) => void;
   /**
@@ -109,6 +138,8 @@ export function LeafletMap({
   here,
   zones = [],
   zonesVisible = true,
+  centroids = [],
+  onCentroidPress,
   onMarkerPress,
   onMarkerOpen,
   onRegionChange,
@@ -210,6 +241,36 @@ export function LeafletMap({
     `);
   }, [ready, zonesJson, zonesVisible]);
 
+  // Centroid channel — fires when the centroid set changes (bbox shift,
+  // refetch). Full-rebuild on each push: clearLayers + add. Cheap because
+  // centroid counts are small (typically <50 per continental viewport)
+  // and they carry no spiderfy/selection state to preserve, so the
+  // markercluster-incremental-diff dance from __cf_setMarkers isn't
+  // needed here. centroidsKey is a stable identity — guards against
+  // re-pushing on incidental order changes from the RPC's ORDER BY.
+  const centroidsKey = useMemo(
+    () =>
+      centroids
+        .map(
+          (c) =>
+            `${c.lat.toFixed(5)}|${c.lng.toFixed(5)}|${c.case_count}|${c.kinds_homicide}|${c.kinds_missing}|${c.kinds_doe}`,
+        )
+        .sort()
+        .join(','),
+    [centroids],
+  );
+  const centroidsJson = useMemo(() => JSON.stringify(centroids), [centroids]);
+  useEffect(() => {
+    if (!ready) return;
+    webRef.current?.injectJavaScript(`
+      try {
+        window.__cf_setCentroids && window.__cf_setCentroids(${centroidsJson});
+      } catch (e) {}
+      true;
+    `);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, centroidsKey]);
+
   // Auto-pan the map to the user once we have a real location fix.
   //
   // Three pan triggers:
@@ -294,6 +355,19 @@ export function LeafletMap({
         // fire onMarkerOpen so the parent can route to /case/[slug].
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onMarkerOpen?.(msg.id);
+      } else if (msg.type === 'centroid') {
+        // Centroid badge tap — light haptic same as marker tap, fire
+        // optional onCentroidPress. PR 2 callers may pass a no-op;
+        // PR 3 wires this to a list-of-cases sheet keyed on (lat, lng).
+        Haptics.selectionAsync().catch(() => {});
+        onCentroidPress?.({
+          lat: msg.lat,
+          lng: msg.lng,
+          case_count: msg.case_count,
+          kinds_homicide: msg.kinds_homicide,
+          kinds_missing: msg.kinds_missing,
+          kinds_doe: msg.kinds_doe,
+        });
       } else if (msg.type === 'region') {
         // Capture center+zoom for the next mount's initial position so
         // navigating away and back doesn't snap the map to user-location.
@@ -432,6 +506,41 @@ function buildLeafletHtml(
       0%   { transform: scale(1); }
       35%  { transform: scale(0.82); }
       100% { transform: scale(1); }
+    }
+    /* Centroid badge — translucent disc with a count, rendered for
+       coordinates where >20 cases share a lat/lng (city-centroid
+       pile-ups). Dashed ring vs cluster's solid ring is the visual
+       cue: "this is an aggregated marker, not a precise position."
+       Counts use the same mono token as the cluster icons. */
+    .cf-centroid {
+      background: ${tokens.color.cluster.fill};
+      border: 1.5px dashed ${tokens.color.cluster.ring};
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: ${tokens.color.cluster.text};
+      font-family: 'JetBrainsMono', 'Menlo', monospace;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      box-shadow: 0 0 0 0.5px rgba(10, 10, 10, 0.7), 0 1px 6px ${tokens.color.cluster.halo};
+      cursor: pointer;
+      transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .cf-centroid:active { transform: scale(0.94); }
+    /* Kind-mix tints — applied when one kind is >60% of case_count.
+       Mixed centroids fall through to the neutral cluster tokens above. */
+    .cf-centroid--homicide-heavy {
+      border-color: ${tokens.color.pin.homicide};
+      background: rgba(154, 133, 105, 0.20);
+    }
+    .cf-centroid--missing-heavy {
+      border-color: ${tokens.color.pin.missing};
+      background: rgba(197, 165, 114, 0.20);
+    }
+    .cf-centroid--doe-heavy {
+      border-color: ${tokens.color.pin.doe};
+      background: rgba(213, 205, 184, 0.18);
     }
     /* "You are here" — solid blue dot, no concentric rings (those collide
        with the open-ring Doe pin grammar). The halo is a separate element
@@ -978,6 +1087,82 @@ function buildLeafletHtml(
         });
         return marker;
       }
+
+      // Centroid layer — added AFTER markerLayer so badges stack above
+      // any individual pins that happen to land near the same coordinate.
+      // Plain L.layerGroup (not markerCluster) — centroids ARE the
+      // aggregation, no further clustering needed.
+      var centroidLayer = L.layerGroup().addTo(map);
+
+      // Pick the kind tint for a centroid: a kind is "dominant" if it
+      // accounts for >60% of case_count. Mixed centroids fall through
+      // to the neutral cluster styling.
+      function dominantKind(c) {
+        var total = c.case_count || 1;
+        var h = (c.kinds_homicide || 0) / total;
+        var m = (c.kinds_missing || 0) / total;
+        var d = (c.kinds_doe || 0) / total;
+        var max = Math.max(h, m, d);
+        if (max < 0.6) return null;
+        if (max === h) return 'homicide';
+        if (max === m) return 'missing';
+        return 'doe';
+      }
+
+      function buildCentroid(c) {
+        // Size scales with log2(case_count): 21 cases → ~28px, 100 → ~40px,
+        // 500 → ~52px. Clamped at 28-60 so a tiny centroid is still a
+        // legible disc and a huge one doesn't dominate the viewport.
+        var n = Math.max(2, c.case_count);
+        var size = Math.max(28, Math.min(60, Math.round(28 + Math.log(n) / Math.log(2) * 6)));
+        // Font size tracks the disc — 11px at 28, 13px at 60.
+        var font = Math.max(11, Math.round(size * 0.22));
+        var dom = dominantKind(c);
+        var modClass = dom ? ' cf-centroid--' + dom + '-heavy' : '';
+        var html =
+          '<div class="cf-centroid' + modClass + '"' +
+          ' style="width:' + size + 'px;height:' + size + 'px;font-size:' + font + 'px;">' +
+          c.case_count +
+          '</div>';
+        var icon = L.divIcon({
+          // Empty className avoids leaflet's default "leaflet-div-icon"
+          // which adds its own white background.
+          className: '',
+          html: html,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        });
+        var marker = L.marker([c.lat, c.lng], {
+          icon: icon,
+          keyboard: false,
+          riseOnHover: true,
+        });
+        marker.on('click', function () {
+          postMessage({
+            type: 'centroid',
+            lat: c.lat,
+            lng: c.lng,
+            case_count: c.case_count,
+            kinds_homicide: c.kinds_homicide || 0,
+            kinds_missing: c.kinds_missing || 0,
+            kinds_doe: c.kinds_doe || 0,
+          });
+        });
+        return marker;
+      }
+
+      window.__cf_setCentroids = function (list) {
+        if (!Array.isArray(list)) return;
+        // Full rebuild — centroid count is small (<50 typical) and there's
+        // no spiderfy/selection state to preserve, so the markercluster-
+        // incremental-diff complexity isn't justified here.
+        centroidLayer.clearLayers();
+        for (var i = 0; i < list.length; i++) {
+          var c = list[i];
+          if (!c || typeof c.lat !== 'number' || typeof c.lng !== 'number') continue;
+          centroidLayer.addLayer(buildCentroid(c));
+        }
+      };
 
       window.__cf_setMarkers = function (list) {
         if (!Array.isArray(list)) return;
