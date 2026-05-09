@@ -26,6 +26,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  CentroidCasesSheet,
+  type CentroidContext,
+} from '@/components/cf/centroid-cases-sheet';
 import { EmptyState } from '@/components/cf/empty-state';
 import { ErrorState } from '@/components/cf/error-state';
 import { LeafletMap, type LeafletCentroid, type LeafletMarker } from '@/components/cf/leaflet-map';
@@ -152,6 +156,23 @@ export default function MapScreen() {
   const handleMarkerPress = useCallback((id: string) => {
     setSelectedSlug(id);
   }, []);
+
+  // Centroid badge tap-drill state. When the user taps a centroid badge
+  // (e.g. the "211" at the LA city centroid), set this to the badge's
+  // metadata; CentroidCasesSheet renders a stacked side-list of the
+  // cases sharing that exact lat/lng. null = no drill open.
+  const [openCentroid, setOpenCentroid] = useState<CentroidContext | null>(
+    null,
+  );
+  const handleCentroidPress = useCallback((c: LeafletCentroid) => {
+    setOpenCentroid({
+      lat: c.lat,
+      lng: c.lng,
+      label: c.locale_label ?? null,
+      count: c.case_count,
+    });
+  }, []);
+  const handleCentroidClose = useCallback(() => setOpenCentroid(null), []);
 
   // Stepwise recency_alpha → days, mirroring use across the list tab.
   const daysFor = useCallback((c: CaseRowMapBbox) => {
@@ -467,6 +488,7 @@ export default function MapScreen() {
             selectedSlug={selectedSlug}
             onMarkerPress={handleMarkerPress}
             onMarkerOpen={(slug) => router.push({ pathname: '/case/[slug]', params: { slug } })}
+            onCentroidPress={handleCentroidPress}
             here={here}
             zones={zoneOverlays}
             zonesVisible={zonesVisible}
@@ -562,6 +584,18 @@ export default function MapScreen() {
         onWatchHere={() => router.push('/watch-zone')}
         watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
       />
+
+      {/* Centroid tap-drill — stacks above the persistent MapBottomSheet
+          when the user taps a centroid badge. Conditional render (rather
+          than always-mounted with index=-1) avoids gorhom's hidden-sheet
+          gesture conflicts with the underlying MapBottomSheet. */}
+      {openCentroid ? (
+        <CentroidCasesSheet
+          centroid={openCentroid}
+          filterKinds={KIND_FILTER_TO_RPC[filter]}
+          onClose={handleCentroidClose}
+        />
+      ) : null}
     </View>
   );
 }
@@ -623,6 +657,7 @@ function LeafletRenderer({
   selectedSlug,
   onMarkerPress,
   onMarkerOpen,
+  onCentroidPress,
   here,
   zones,
   zonesVisible,
@@ -633,6 +668,7 @@ function LeafletRenderer({
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
   onMarkerOpen?: (id: string) => void;
+  onCentroidPress?: (centroid: LeafletCentroid) => void;
   here: { lat: number; lng: number; fresh: boolean };
   zones: { id: string; geojson: { type: 'Polygon'; coordinates: [number, number][][] }; label: string | null }[];
   zonesVisible: boolean;
@@ -714,6 +750,7 @@ function LeafletRenderer({
       zonesVisible={zonesVisible}
       onMarkerPress={onMarkerPress}
       onMarkerOpen={onMarkerOpen}
+      onCentroidPress={onCentroidPress}
       onRegionChange={onRegionChange}
     />
   );
