@@ -144,20 +144,35 @@ export interface CaseCentroidRow {
    * Coarsest precision among the cases at this centroid. Added to
    * cases_centroids_in_bbox by migration 34. "Floor" not "max" — a
    * cluster mixing address + city precisions reads as 'city' (the
-   * floor), not 'address' (the majority). Mislabeling would be the
-   * same lie ring-jitter was making, just at a different layer.
+   * floor), not 'address' (the majority).
    *
-   * Powers the badge label ("12 cases logged to Belen, NM, city-
-   * level"). Renderer also uses it for routing: a centroid with
-   * precision_floor='address' or 'street' is a real address pile-up
-   * (rare — apartment building, jail, etc.) and routes back to ring
-   * jitter; coarser values stay as a badge.
+   * Powers the badge label suffix (e.g., "Belen, NM · city-level").
+   * Post-migration-35 rebuild: precision_floor is informational only —
+   * it's NOT used for routing (routing is shape-based: any aggregate
+   * row is a badge, any pin row is a pin). Earlier "client routes by
+   * worst precision" logic was the layered approach the rebuild
+   * replaced.
    *
    * Optional on the type because rows from older RPCs that don't
    * return it still typecheck. NULL maps to 'unknown' at the
    * renderer. ('state' is filtered server-side and never appears.)
    */
   precision_floor?: 'address' | 'street' | 'city' | 'county' | 'unknown' | null;
+  /**
+   * Server-built "City, ST" label for the centroid. Added to
+   * cases_centroids_in_bbox by migration 35. Resolved when the cases
+   * at the centroid all share a single city + state (the typical
+   * city-centroid pile-up). Falls back to "ST" alone when cases share
+   * a state but city varies (rare — e.g., county centroid spanning
+   * cities). NULL when neither resolves cleanly.
+   *
+   * Renderer prints this under the count on the badge. NULL → badge
+   * shows count only.
+   *
+   * Optional on the type because rows from pre-migration-35 RPCs
+   * don't return it; PostgREST omits unset fields.
+   */
+  locale_label?: string | null;
 }
 
 /**
