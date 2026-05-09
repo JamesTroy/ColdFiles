@@ -309,8 +309,6 @@ export default function MapScreen() {
       .filter((c): c is typeof centroids[number] => c !== null);
   }, [centroids, filter]);
 
-  const allCount = casesAll.length;
-
   // If the previously-selected pin disappears from the filtered set (e.g.
   // user toggled away from "all"), drop the selection so the sheet header
   // doesn't render a phantom case.
@@ -379,7 +377,7 @@ export default function MapScreen() {
                 color={tokens.color.text.secondary}
                 style={{ marginTop: 4 }}
               >
-                {headerSubLabel(loading ? null : allCount)}
+                {headerSubLabel(totalCount)}
               </MonoLabel>
             </Animated.View>
           </View>
