@@ -89,6 +89,41 @@ export interface CaseRowMapBbox {
 }
 
 /**
+ * Result row from cases_centroids_in_bbox() — aggregated centroid markers
+ * for coordinate pile-ups (>20 cases sharing the same lat/lng), the
+ * complement to cases_in_bbox. Schema source: migrations/33_cases_
+ * centroids_in_bbox.sql.
+ *
+ * The renderer pairs both RPCs: cases_in_bbox draws individual pins for
+ * unique-or-low-density coordinates, cases_centroids_in_bbox draws a
+ * centroid badge (translucent disc, count, tinted by kind mix) at every
+ * coordinate where ≥21 cases share a point. Together they cover the
+ * entire renderable corpus without lying about precision — individual
+ * pins are real points, badges acknowledge "many cases logged here at
+ * city-level only."
+ *
+ * Per-kind counts drive the badge tint: homicide-heavy → warm brown,
+ * doe-heavy → cream, mixed → neutral amber. Total = case_count =
+ * kinds_homicide + kinds_missing + kinds_doe (modulo any kinds outside
+ * those three buckets, which are counted in case_count but not broken
+ * out — currently no such kinds exist, future-proofing only).
+ */
+export interface CaseCentroidRow {
+  /** WGS84 latitude of the shared centroid. */
+  lat: number;
+  /** WGS84 longitude of the shared centroid. */
+  lng: number;
+  /** Total cases at this coordinate (above threshold). */
+  case_count: number;
+  /** Subset of case_count where kind in ('homicide','suspicious_death'). */
+  kinds_homicide: number;
+  /** Subset of case_count where kind = 'missing'. */
+  kinds_missing: number;
+  /** Subset of case_count where kind in ('unidentified','unclaimed'). */
+  kinds_doe: number;
+}
+
+/**
  * Result row from cases_within_radius() — the legacy radius-based query
  * surface. Tier 4 cleanup will retire this along with use-cases-near.ts;
  * after that, CaseRowMapBbox is the only map-tier row type.
