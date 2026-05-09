@@ -62,6 +62,30 @@ const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   unidentified: ['unidentified', 'unclaimed'],
 };
 
+/**
+ * Rank table for cases.location_precision (migration 31). Lower rank =
+ * coarser. The renderer's worst-precision-wins logic uses MIN over
+ * cluster ranks: a 2+-case cluster with any member ≤ city-precision
+ * (rank ≤ 3) routes off ring-jitter — the centroid is an aggregation,
+ * not a precise position, and jittering pins around it lies twice
+ * (about position AND about there being distinct positions).
+ *
+ * 'state' is intentionally absent: cases_in_bbox filters it server-
+ * side (migration 33) and it never reaches the client. NULL/undefined
+ * precision normalizes to 'unknown' (rank 1) — defensive: when in
+ * doubt, treat as imprecise rather than risk lying about position.
+ */
+const PRECISION_RANK: Record<string, number> = {
+  address: 5,
+  street: 4,
+  city: 3,
+  county: 2,
+  unknown: 1,
+};
+function precisionRank(p: string | null | undefined): number {
+  return p && p in PRECISION_RANK ? PRECISION_RANK[p] : PRECISION_RANK.unknown;
+}
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>('all');
@@ -661,31 +685,52 @@ function LeafletRenderer({
       let lat = c.lat as number;
       let lng = c.lng as number;
       if (group && group.length > 1) {
-        const idx = group.findIndex((g) => g.slug === c.slug);
-        if (idx > 0) {
-          // Spread on a ring around the shared point. ~90m radius
-          // (0.0008°) at typical mid-latitudes — visible at zoom
-          // 14+ as separate pins (~9 screen px), invisible at low
-          // zoom. Deterministic by group index so a case always
-          // lands at the same offset across renders.
-          //
-          // Why 90m and not 330m: a previous version used 330m to
-          // escape markercluster's 30px-radius clustering at zoom
-          // 13, but that meant any two cases that happened to share
-          // 5-decimal coordinates (~1m, often after the upstream
-          // 3-decimal privacy-snap) had the second pin yanked
-          // ~330m off the true location. For genuinely-precise
-          // pairs that's a flat-out wrong location; for centroid
-          // stacks of 30+ cases at the same city-centroid coord,
-          // 330m was visual overkill anyway. At 90m, pairs that
-          // happen to share post-snap coordinates render
-          // distinguishably at street zoom but are at most ~45m
-          // off the true location. At low zoom, markercluster's
-          // "N here" badge takes over — that's a more honest
-          // signal than 660m-apart "separate" pins anyway.
-          const angle = (idx / group.length) * Math.PI * 2;
-          lat += Math.cos(angle) * 0.0008;
-          lng += Math.sin(angle) * 0.0008;
+        // Worst-precision-wins: find the coarsest precision in the
+        // cluster (lowest rank). Cluster jitters only when ALL members
+        // are address- or street-precision — genuine co-location at a
+        // precise address (apartment building, jail, shared landmark)
+        // where two pins ~90m apart is honest disambiguation.
+        //
+        // If any member is ≤ city-precision (rank ≤ 3), the centroid
+        // is an aggregation, not a real position. Skip the jitter; all
+        // cluster members keep the centroid coordinate and stack at
+        // that point. Markercluster aggregates at low zoom; at high
+        // zoom the stack collapses to a single visible pin (others
+        // hidden underneath). The wave of disappeared jitter rings is
+        // the diagnostic signal that the precision branch is firing
+        // on the right clusters. The centroid badge component (with a
+        // count and tap-drill) lands in a follow-up PR.
+        let worstRank = PRECISION_RANK.address;
+        for (const g of group) {
+          const r = precisionRank(g.location_precision);
+          if (r < worstRank) worstRank = r;
+        }
+        const allPrecise = worstRank > PRECISION_RANK.city;
+        if (allPrecise) {
+          const idx = group.findIndex((g) => g.slug === c.slug);
+          if (idx > 0) {
+            // Spread on a ring around the shared point. ~90m radius
+            // (0.0008°) at typical mid-latitudes — visible at zoom
+            // 14+ as separate pins (~9 screen px), invisible at low
+            // zoom. Deterministic by group index so a case always
+            // lands at the same offset across renders.
+            //
+            // Why 90m and not 330m: a previous version used 330m to
+            // escape markercluster's 30px-radius clustering at zoom
+            // 13, but that meant any two cases that happened to share
+            // 5-decimal coordinates (~1m, often after the upstream
+            // 3-decimal privacy-snap) had the second pin yanked
+            // ~330m off the true location. For genuinely-precise
+            // pairs that's a flat-out wrong location; for centroid
+            // stacks of 30+ cases at the same city-centroid coord,
+            // 330m was visual overkill anyway. At 90m, pairs that
+            // happen to share post-snap coordinates render
+            // distinguishably at street zoom but are at most ~45m
+            // off the true location.
+            const angle = (idx / group.length) * Math.PI * 2;
+            lat += Math.cos(angle) * 0.0008;
+            lng += Math.sin(angle) * 0.0008;
+          }
         }
       }
       // Popup preview content. Title = victim name (or "Unidentified
