@@ -385,6 +385,7 @@ async function ensureGeocode(
       .update({
         location_point: makePointWkt(snapped.lng, snapped.lat),
         location_precision: record.location_precision ?? 'address',
+        geocoding_source: 'source_native',
       })
       .eq('id', caseId);
     return;
@@ -407,6 +408,7 @@ async function ensureGeocode(
     .update({
       location_point: makePointWkt(result.lng, result.lat),
       location_precision: result.precision,
+      geocoding_source: 'mapbox',
     })
     .eq('id', caseId);
 }
