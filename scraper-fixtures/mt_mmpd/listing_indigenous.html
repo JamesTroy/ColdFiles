@@ -1,0 +1,1746 @@
+<!-- ======================================
+Missing Persons Database ADA Redev
+Version 2.0.2   Updated 02-22-25
+========================================== -->
+
+
+<!DOCTYPE html>
+
+<html lang="en">
+    <head>
+
+ 		<title>Montana Missing Persons Search Results</title>
+        <meta charset="UTF-8">
+
+   		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    	<link rel="stylesheet" href="stylesMMP.css">
+
+
+		<link rel="icon" type="image/x-icon" href="./images/MMPDDark.png">
+
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+
+    </head>
+
+
+    
+
+	<body><a href="https://app.dojmt.gov/cdn-cgi/content?id=._PR_Mjjm4Cu0qHHZsaldNcztjjM6WDvolKAb_lHr1M-1778328932.6814494-1.0.1.1-BkMNbE0eAYSxMZ_TU1cTBEOOFP4XUIoKeuDrfv0WLRg" aria-hidden="true" rel="nofollow noopener" style="display: none !important; visibility: hidden !important"></a>
+
+     <!-- Div for ALL visible content, expands to full width / full page height -->
+    <div class="fullPageWrap">
+
+
+  		<header>
+           
+            <div class="header-FlexBox">
+
+                <!-- Skip link to main content, strongly advised -->
+            <div class="skipLink-container">
+                <a href="#main" class="skipLink">Skip to Main Content</a> 
+            </div>
+
+			  <div class="header-Flex-Icon" style="width:160px">
+
+					
+					<a href="./index.php" >  
+                        <img src="./images/MMPD_cropped.png" style="margin-top:10px;margin-left:10px;" alt="Missing Persons Database Home" > 
+                    </a>
+					
+				</div>
+
+                <!-- Flex div for Title and Menu, anchored right -->
+                <div class="header-Flex-Title-Menu">
+                    <div class="header-Flex-Title-Area">
+                        <h1 class="applicationTitle scalableTitle">Montana Missing Persons Search</h1>
+						
+					<span class="subheading">Indigenous Persons</span>					
+                  
+					</div>
+                  
+                </div>
+
+                <!--Flex div for Header Icon , anchored right-->
+                <div class="header-Flex-Icon">
+
+
+					<a href="https://www.mtmissing.org/"  target="_blank">  
+							<img src="./images/MMIPNewLogo.png" style="height:150px; width:auto;"  alt="Montana Missing and Murdered Indigenous Persons Advisory Council Website" ></a>
+
+                </div>
+            </div>
+
+
+
+
+
+
+<div id="resultsInfo">
+
+				
+				<span>43 individuals match search criteria </span>
+				<span>15 missing less than a year </span>
+				<span>28 missing more than a year </span>
+				<div id="resultsOptions" role="toolbar">
+					<div style="display:inline-block">
+						<a href="./index.php" class="resultsButton">Home</a>
+						<button id="searchOptionsButton" class="resultsButton" onclick="OpenSearchOptionsWindow();" aria-expanded="false">Search Options</button>
+					</div>
+					<div style="display:inline-block">
+						<button id="sortOptionsButton" class="resultsButton" onclick="ToggleSortOptions();" aria-expanded="false">Sort Options</button>
+						<button id="reportOptionsButton" class="resultsButton" onclick="ToggleReportOptions();" aria-expanded="false">Download Results</button>
+					</div>
+					</div>
+			</div><div id="sortOptionsContainer"  style="display:none">
+
+				
+				<div class="sortControls">
+					
+						<fieldset role="radiogroup" class = "fitContent" id="sort-group">
+							<legend>
+								Sort by:
+							</legend>
+
+							<input type="radio" id="timeReported" name="sort" onclick="UpdateSortType(this);" value="timeReported" checked>
+								<label for="timeReported">Time Reported</label><br>
+
+							<input type="radio" id="timeMissing" name="sort" onclick="UpdateSortType(this);" value="timeMissing">
+								<label for="timeMissing">Time Missing</label><br>
+
+							<input  type="radio" id="ageMissing" name="sort" onclick="UpdateSortType(this);"  value="ageMissing">
+								<label for="ageMissing">Age Missing</label><br>
+
+							<input  type="radio" id="ageNow" name="sort" onclick="UpdateSortType(this);" value="ageNow">
+								<label for="ageNow">Age Now</label><br>
+
+							<input type="radio" id="nameSort" name="sort" onclick="UpdateSortType(this);" value="nameSort">
+								<label  for="nameSort">Name</label>
+
+						</fieldset>
+					
+
+					<div>
+					<fieldset role="radiogroup" class = "fitContent" id="order-group">
+						<legend>
+							Sort Order:
+						</legend>
+
+						<input type="radio" id="ascending" name="sortDirection" value="ascending" onclick="UpdateSortOrder(this);" checked>
+							<label for="ascending">Ascending</label><br>
+						<input  type="radio" id="descending" name="sortDirection" value="descending" onclick="UpdateSortOrder(this);">
+							<label  for="descending">Descending</label>
+
+						</fieldset>	
+						<br><button  onclick="ToggleSortOptions();" >Close</button>
+						</div>
+					</div> 
+
+			</div><div id="reportOptionsContainer"  style="display:none">
+
+				
+				<div class="reportControls">
+					
+						<fieldset role="radiogroup" class = "fitContent" id="report-options-group">
+							<legend>
+								Download Report Options:
+							</legend>
+
+							<input type="radio" id="withImages" name="reportOptions"  value="withImages" checked>
+								<label for="withImages">With Images</label><br>
+
+							<input type="radio" id="withoutImages" name="reportOptions"  value="withoutImages">
+								<label for="withoutImages">Without Images</label><br>
+							
+
+						</fieldset><button class="" onclick="reportPageFilter('indigenous')">Download Report</button></div>
+					
+			</div>
+
+
+			</header> <!--End Header-->
+			<main id="main" class="resultsContainer"><div id="resultsListContainer"><ul id="resultsList"><li class="personCard" data-sort="45874" data-time="1776124800" data-name="LAPLANTE, COLTE DELANE JR" data-agenow="15" data-agemissing="15">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Laplante, Colte Delane Jr</h2>
+						<p><b>Age Now: </b>15
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{}],["01\/01\/1970"],"Laplante, Colte Delane Jr","MALE","15","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","601","150","04/14/2026","Blaine County Sheriff","","45874")'
+						 aria-expanded="false" aria-label="Full details for LAPLANTE, COLTE DELANE JR">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/PhotoNotAvailable.png" class="personImage" alt="Photo for missing person not available."></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 04/14/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blaine County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45859" data-time="1775692800" data-name="ARMSTRONG, SHELDON" data-agenow="36" data-agemissing="36">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Armstrong, Sheldon</h2>
+						<p><b>Age Now: </b>36
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"182e65f12ab66cd9f4ee148d2a11144b4f0ecaf62890d79894a5fb4505131a18"}],["08\/19\/2010"],"Armstrong, Sheldon","MALE","36","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","603","185","04/09/2026","Blackfeet Law Enforcement","","45859")'
+						 aria-expanded="false" aria-label="Full details for ARMSTRONG, SHELDON">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/182e65f12ab66cd9f4ee148d2a11144b4f0ecaf62890d79894a5fb4505131a18.jpg"  class="personImage" alt="Photo of ARMSTRONG, SHELDON. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 04/09/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blackfeet Law Enforcement</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45808" data-time="1775174400" data-name="CADOTTE, RONNIE JOSEPH" data-agenow="16" data-agemissing="16">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Cadotte, Ronnie Joseph</h2>
+						<p><b>Age Now: </b>16
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"27db624f85960920414fa2224349c2ceacc12aeb26dee86c6979df36aee4bc97"}],["04\/03\/2026"],"Cadotte, Ronnie Joseph","MALE","16","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","508","124","04/03/2026","Great Falls Police Department","","45808")'
+						 aria-expanded="false" aria-label="Full details for CADOTTE, RONNIE JOSEPH">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/27db624f85960920414fa2224349c2ceacc12aeb26dee86c6979df36aee4bc97.jpg"  class="personImage" alt="Photo of CADOTTE, RONNIE JOSEPH. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 04/03/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Great Falls Police Department</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45759" data-time="1764547200" data-name="SMITH, VIRGINIA VIOLET" data-agenow="41" data-agemissing="40">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Smith, Virginia Violet</h2>
+						<p><b>Age Now: </b>41
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"b386de85b912b9661864b82cd37a874b86b353576f2c51869fee0b7b47ea4ad3"}],["01\/09\/2023"],"Smith, Virginia Violet","FEMALE","41","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","502","140","12/01/2025","Blackfeet Law Enforcement","","45759")'
+						 aria-expanded="false" aria-label="Full details for SMITH, VIRGINIA VIOLET">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/b386de85b912b9661864b82cd37a874b86b353576f2c51869fee0b7b47ea4ad3.jpg"  class="personImage" alt="Photo of SMITH, VIRGINIA VIOLET. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 12/01/2025</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blackfeet Law Enforcement</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45736" data-time="1773619200" data-name="HIWALKER, CRYSTAL" data-agenow="37" data-agemissing="37">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Hiwalker, Crystal</h2>
+						<p><b>Age Now: </b>37
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"428dfdd5146e80a88310b6bb5440fd67164e08efd1a0197dcb266f9dd617642f"}],["03\/13\/2026"],"Hiwalker, Crystal","FEMALE","37","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","501","149","03/16/2026","Northern Cheyenne Investigative Services","","45736")'
+						 aria-expanded="false" aria-label="Full details for HIWALKER, CRYSTAL">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/428dfdd5146e80a88310b6bb5440fd67164e08efd1a0197dcb266f9dd617642f.jpg"  class="personImage" alt="Photo of HIWALKER, CRYSTAL. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 03/16/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Northern Cheyenne Investigative Services</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45705" data-time="1771891200" data-name="BELCOURT, CAMERON" data-agenow="24" data-agemissing="24">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Belcourt, Cameron</h2>
+						<p><b>Age Now: </b>24
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"77ea1dabba9c8b344d2a0a13405d12fc81eadd1c3ea57e97036cfb43ac34ba0a"}],["11\/09\/2025"],"Belcourt, Cameron","MALE","24","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","510","160","02/24/2026","Chippewa Cree Law Enforcement Services","","45705")'
+						 aria-expanded="false" aria-label="Full details for BELCOURT, CAMERON">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/77ea1dabba9c8b344d2a0a13405d12fc81eadd1c3ea57e97036cfb43ac34ba0a.jpg"  class="personImage" alt="Photo of BELCOURT, CAMERON. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 02/24/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Chippewa Cree Law Enforcement Services</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45446" data-time="1731196800" data-name="KINDNESS, DAILE CLAIRE" data-agenow="54" data-agemissing="54">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Kindness, Daile Claire</h2>
+						<p><b>Age Now: </b>54
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"998044d4d2e0b0233a80a2561460341486d18b9ffd505cf745e3bd6aeba26a2f"}],["11\/30\/2023"],"Kindness, Daile Claire","FEMALE","54","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","510","220","11/10/2024","Billings Police Department","Fitzpatrick, Claire Daile; Fitzpatrick, Daile Claire; Gomez, Claire; Gomez, Daile Claire; Kindness, Aile; Kindness, Booboo; Kindness, Claire Daile; Kindness, Claire Dalie; Kindness, D Claire; Kindness, Sunshine; Kindness, Victoria; Krogh, Christi; Krogh, Lorena; Meredith, Rach; Threeirons, Victoria; X, Boo Boo","45446")'
+						 aria-expanded="false" aria-label="Full details for KINDNESS, DAILE CLAIRE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/998044d4d2e0b0233a80a2561460341486d18b9ffd505cf745e3bd6aeba26a2f.jpg"  class="personImage" alt="Photo of KINDNESS, DAILE CLAIRE. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 11/10/2024</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Billings Police Department</span><p><b>Aliases: </b>Fitzpatrick, Claire Daile; Fitzpatrick, Daile Claire; Gomez, Claire; Gomez, Daile Claire; Kindness, Aile; Kindness, Booboo; Kindness, Claire Daile; Kindness, Claire Dalie; Kindness, D Claire; Kindness, Sunshine; Kindness, Victoria; Krogh, Christi; Krogh, Lorena; Meredith, Rach; Threeirons, Victoria; X, Boo Boo</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45266" data-time="1766016000" data-name="NORUNNER, JUDITH" data-agenow="17" data-agemissing="17">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Norunner, Judith</h2>
+						<p><b>Age Now: </b>17
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"3603d56060bf5334b663e2226d5fa4fa1dd20fea3cf930e7995903bfbe75c48c"},{"0":"4747bea794ce0cdfc53686de85705b2ee9fbcdc6c53581c32f4364550944685d"}],["07\/18\/2023","11\/30\/2023"],"Norunner, Judith","FEMALE","17","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","505","125","12/18/2025","Blackfeet Law Enforcement","","45266")'
+						 aria-expanded="false" aria-label="Full details for NORUNNER, JUDITH">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/3603d56060bf5334b663e2226d5fa4fa1dd20fea3cf930e7995903bfbe75c48c.jpg"  class="personImage" alt="Photo of NORUNNER, JUDITH. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 12/18/2025</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blackfeet Law Enforcement</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="44828" data-time="1695945600" data-name="PHILLIPS, PAMELA" data-agenow="51" data-agemissing="50">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Phillips, Pamela</h2>
+						<p><b>Age Now: </b>51
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"df4953b25fec16fd6320c64ec462cf9a04b09f670f2e1a17a4a544b0d17843f6"}],["10\/01\/2025"],"Phillips, Pamela","FEMALE","51","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","506","110","09/29/2023","Confederated Salish & Kootenai Tribal Police Dept","","44828")'
+						 aria-expanded="false" aria-label="Full details for PHILLIPS, PAMELA">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/df4953b25fec16fd6320c64ec462cf9a04b09f670f2e1a17a4a544b0d17843f6.jpg"  class="personImage" alt="Photo of PHILLIPS, PAMELA. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 09/29/2023</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Confederated Salish & Kootenai Tribal Police Dept</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="43336" data-time="1735171200" data-name="OLDBULL, DANIEL JR" data-agenow="16" data-agemissing="15">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Oldbull, Daniel Jr</h2>
+						<p><b>Age Now: </b>16
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"f901795011f1c34eb25f0c51dcf358614a9c3b4a4b02b7d2201ecd5ffd09d396"}],["10\/01\/2023"],"Oldbull, Daniel Jr","MALE","16","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","601","220","12/26/2024","Billings Police Department","","43336")'
+						 aria-expanded="false" aria-label="Full details for OLDBULL, DANIEL JR">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/f901795011f1c34eb25f0c51dcf358614a9c3b4a4b02b7d2201ecd5ffd09d396.jpg"  class="personImage" alt="Photo of OLDBULL, DANIEL JR. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 12/26/2024</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Billings Police Department</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="43002" data-time="1729641600" data-name="DIONNE, PERNELL" data-agenow="19" data-agemissing="18">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Dionne, Pernell</h2>
+						<p><b>Age Now: </b>19
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"2fdebc9276634fa5397596ffe399e819a6ac7046c33c184b043871be7a5eedb3"},{"0":"3b25c585fba3505ecf6690fb36de32c88b047679de132030871a608a37e037ee"}],["07\/30\/2023","09\/20\/2023"],"Dionne, Pernell","MALE","19","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","505","187","10/23/2024","Confederated Salish & Kootenai Tribal Police Dept","Dionne, Pernell; Dionne, Pernell A; Dionne, Pernell A Iii; Dionne, Pernell Albert Iii; Dionne, Pernell Iii; Pernell, Dionne; Pernell, Dionne A; Pernell, Dionne Albert","43002")'
+						 aria-expanded="false" aria-label="Full details for DIONNE, PERNELL">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/2fdebc9276634fa5397596ffe399e819a6ac7046c33c184b043871be7a5eedb3.jpg"  class="personImage" alt="Photo of DIONNE, PERNELL. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 10/23/2024</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Confederated Salish & Kootenai Tribal Police Dept</span><p><b>Aliases: </b>Dionne, Pernell; Dionne, Pernell A; Dionne, Pernell A Iii; Dionne, Pernell Albert Iii; Dionne, Pernell Iii; Pernell, Dionne; Pernell, Dionne A; Pernell, Dionne Albert</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="42813" data-time="1728172800" data-name="BIRDINGROUND, SAWADE DECEMBER" data-agenow="14" data-agemissing="13">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Birdinground, Sawade December</h2>
+						<p><b>Age Now: </b>14
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"b8f63775e3cc266cbd6c9c35d93ae4e55a8d0d8749671a55879a565dcd5f6e51"}],["10\/06\/2024"],"Birdinground, Sawade December","FEMALE","14","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","504","130","10/06/2024","BIA Crow Agency","","42813")'
+						 aria-expanded="false" aria-label="Full details for BIRDINGROUND, SAWADE DECEMBER">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/b8f63775e3cc266cbd6c9c35d93ae4e55a8d0d8749671a55879a565dcd5f6e51.jpg"  class="personImage" alt="Photo of BIRDINGROUND, SAWADE DECEMBER. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 10/06/2024</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">BIA Crow Agency</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="41831" data-time="1715040000" data-name="YARLOTT, ROBERT THOMAS" data-agenow="42" data-agemissing="40">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Yarlott, Robert Thomas</h2>
+						<p><b>Age Now: </b>42
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"ae159ad10977c7dfecb7c38531cbaccd392410d047e5bb4c0a0d9503a8ee3163"}],["07\/13\/2020"],"Yarlott, Robert Thomas","MALE","42","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","510","184","05/07/2024","Big Horn County Sheriff","","41831")'
+						 aria-expanded="false" aria-label="Full details for YARLOTT, ROBERT THOMAS">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/ae159ad10977c7dfecb7c38531cbaccd392410d047e5bb4c0a0d9503a8ee3163.jpg"  class="personImage" alt="Photo of YARLOTT, ROBERT THOMAS. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 05/07/2024</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Big Horn County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="41568" data-time="1707004800" data-name="BEAR, RICKISHA RENEE" data-agenow="21" data-agemissing="19">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Bear, Rickisha Renee</h2>
+						<p><b>Age Now: </b>21
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"09dfd4b8c4fc135427bb9883b402c30ad9efba1e3692c7ee52b752ded7e6c652"}],["08\/13\/2022"],"Bear, Rickisha Renee","FEMALE","21","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","411","130","02/04/2024","Missoula Police Department","Kisha, X","41568")'
+						 aria-expanded="false" aria-label="Full details for BEAR, RICKISHA RENEE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/09dfd4b8c4fc135427bb9883b402c30ad9efba1e3692c7ee52b752ded7e6c652.jpg"  class="personImage" alt="Photo of BEAR, RICKISHA RENEE. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 02/04/2024</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Missoula Police Department</span><p><b>Aliases: </b>Kisha, X</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="41532" data-time="1709078400" data-name="JOHNSON, JESSIE LAMARR" data-agenow="32" data-agemissing="30">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Johnson, Jessie Lamarr</h2>
+						<p><b>Age Now: </b>32
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"8472130581a4e12358ffecbebaef8a1f3cc3e76e5af4678ba02929d3153eeb36"}],["11\/30\/2022"],"Johnson, Jessie Lamarr","MALE","32","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","600","170","02/28/2024","Billings Police Department","Johnson, Jesse Lamarr; Johnson, Jessie Lamar; X, Suave; X, Swavey","41532")'
+						 aria-expanded="false" aria-label="Full details for JOHNSON, JESSIE LAMARR">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/8472130581a4e12358ffecbebaef8a1f3cc3e76e5af4678ba02929d3153eeb36.jpg"  class="personImage" alt="Photo of JOHNSON, JESSIE LAMARR. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 02/28/2024</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Billings Police Department</span><p><b>Aliases: </b>Johnson, Jesse Lamarr; Johnson, Jessie Lamar; X, Suave; X, Swavey</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="36243" data-time="1626220800" data-name="PLENTYHAWK, RANDOLPH CHIVERS" data-agenow="63" data-agemissing="58">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Plentyhawk, Randolph Chivers</h2>
+						<p><b>Age Now: </b>63
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"7193fed07be7e36cacb66015c26cb21f75a25a216315d3a1fcc6e4dcb87211d3"}],["10\/02\/2016"],"Plentyhawk, Randolph Chivers","MALE","63","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","603","180","07/14/2021","Big Horn County Sheriff","","36243")'
+						 aria-expanded="false" aria-label="Full details for PLENTYHAWK, RANDOLPH CHIVERS">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/7193fed07be7e36cacb66015c26cb21f75a25a216315d3a1fcc6e4dcb87211d3.jpg"  class="personImage" alt="Photo of PLENTYHAWK, RANDOLPH CHIVERS. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 07/14/2021</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Big Horn County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="35997" data-time="1619481600" data-name="WAGNER, LEO" data-agenow="31" data-agemissing="26">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Wagner, Leo</h2>
+						<p><b>Age Now: </b>31
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"6dcac5f9f35b96d0a29424d871b0564f7d40478ca2558242504335647f555c80"}],["11\/30\/2020"],"Wagner, Leo","MALE","31","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","508","165","04/27/2021","Blackfeet Law Enforcement","","35997")'
+						 aria-expanded="false" aria-label="Full details for WAGNER, LEO">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/6dcac5f9f35b96d0a29424d871b0564f7d40478ca2558242504335647f555c80.jpg"  class="personImage" alt="Photo of WAGNER, LEO. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 04/27/2021</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blackfeet Law Enforcement</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="35981" data-time="1619049600" data-name="PEPION, ARDEN" data-agenow="8" data-agemissing="3">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Pepion, Arden</h2>
+						<p><b>Age Now: </b>8
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"acae0a59384ed9c49c8f4b02d287ef6c300b74772c74e16b440420edb55ecabc"},{"0":"31313103f77283ac989313332ae5c24c96d81364706d8361f3041cf653e57c40"},{"0":"25e5f1b4c94cf0fafbb913c17922498d8bdb36dffd08620efe084dbcb55ad3f2"}],["11\/30\/2020","09\/05\/2023","09\/05\/2023"],"Pepion, Arden","FEMALE","8","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","300","031","04/22/2021","Blackfeet Law Enforcement","","35981")'
+						 aria-expanded="false" aria-label="Full details for PEPION, ARDEN">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/acae0a59384ed9c49c8f4b02d287ef6c300b74772c74e16b440420edb55ecabc.jpg"  class="personImage" alt="Photo of PEPION, ARDEN. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 04/22/2021</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blackfeet Law Enforcement</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="35971" data-time="1571097600" data-name="SAMUELS, KAMILLE MURRAY" data-agenow="71" data-agemissing="66">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Samuels, Kamille Murray</h2>
+						<p><b>Age Now: </b>71
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"fb234e7a307acd33958b781cf2a71a04dbc73e56415773f53daba6850873e1f0"}],["11\/30\/2020"],"Samuels, Kamille Murray","MALE","71","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","508","200","10/15/2019","Lake County Sheriff","","35971")'
+						 aria-expanded="false" aria-label="Full details for SAMUELS, KAMILLE MURRAY">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/fb234e7a307acd33958b781cf2a71a04dbc73e56415773f53daba6850873e1f0.jpg"  class="personImage" alt="Photo of SAMUELS, KAMILLE MURRAY. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 10/15/2019</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Lake County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="32934" data-time="370483200" data-name="MEDICINEHORSE, DIANE LYNN" data-agenow="71" data-agemissing="64">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Medicinehorse, Diane Lynn</h2>
+						<p><b>Age Now: </b>71
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"02381eea8c49e059b8169ade381b23697d45b0d57cf664066a4ef28b414de528"}],["06\/01\/1981"],"Medicinehorse, Diane Lynn","FEMALE","71","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","502","135","09/28/1981","BIA Crow Agency","","32934")'
+						 aria-expanded="false" aria-label="Full details for MEDICINEHORSE, DIANE LYNN">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/02381eea8c49e059b8169ade381b23697d45b0d57cf664066a4ef28b414de528.jpg"  class="personImage" alt="Photo of MEDICINEHORSE, DIANE LYNN. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 09/28/1981</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">BIA Crow Agency</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="32902" data-time="1138924800" data-name="YELLOWMULE, LEVI BRIAN" data-agenow="48" data-agemissing="41">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Yellowmule, Levi Brian</h2>
+						<p><b>Age Now: </b>48
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"1514743d818374b425f1fedc7da36a014b47b946766208ab370e4df37b39c798"}],["12\/01\/2005"],"Yellowmule, Levi Brian","MALE","48","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BLACK","602","178","02/03/2006","BIA Crow Agency","Yellowmule, Brian","32902")'
+						 aria-expanded="false" aria-label="Full details for YELLOWMULE, LEVI BRIAN">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/1514743d818374b425f1fedc7da36a014b47b946766208ab370e4df37b39c798.jpg"  class="personImage" alt="Photo of YELLOWMULE, LEVI BRIAN. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 02/03/2006</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">BIA Crow Agency</span><p><b>Aliases: </b>Yellowmule, Brian</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="31880" data-time="1554508800" data-name="WILLIAMSON, HUB BINION" data-agenow="41" data-agemissing="34">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Williamson, Hub Binion</h2>
+						<p><b>Age Now: </b>41
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"143a755ac9bf8d0cc5bab7659929ba0e208953ef46e9352b6023a62b3df31bc8"}],["11\/27\/2018"],"Williamson, Hub Binion","MALE","41","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","600","205","04/06/2019","Big Horn County Sheriff","","31880")'
+						 aria-expanded="false" aria-label="Full details for WILLIAMSON, HUB BINION">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/143a755ac9bf8d0cc5bab7659929ba0e208953ef46e9352b6023a62b3df31bc8.jpg"  class="personImage" alt="Photo of WILLIAMSON, HUB BINION. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 04/06/2019</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Big Horn County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="31361" data-time="1486684800" data-name="ROASTINGSTICK, RICHARD GEORGE" data-agenow="67" data-agemissing="59">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Roastingstick, Richard George</h2>
+						<p><b>Age Now: </b>67
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"193050d560cfbd009b296ddefa02c3b7242bebe2f7a6405d34b5bf37d94a443f"},{"0":"957f389ccd2ecf0dbb38bdbb28e039a6b928b07991147ade794fbf84b4115951"}],["05\/22\/2015","02\/01\/2017"],"Roastingstick, Richard George","MALE","67","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","508","155","02/10/2017","Chippewa Cree Law Enforcement Services","Roastingstick, Smokey; Smokey, Richard; Smokey, Xx","31361")'
+						 aria-expanded="false" aria-label="Full details for ROASTINGSTICK, RICHARD GEORGE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/193050d560cfbd009b296ddefa02c3b7242bebe2f7a6405d34b5bf37d94a443f.jpg"  class="personImage" alt="Photo of ROASTINGSTICK, RICHARD GEORGE. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 02/10/2017</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Chippewa Cree Law Enforcement Services</span><p><b>Aliases: </b>Roastingstick, Smokey; Smokey, Richard; Smokey, Xx</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="31360" data-time="1366848000" data-name="ALEXANDER, ROBERT GRANT" data-agenow="70" data-agemissing="63">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Alexander, Robert Grant</h2>
+						<p><b>Age Now: </b>70
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"f13aedcc042648a451681e6a161e35d2e4129706c789277886fcb83ce8dace23"}],["01\/01\/2013"],"Alexander, Robert Grant","MALE","70","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","510","190","04/25/2013","Chippewa Cree Law Enforcement Services","Alexander, Robbie","31360")'
+						 aria-expanded="false" aria-label="Full details for ALEXANDER, ROBERT GRANT">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/f13aedcc042648a451681e6a161e35d2e4129706c789277886fcb83ce8dace23.jpg"  class="personImage" alt="Photo of ALEXANDER, ROBERT GRANT. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 04/25/2013</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Chippewa Cree Law Enforcement Services</span><p><b>Aliases: </b>Alexander, Robbie</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="30754" data-time="1532304000" data-name="HARDING, SHACAIAH BLUE" data-agenow="27" data-agemissing="19">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Harding, Shacaiah Blue</h2>
+						<p><b>Age Now: </b>27
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"7a9ea0bfb7c976e509cb98837168e43e7f5ffdfd3e67f6b11a8c2871fd8e0645"}],["04\/21\/2018"],"Harding, Shacaiah Blue","FEMALE","27","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","503","110","07/23/2018","Yellowstone County Sheriff","Harding, Shacaiah Bluue; Harding, Shaciah Blue; Harding, Shakaiah Bluue; Haughtyng, Schcaiah","30754")'
+						 aria-expanded="false" aria-label="Full details for HARDING, SHACAIAH BLUE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/7a9ea0bfb7c976e509cb98837168e43e7f5ffdfd3e67f6b11a8c2871fd8e0645.jpg"  class="personImage" alt="Photo of HARDING, SHACAIAH BLUE. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 07/23/2018</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Yellowstone County Sheriff</span><p><b>Aliases: </b>Harding, Shacaiah Bluue; Harding, Shaciah Blue; Harding, Shakaiah Bluue; Haughtyng, Schcaiah</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="30437" data-time="1529107200" data-name="CHARLO, JERMAIN AUSTIN" data-agenow="31" data-agemissing="23">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Charlo, Jermain Austin</h2>
+						<p><b>Age Now: </b>31
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"696c4b017d5e9547e5ee16da3364eb93e532ace9a7ad619ab6833368cfc97852"}],["06\/13\/2018"],"Charlo, Jermain Austin","FEMALE","31","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","509","130","06/16/2018","Missoula Police Department","Liz, X; Morigeau, Jermain","30437")'
+						 aria-expanded="false" aria-label="Full details for CHARLO, JERMAIN AUSTIN">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/696c4b017d5e9547e5ee16da3364eb93e532ace9a7ad619ab6833368cfc97852.jpg"  class="personImage" alt="Photo of CHARLO, JERMAIN AUSTIN. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 06/16/2018</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Missoula Police Department</span><p><b>Aliases: </b>Liz, X; Morigeau, Jermain</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="28684" data-time="1495670400" data-name="LORING, ASHLEY MARIAH" data-agenow="29" data-agemissing="20">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Loring, Ashley Mariah</h2>
+						<p><b>Age Now: </b>29
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"b128edde94285b97ed38788598df857a23844f3ed4e438feba028c23ebb6af3d"}],["09\/29\/2016"],"Loring, Ashley Mariah","FEMALE","29","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","502","106","05/25/2017","Blackfeet Law Enforcement","Heavyrunner, Ashley Mariah","28684")'
+						 aria-expanded="false" aria-label="Full details for LORING, ASHLEY MARIAH">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/b128edde94285b97ed38788598df857a23844f3ed4e438feba028c23ebb6af3d.jpg"  class="personImage" alt="Photo of LORING, ASHLEY MARIAH. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 05/25/2017</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blackfeet Law Enforcement</span><p><b>Aliases: </b>Heavyrunner, Ashley Mariah</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="27748" data-time="1476748800" data-name="KNOWSHISGUN, FREDA JANE" data-agenow="44" data-agemissing="34">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Knowshisgun, Freda Jane</h2>
+						<p><b>Age Now: </b>44
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"b1b6e269724b3472afb6839208bf59ca81e0537122caa23f7503541458851fd7"}],["02\/20\/2013"],"Knowshisgun, Freda Jane","FEMALE","44","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","505","150","10/18/2016","BIA Crow Agency","","27748")'
+						 aria-expanded="false" aria-label="Full details for KNOWSHISGUN, FREDA JANE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/b1b6e269724b3472afb6839208bf59ca81e0537122caa23f7503541458851fd7.jpg"  class="personImage" alt="Photo of KNOWSHISGUN, FREDA JANE. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 10/18/2016</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">BIA Crow Agency</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="23445" data-time="1407283200" data-name="LIMBERHAND, JAMES" data-agenow="43" data-agemissing="32">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Limberhand, James</h2>
+						<p><b>Age Now: </b>43
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"061fc2d20dbd7cdc4397d4cc84ae8718ae4fa93624403c2d276521f9fa1e9ed9"}],["07\/01\/2014"],"Limberhand, James","MALE","43","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BLACK","601","230","08/06/2014","BIA Crow Agency","","23445")'
+						 aria-expanded="false" aria-label="Full details for LIMBERHAND, JAMES">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/061fc2d20dbd7cdc4397d4cc84ae8718ae4fa93624403c2d276521f9fa1e9ed9.jpg"  class="personImage" alt="Photo of LIMBERHAND, JAMES. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 08/06/2014</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">BIA Crow Agency</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="22205" data-time="1380844800" data-name="STEWART, ROBERT GARRETT JR" data-agenow="38" data-agemissing="25">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Stewart, Robert Garrett Jr</h2>
+						<p><b>Age Now: </b>38
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"c4d5e7eaaebd5920add0ad000d50c3e28647e6454f65f22c6c1e7bbe890328f8"}],["02\/19\/2013"],"Stewart, Robert Garrett Jr","MALE","38","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","511","150","10/04/2013","Billings Police Department","Baby Garrett, Xx","22205")'
+						 aria-expanded="false" aria-label="Full details for STEWART, ROBERT GARRETT JR">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/c4d5e7eaaebd5920add0ad000d50c3e28647e6454f65f22c6c1e7bbe890328f8.jpg"  class="personImage" alt="Photo of STEWART, ROBERT GARRETT JR. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 10/04/2013</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Billings Police Department</span><p><b>Aliases: </b>Baby Garrett, Xx</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="14857" data-time="764812800" data-name="REAMER, JOHN BAPTISTE" data-agenow="57" data-agemissing="41">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Reamer, John Baptiste</h2>
+						<p><b>Age Now: </b>57
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"312ee260078d48754c0578d09278dabe5a49c164644fbe22fd9e7d764b7529d1"}],["01\/13\/2010"],"Reamer, John Baptiste","MALE","57","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","511","170","03/28/1994","Helena Police Department","Hanson, John; Reamer, John; Reamer, John Baptist","14857")'
+						 aria-expanded="false" aria-label="Full details for REAMER, JOHN BAPTISTE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/312ee260078d48754c0578d09278dabe5a49c164644fbe22fd9e7d764b7529d1.jpg"  class="personImage" alt="Photo of REAMER, JOHN BAPTISTE. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 03/28/1994</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Helena Police Department</span><p><b>Aliases: </b>Hanson, John; Reamer, John; Reamer, John Baptist</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="5713" data-time="686793600" data-name="HOWARD, JODY FERN" data-agenow="62" data-agemissing="28">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Howard, Jody Fern</h2>
+						<p><b>Age Now: </b>62
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"cf4ffae2a8db1baba9878147811c384c4c10f229baf9a276a5263e1506ecde76"}],["11\/30\/2012"],"Howard, Jody Fern","FEMALE","62","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","504","125","10/07/1991","Roosevelt County Sheriff","Fern, Jody; Howard, Jody F","5713")'
+						 aria-expanded="false" aria-label="Full details for HOWARD, JODY FERN">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/cf4ffae2a8db1baba9878147811c384c4c10f229baf9a276a5263e1506ecde76.jpg"  class="personImage" alt="Photo of HOWARD, JODY FERN. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 10/07/1991</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Roosevelt County Sheriff</span><p><b>Aliases: </b>Fern, Jody; Howard, Jody F</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="2329" data-time="517104000" data-name="JOHNSON, AMY MARIE" data-agenow="64" data-agemissing="25">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Johnson, Amy Marie</h2>
+						<p><b>Age Now: </b>64
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"2c5da1638dbe31c331004ddfd089611e3c5872726b034867e88d956ccfd835aa"}],["05\/01\/1986"],"Johnson, Amy Marie","FEMALE","64","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","503","140","05/22/1986","Livingston Police Department","Johnson, Amy","2329")'
+						 aria-expanded="false" aria-label="Full details for JOHNSON, AMY MARIE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/2c5da1638dbe31c331004ddfd089611e3c5872726b034867e88d956ccfd835aa.jpg"  class="personImage" alt="Photo of JOHNSON, AMY MARIE. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 05/22/1986</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Livingston Police Department</span><p><b>Aliases: </b>Johnson, Amy</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="609" data-time="815270400" data-name="HOTOMANIE, VALEN ROY" data-agenow="53" data-agemissing="25">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Hotomanie, Valen Roy</h2>
+						<p><b>Age Now: </b>53
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"555a53f45a2e2a7e96c9302ff9b86a511024dd4360defd281abef6a3dc60711f"}],["01\/01\/1995"],"Hotomanie, Valen Roy","MALE","53","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","511","145","11/02/1995","Roosevelt County Sheriff","","609")'
+						 aria-expanded="false" aria-label="Full details for HOTOMANIE, VALEN ROY">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/555a53f45a2e2a7e96c9302ff9b86a511024dd4360defd281abef6a3dc60711f.jpg"  class="personImage" alt="Photo of HOTOMANIE, VALEN ROY. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 11/02/1995</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Roosevelt County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45906" data-time="1771891200" data-name="BLACKHORSE, WALKING WOMAN SUNRI" data-agenow="37" data-agemissing="37">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Blackhorse, Walking Woman Sunri</h2>
+						<p><b>Age Now: </b>37
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"f07d86681e4aa12092d1f3b463809c7a36eb89f3af321a91b7aca296dbdc78d8"}],["02\/11\/2025"],"Blackhorse, Walking Woman Sunri","FEMALE","37","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BROWN","504","145","02/24/2026","Billings Police Department","Seminole, Walking Woman; Walkingwoman, Seminole Sunrise; X, Sunshine; X, Walk","45906")'
+						 aria-expanded="false" aria-label="Full details for BLACKHORSE, WALKING WOMAN SUNRI">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/f07d86681e4aa12092d1f3b463809c7a36eb89f3af321a91b7aca296dbdc78d8.jpg"  class="personImage" alt="Photo of BLACKHORSE, WALKING WOMAN SUNRI. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 02/24/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Billings Police Department</span><p><b>Aliases: </b>Seminole, Walking Woman; Walkingwoman, Seminole Sunrise; X, Sunshine; X, Walk</p></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45911" data-time="1776643200" data-name="BULLCALF, BROOKLYN JADE RUTH" data-agenow="16" data-agemissing="16">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Bullcalf, Brooklyn Jade Ruth</h2>
+						<p><b>Age Now: </b>16
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"26734729c6ea8dfbbae3ee276c69d17506fbdb3873531e148821aa52319a4948"}],["01\/01\/2025"],"Bullcalf, Brooklyn Jade Ruth","FEMALE","16","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","505","235","04/20/2026","Roosevelt County Sheriff","","45911")'
+						 aria-expanded="false" aria-label="Full details for BULLCALF, BROOKLYN JADE RUTH">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/26734729c6ea8dfbbae3ee276c69d17506fbdb3873531e148821aa52319a4948.jpg"  class="personImage" alt="Photo of BULLCALF, BROOKLYN JADE RUTH. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 04/20/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Roosevelt County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45923" data-time="1772496000" data-name="SLOWBEAR, PAIGE" data-agenow="21" data-agemissing="21">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Slowbear, Paige</h2>
+						<p><b>Age Now: </b>21
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{}],["01\/01\/1970"],"Slowbear, Paige","FEMALE","21","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","BLACK","502","120","03/03/2026","Blackfeet Law Enforcement","","45923")'
+						 aria-expanded="false" aria-label="Full details for SLOWBEAR, PAIGE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/PhotoNotAvailable.png" class="personImage" alt="Photo for missing person not available."></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 03/03/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blackfeet Law Enforcement</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45931" data-time="1776556800" data-name="PLAINFEATHER, ROLAND" data-agenow="71" data-agemissing="71">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Plainfeather, Roland</h2>
+						<p><b>Age Now: </b>71
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"5ac456c1941a674866d69960e3a7dffb635e08d718f6c0a757b44dfa65993fd4"}],["06\/10\/2020"],"Plainfeather, Roland","MALE","71","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","510","170","04/19/2026","BIA Crow Agency","","45931")'
+						 aria-expanded="false" aria-label="Full details for PLAINFEATHER, ROLAND">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/5ac456c1941a674866d69960e3a7dffb635e08d718f6c0a757b44dfa65993fd4.jpg"  class="personImage" alt="Photo of PLAINFEATHER, ROLAND. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 04/19/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">BIA Crow Agency</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45988" data-time="1746576000" data-name="CADOTTE, RONNIE" data-agenow="16" data-agemissing="16">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Cadotte, Ronnie</h2>
+						<p><b>Age Now: </b>16
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{}],["01\/01\/1970"],"Cadotte, Ronnie","MALE","16","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","506","130","05/07/2025","Blackfeet Law Enforcement","","45988")'
+						 aria-expanded="false" aria-label="Full details for CADOTTE, RONNIE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/PhotoNotAvailable.png" class="personImage" alt="Photo for missing person not available."></div>
+					<div class="personDetailsSecond"><p><b>Missing more than a year</b></p><p><b>Date of Last Contact:</b> 05/07/2025</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Blackfeet Law Enforcement</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45994" data-time="1777852800" data-name="COOEYATE, VADEN LEE CORLEONE" data-agenow="14" data-agemissing="14">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Cooeyate, Vaden Lee Corleone</h2>
+						<p><b>Age Now: </b>14
+						<br><b>Gender: </b>Male
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"68b09b4cc097bb6ad2f04b642f6dc3e201cf3bf9c7e79899b6d2f6a4b6da1826"}],["11\/30\/2020"],"Cooeyate, Vaden Lee Corleone","MALE","14","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","505","115","05/04/2026","Roosevelt County Sheriff","","45994")'
+						 aria-expanded="false" aria-label="Full details for COOEYATE, VADEN LEE CORLEONE">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/68b09b4cc097bb6ad2f04b642f6dc3e201cf3bf9c7e79899b6d2f6a4b6da1826.jpg"  class="personImage" alt="Photo of COOEYATE, VADEN LEE CORLEONE. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 05/04/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Roosevelt County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45995" data-time="1778112000" data-name="BOYD, MCKYNZII" data-agenow="14" data-agemissing="14">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Boyd, Mckynzii</h2>
+						<p><b>Age Now: </b>14
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{}],["01\/01\/1970"],"Boyd, Mckynzii","FEMALE","14","AMERICAN INDIAN OR ALASKAN NATIVE","BROWN","BROWN","505","170","05/07/2026","Confederated Salish & Kootenai Tribal Police Dept","","45995")'
+						 aria-expanded="false" aria-label="Full details for BOYD, MCKYNZII">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/PhotoNotAvailable.png" class="personImage" alt="Photo for missing person not available."></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 05/07/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Confederated Salish & Kootenai Tribal Police Dept</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45998" data-time="1778198400" data-name="SWANK, GRACELYN" data-agenow="17" data-agemissing="17">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>Swank, Gracelyn</h2>
+						<p><b>Age Now: </b>17
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{}],["01\/01\/1970"],"Swank, Gracelyn","FEMALE","17","AMERICAN INDIAN OR ALASKAN NATIVE","RED OR AUBURN","BROWN","506","150","05/08/2026","Liberty County Sheriff","","45998")'
+						 aria-expanded="false" aria-label="Full details for SWANK, GRACELYN">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/PhotoNotAvailable.png" class="personImage" alt="Photo for missing person not available."></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 05/08/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Liberty County Sheriff</span></div>
+					
+
+
+
+			
+
+
+				</li><li class="personCard" data-sort="45999" data-time="1778198400" data-name="ST CYR, BRENA" data-agenow="18" data-agemissing="18">
+					
+
+					
+
+					<div class="personDetailsFirst">
+						<h2>St Cyr, Brena</h2>
+						<p><b>Age Now: </b>18
+						<br><b>Gender: </b>Female
+						<br><b>Race: </b>American Indian Or Alaskan Native</p>
+					
+						<button class="personDetailsButton" onclick='OpenDetailsWindow([{"0":"71bffc1f2890e5056cf8712338253abaec60d99b7a13849c54c8f7bf7b56c0c8"}],["05\/08\/2026"],"St Cyr, Brena","FEMALE","18","AMERICAN INDIAN OR ALASKAN NATIVE","BLACK","HAZEL","503","100","05/08/2026","Confederated Salish & Kootenai Tribal Police Dept","","45999")'
+						 aria-expanded="false" aria-label="Full details for ST CYR, BRENA">Full Details</button>
+					</div>
+					<div class="personImageContainer"><img src="./images/mmps_img/71bffc1f2890e5056cf8712338253abaec60d99b7a13849c54c8f7bf7b56c0c8.jpg"  class="personImage" alt="Photo of ST CYR, BRENA. Open full details for physical description," ></div>
+					<div class="personDetailsSecond"><p><b>Date of Last Contact:</b> 05/08/2026</p>
+						<p><b>Investigating Agency:</b> <span style="display:inline-block;">Confederated Salish & Kootenai Tribal Police Dept</span></div>
+					
+
+
+
+			
+
+
+				</li></ul></div>
+		
+
+      <!--SEARCH OPTIONS WINDOW -->
+		<dialog id="search-options-window" class = "dialogWindow"  aria-label="Database Search Options Window">
+				
+		
+			<div class="searchOptionsContent">
+				<div class="searchOptionsHeader">
+					<span></span>
+					<h2  id="searchOptionHeading" style = "text-align: center" tabindex="-1">Refine Search Options</h2>
+					<form method="dialog">
+						<button class = "popupclose" value="cancel" aria-label="Close Popup" style="margin-right:10px;">
+							<svg style="height: 40px; width:  40px;">
+							<g><path d="M 6,6 L 30,30 M 30,6 L 6,30" stroke="black" stroke-width="2"></path></g>
+						</svg>
+						</button> 
+					</form>    
+				</div>
+
+				<div class="searchFormContainer">
+
+					<p class="" >Use any of the following options to refine search criteria.</p>
+
+					<form  method="get" action="./results.php">
+						<label  for="name" >Name Contains:</label><br>
+						<input type="text"  id="name" name="name" value="" ><br>
+
+						<label  for="gender">Gender:</label>
+						<select class="selector" id="gender" name = "gender" >
+							<option value="All">- All -</option>
+							<option value="FEMALE"  >Female</option>
+							<option value="MALE"  >Male</option>
+						</select><br>		
+					
+    					<fieldset class = "fitContent" >
+							<legend>
+								Age Range 
+							</legend>
+
+							<div class="flex-row" >
+
+								<div><label for="ageLow">Low:</label><input type="number" id="ageLow" name="ageLow" value="" min="1" max="150" style="width:5rem;" ></div>
+								<div><label for="ageHigh">High:</label><input type="number" id="ageHigh"  name="ageHigh" value=""  min="1" max="150"  style="width:5rem;" ></div>	
+							</div>
+						</fieldset>
+
+		
+						<label  for="race">Race / Ethnicity:</label><br>
+						<select class="selector" id="race" name="race">
+						<option value="All">- All -</option><option value="AMERICAN INDIAN OR ALASKAN NATIVE" >American Indian Or Alaskan Native</option><option value="BLACK" >Black</option><option value="UNKNOWN" >Unknown</option><option value="WHITE" >White</option>						</select><br>
+
+						<fieldset class = "fitContent" >
+							<legend>
+								Investigating Agency
+							</legend>
+
+							<label  for="county">Agency County:</label><br>
+							<select class="selector" id="county" name="county">
+							<option value="All">- All -</option><option value="BEAVERHEAD" >Beaverhead</option><option value="BIG HORN" >Big Horn</option><option value="BLAINE" >Blaine</option><option value="BROADWATER" >Broadwater</option><option value="CARBON" >Carbon</option><option value="CARTER" >Carter</option><option value="CASCADE" >Cascade</option><option value="CUSTER" >Custer</option><option value="DAWSON" >Dawson</option><option value="DEER LODGE" >Deer Lodge</option><option value="FERGUS" >Fergus</option><option value="FLATHEAD" >Flathead</option><option value="GALLATIN" >Gallatin</option><option value="GLACIER" >Glacier</option><option value="GRANITE" >Granite</option><option value="HILL" >Hill</option><option value="JEFFERSON" >Jefferson</option><option value="LAKE" >Lake</option><option value="LEWIS AND CLARK" >Lewis And Clark</option><option value="LIBERTY" >Liberty</option><option value="LINCOLN" >Lincoln</option><option value="MCCONE" >Mccone</option><option value="MINERAL" >Mineral</option><option value="MISSOULA" >Missoula</option><option value="PARK" >Park</option><option value="PONDERA" >Pondera</option><option value="POWELL" >Powell</option><option value="RAVALLI" >Ravalli</option><option value="RICHLAND" >Richland</option><option value="ROOSEVELT" >Roosevelt</option><option value="ROSEBUD" >Rosebud</option><option value="SANDERS" >Sanders</option><option value="SILVER BOW" >Silver Bow</option><option value="STILLWATER" >Stillwater</option><option value="SWEET GRASS" >Sweet Grass</option><option value="VALLEY" >Valley</option><option value="YELLOWSTONE" >Yellowstone</option>							</select><br>
+
+							<label  for="agency">Agency Name:</label><br>
+							<select class="selector" id="agency" name="agency">
+									<option value="All">- All -</option><option   value="ANACONDA / DEER LODGE CO LEA" >Anaconda / Deer Lodge Co LEA</option><option   value="BEAVERHEAD COUNTY SHERIFF" >Beaverhead County Sheriff</option><option   value="BELGRADE POLICE DEPARTMENT" >Belgrade Police Department</option><option   value="BIA CROW AGENCY" >BIA Crow Agency</option><option   value="BIG HORN COUNTY SHERIFF" >Big Horn County Sheriff</option><option   value="BILLINGS POLICE DEPARTMENT" >Billings Police Department</option><option   value="BLACKFEET LAW ENFORCEMENT" >Blackfeet Law Enforcement</option><option   value="BLAINE COUNTY SHERIFF" >Blaine County Sheriff</option><option   value="BOZEMAN POLICE DEPARTMENT" >Bozeman Police Department</option><option   value="BROADWATER COUNTY SHERIFF" >Broadwater County Sheriff</option><option   value="BUTTE/SILVER BOW COUNTY LED" >Butte/silver Bow County LED</option><option   value="CARBON COUNTY SHERIFF" >Carbon County Sheriff</option><option   value="CARTER COUNTY SHERIFF" >Carter County Sheriff</option><option   value="CASCADE COUNTY SHERIFF" >Cascade County Sheriff</option><option   value="CHIPPEWA CREE LAW ENFORCEMENT SERVICES" >Chippewa Cree Law Enforcement Services</option><option   value="COLUMBIA FALLS POLICE DEPARTMENT" >Columbia Falls Police Department</option><option   value="CONFEDERATED SALISH & KOOTENAI TRIBAL POLICE DEPT" >Confederated Salish & Kootenai Tribal Police Dept</option><option   value="CONRAD POLICE DEPARTMENT" >Conrad Police Department</option><option   value="CUSTER COUNTY SHERIFF" >Custer County Sheriff</option><option   value="DAWSON COUNTY SHERIFF" >Dawson County Sheriff</option><option   value="DOJ DCI" >DOJ DCI</option><option   value="FERGUS COUNTY SHERIFF" >Fergus County Sheriff</option><option   value="FLATHEAD COUNTY SHERIFF" >Flathead County Sheriff</option><option   value="GALLATIN COUNTY SHERIFF" >Gallatin County Sheriff</option><option   value="GLACIER COUNTY SHERIFF" >Glacier County Sheriff</option><option   value="GRANITE COUNTY SHERIFF" >Granite County Sheriff</option><option   value="GREAT FALLS POLICE DEPARTMENT" >Great Falls Police Department</option><option   value="HELENA POLICE DEPARTMENT" >Helena Police Department</option><option   value="HOT SPRINGS POLICE DEPARTMENT" >Hot Springs Police Department</option><option   value="JEFFERSON COUNTY SHERIFF" >Jefferson County Sheriff</option><option   value="KALISPELL POLICE DEPARTMENT" >Kalispell Police Department</option><option   value="LAKE COUNTY SHERIFF" >Lake County Sheriff</option><option   value="LIBERTY COUNTY SHERIFF" >Liberty County Sheriff</option><option   value="LINCOLN COUNTY SHERIFF" >Lincoln County Sheriff</option><option   value="LIVINGSTON POLICE DEPARTMENT" >Livingston Police Department</option><option   value="MCCONE COUNTY SHERIFF" >Mccone County Sheriff</option><option   value="MINERAL COUNTY SHERIFF" >Mineral County Sheriff</option><option   value="MISSOULA COUNTY SHERIFF" >Missoula County Sheriff</option><option   value="MISSOULA POLICE DEPARTMENT" >Missoula Police Department</option><option   value="NORTHERN CHEYENNE INVESTIGATIVE SERVICES" >Northern Cheyenne Investigative Services</option><option   value="POWELL COUNTY SHERIFF" >Powell County Sheriff</option><option   value="RAVALLI COUNTY SHERIFF" >Ravalli County Sheriff</option><option   value="RICHLAND COUNTY SHERIFF" >Richland County Sheriff</option><option   value="ROOSEVELT COUNTY SHERIFF" >Roosevelt County Sheriff</option><option   value="ROSEBUD COUNTY SHERIFF" >Rosebud County Sheriff</option><option   value="SANDERS COUNTY SHERIFF" >Sanders County Sheriff</option><option   value="STILLWATER COUNTY SHERIFF" >Stillwater County Sheriff</option><option   value="SWEET GRASS COUNTY SHERIFF" >Sweet Grass County Sheriff</option><option   value="VALLEY COUNTY SHERIFF" >Valley County Sheriff</option><option   value="WHITEFISH POLICE DEPARTMENT" >Whitefish Police Department</option><option   value="YELLOWSTONE COUNTY SHERIFF" >Yellowstone County Sheriff</option>								</select>
+
+						</fieldset>
+
+   						<fieldset class = "fitContent" >
+							<legend>
+								Date Missing is Between
+							</legend>
+
+									
+
+						<div class="flex-row" >
+							<div ><label for="dateLow">Start:</label><input type="date" id="dateLow" name="dateLow" value=""></div>
+							<div ><label for="dateHigh">End:</label><input type="date" id="dateHigh" name="dateHigh" value=""  ></div>
+				
+						</div>
+						</fieldset>
+
+
+						<label  for="missingMoreThanYear">Missing more than a year:</label><br>
+						<select class="selector" id="missingMoreThanYear" name="missingMoreThanYear">
+							<option value="All">- All -</option>
+							<option value="TRUE"   >Yes</option>
+							<option value="FALSE"   >No</option>
+						</select>
+						
+		
+						<br><input type="submit"  value="Update Search Results"> 
+						
+						<a class="formButtonLink"  href="./results.php?showOptions=true" >Reset Search Filters</a>		
+							
+
+
+
+
+					</form> 
+				</div>
+
+			</div>
+			
+		</dialog>
+
+
+
+
+	  
+
+      <!--DETAILS POPUP WINDOW -->
+		<dialog id="details-window" class = "dialogWindow"  aria-label="Missing Person Details Window">
+				
+			<div class="detailsContent">
+				<div class="detailsHeader">
+
+                    <img src="./images/MMPD_cropped.png"   alt="Missing Persons Database" > 
+                   
+					<div class="headingContainer" >
+						<h2  id="detailsInfoHeading" style = " text-align: center" tabindex="-1">Details for Person Name</h2>
+					</div>	
+						
+						<form method="dialog">
+							<button class = "popupclose" value="cancel" aria-label="Close Popup">
+								<svg style="height: 40px; width:  40px;">
+								<g><path d="M 6,6 L 30,30 M 30,6 L 6,30" stroke="black" stroke-width="2"></path></g>
+							</svg>
+							</button> 
+						</form>   
+						 
+				</div>
+					
+				<div id="detailsContainer">
+
+					<div id="detailsInfoContainer">
+					</div>
+					
+					<div id="detailsImagesContainer">
+					</div>
+
+				</div>
+			</div>
+			
+		</dialog>
+
+		
+
+		</main>   <!-- end page content -->
+
+
+
+
+			<!-- Footer content, does not scroll with page
+				Should be in template php file for large projects -->
+			<footer>
+				<!--<hr class="dotted">-->
+				<p>
+
+				<span class="dataCheckText">Data Last Updated: 2026-May-09 01:02:30 MDT</span>
+
+				</p>
+
+
+				
+				<p>
+				©2026 Montana Department of Justice |
+				<a href="https://dojmt.gov/" > MT&nbsp;DOJ&nbsp;HOME</a> | 
+				<a href="https://mt.gov/1240-X06.pdf"> PRIVACY & SECURITY POLICY</a>
+				</p>
+			</footer>
+		</div> <!-- End Full Page Wrap --> 	
+
+
+
+	<script>
+
+		//JS for Modal Popup containing form data... 
+		//Documentation is scarce, there are a few menthods but this is what worked for me
+		// https://www.linkedin.com/pulse/how-make-modals-html-dialogtag-vanilla-react-mike-cronin-p2loe
+
+
+
+		const detailsDialog = document.getElementById("details-window");
+		const searchOptionsDialog = document.getElementById("search-options-window");
+
+		let sortType = "timeReported";
+		let sortOrder = "ascending";
+		let showSortOptions = false;
+		let showReportOptions = false;
+
+		//apply initial list sort, all features should be loaded
+		ApplySort();
+
+		
+	
+
+		//cancel event fires on esc key press
+		detailsDialog.addEventListener("cancel", (event) => {
+			//console.log("Dialog Popup: Esc Key Pressed");
+	
+		});
+
+
+		//cancel event fires on esc key press
+		detailsDialog.addEventListener("cancel", (event) => {
+			//console.log("Dialog Popup: Esc Key Pressed");
+	
+		});
+
+
+		function OpenSearchOptionsWindow()
+		{
+			console.log("Opening Search Options");
+			searchOptionsDialog.showModal();
+			//infoHeading.focus();
+		}
+
+
+	
+
+		function ToggleReportOptions()
+		{
+
+			const reportButton = document.getElementById("reportOptionsButton");
+			const reportPanel = document.getElementById("reportOptionsContainer");
+
+			const sortButton = document.getElementById("sortOptionsButton");
+			const sortPanel = document.getElementById("sortOptionsContainer");
+
+			showSortOptions = false;
+			sortButton.setAttribute('aria-expanded',"false");
+			sortPanel.style.display = "none";
+
+
+
+			if(showReportOptions)
+			{
+				showReportOptions = false;
+				reportButton.setAttribute('aria-expanded',"false");
+				reportPanel.style.display = "none";
+
+				reportButton.focus();
+			}
+			else
+			{
+				showReportOptions = true;
+				reportButton.setAttribute('aria-expanded',"true");
+				reportPanel.style.display = "block";
+
+				//focus on first control
+				reportPanel.querySelectorAll('input')[0].focus();
+
+
+			}
+
+
+
+
+		}
+
+
+		function ToggleSortOptions()
+		{
+
+			const sortButton = document.getElementById("sortOptionsButton");
+			const sortPanel = document.getElementById("sortOptionsContainer");
+
+			const reportButton = document.getElementById("reportOptionsButton");
+			const reportPanel = document.getElementById("reportOptionsContainer");
+
+			showReportOptions = false;
+			reportButton.setAttribute('aria-expanded',"false");
+			reportPanel.style.display = "none";
+
+
+			if(showSortOptions)
+			{
+				showSortOptions = false;
+				sortButton.setAttribute('aria-expanded',"false");
+				sortPanel.style.display = "none";
+
+				sortButton.focus();
+			}
+			else
+			{
+				showSortOptions = true;
+				sortButton.setAttribute('aria-expanded',"true");
+				sortPanel.style.display = "block";
+
+				sortPanel.querySelectorAll('input')[0].focus();
+
+				//focus on first control
+				//sortPanel.querySelectorAll('input')[0].focus();
+
+
+			}
+		}
+
+
+
+		function reportPageFilter(filter){
+			//window.open('MissingPersonsReportDownload.php?filter=' + filter + '&Images=true&sortType=' + sortType + '&sortOrder=' + sortOrder, '_blank');
+			
+		
+			if($('#withImages').is(':checked')){
+				window.open('MissingPersonsReportDownload.php?filter=' + filter + '&Images=true&sortType=' + sortType + '&sortOrder=' + sortOrder, '_blank');
+			} else {
+				window.open('MissingPersonsReportDownload.php?filter=' + filter + '&Images=false&sortType=' + sortType + '&sortOrder=' + sortOrder, '_blank');
+			}
+		}
+
+		function reportPage(name, gender, ageLow, ageHigh, race, county, agency, dateLow, dateHigh, missingMoreThanYear){
+			
+			//console.log("Generating Report: sort: " + sortType +" order: "+ sortOrder);
+			//window.open('MissingPersonsReportDownload.php?name=' + name + '&gender=' + gender + '&ageLow=' + ageLow + '&ageHigh=' + ageHigh + '&race=' + race + '&county=' + county + '&agency=' + agency + '&dateLow=' + dateLow + '&dateHigh=' + dateHigh + '&missingMoreThanYear=' + missingMoreThanYear + '&Images=true&sortType=' + sortType + '&sortOrder=' + sortOrder, "_blank");
+		
+			if($('#withImages').is(':checked')) {
+				window.open('MissingPersonsReportDownload.php?name=' + name + '&gender=' + gender + '&ageLow=' + ageLow + '&ageHigh=' + ageHigh + '&race=' + race + '&county=' + county + '&agency=' + agency + '&dateLow=' + dateLow + '&dateHigh=' + dateHigh + '&missingMoreThanYear=' + missingMoreThanYear + '&Images=true&sortType=' + sortType + '&sortOrder=' + sortOrder, "_blank");
+			} 
+			else {
+				window.open('MissingPersonsReportDownload.php?name=' + name + '&gender=' + gender + '&ageLow=' + ageLow + '&ageHigh=' + ageHigh + '&race=' + race + '&county=' + county + '&agency=' + agency + '&dateLow=' + dateLow + '&dateHigh=' + dateHigh + '&missingMoreThanYear=' + missingMoreThanYear + '&Images=false&sortType=' + sortType + '&sortOrder=' + sortOrder, "_blank");
+			}
+		}
+		
+	
+	
+        function ToTitleCase(str) 
+		{
+            var splitStr = str.toLowerCase().split(' ');
+
+            for (var i = 0; i < splitStr.length; i++) {
+                // You do not need to check if i is larger than splitStr length, as your for does that for you
+                // Assign it back to the array
+                splitStr[i] = splitStr[i].charAt(0).toUpperCase() + splitStr[i].substring(1);     
+            }
+            // Directly return the joined string
+            return splitStr.join(' '); 
+		}
+
+		//=====================================================
+		//===	UPDATE CONTENTS OF DETAILS WINDOW
+		function OpenDetailsWindow(imgLoc, imgDates, name, gender, ageNow, race, hairColor, eyeColor, height, weight, dateOfLastContact, investigatingAgency, Aliases, mpid)
+		{
+
+			let detailsContainer = document.getElementById("detailsContainer");
+			
+			let infoHeading = document.getElementById("detailsInfoHeading");
+			let infoContainer = document.getElementById("detailsInfoContainer");
+			let imageContainer = document.getElementById("detailsImagesContainer");
+
+
+
+			//Convert to title case
+
+		
+			
+
+			gender = ToTitleCase(gender);
+			ageNow = ToTitleCase(ageNow);
+
+			race = ToTitleCase(race);
+			hairColor = ToTitleCase(hairColor);
+			eyeColor = ToTitleCase(eyeColor);
+
+			heightStr =  height.substring(0, 1) + " ft "+ Number(height.substring(1)) + " in";
+
+			//already converted in PHP function call
+				//name = ToTitleCase(name);
+				//investigatingAgency = ToTitleCase(investigatingAgency);
+				//Aliases = ToTitleCase(Aliases.replaceAll(";","; "));
+
+
+
+
+		//	console.log("Opening Details for: " +name);
+
+
+			infoHeading.innerHTML = ""  + name;
+	
+
+
+			let infoContents = 	
+				'<p><b>Name:</b> ' + name +
+				'<br><b>Gender:</b> ' + gender +
+				'<br><b>Age Now:</b> ' + ageNow + '</p>' +
+
+				'<p><b>Race:</b> ' + race +
+				'<br><b>Hair Color:</b> ' + hairColor +
+				'<br><b>Eye Color:</b> ' + eyeColor +
+				'<br><b>Height:</b> ' + heightStr +
+				'<br><b>Weight:</b> ' + weight  + ' lbs</p>' +
+				
+				'<p><b>Date of Last Contact:</b> ' + dateOfLastContact +
+				'<br><b>Investigating Agency:</b> <span style="display:inline-block;">' + investigatingAgency +'</span></p>';
+
+				if(Aliases !="")
+				{
+					infoContents +='<p><b>Aliases:</b><br> ' + Aliases +'</p>';
+				}
+
+			infoContents += '<div class="detailsContact"><p>If you have information about this individual, contact your local law enforcement agency or the Montana Missing Persons Clearinghouse, (406) 444-2800.</p></div>';
+					
+			infoContents += '<div style="text-align:center"><a href="./MissingPersonDetails.php?id=' + mpid +'" class="buttonLink">Full Page Details</a>';
+			infoContents += '<a href="./MissingPersonDetailsDownload.php?id=' + mpid +'" class="buttonLink" target="_blank">Download Details</a></div>';
+
+			infoContainer.innerHTML = infoContents;
+
+			
+
+
+			//Add Images
+			let numImgs = imgLoc.length;
+			let numImgDates = imgDates.length;
+			let imageContents = '<h3>Images of Missing Person</h3>';
+
+			//original check for no images
+			if(imgLoc[0][0] == undefined)
+			{
+				//console.log("No Images for Person");
+
+				let imgSrc ='./images/PhotoNotAvailable.png';
+
+				imageContents += '<figure><img src="'+imgSrc+'" alt="Photo for missing person not available."  >' +
+				'<figcaption>No images are available</figcaption></figure>';
+			}
+			else
+			{
+				for(let i = 0; i < numImgs; i++)
+				{
+
+				
+					let imgSrc ='./images/mmps_img/' + imgLoc[i][0] + '.jpg'
+
+
+					let imgDateText = "";
+					if(imgDates[i])
+					{
+						imgDateText = "Image date: " + imgDates[i];
+					}
+
+					imageContents += '<figure><img src="'+imgSrc+'" alt="Photo of '+ name + '," >' +
+					' <figcaption>'+ imgDateText +'</figcaption></figure>';
+				}
+
+			}
+			
+
+
+			imageContainer.innerHTML = imageContents;
+	
+			
+		
+			detailsDialog.showModal();
+			infoHeading.focus();
+
+		
+			infoContainer.scrollIntoView({behavior: "instant", block: "start", inline: "nearest"});
+
+		}
+
+		//=====================================================
+		//===	UPDATE SORT 
+
+		function UpdateSortType(selectedOption)
+		{
+			if(sortType!= selectedOption.value)
+			{
+				sortType=selectedOption.value;
+				//console.log("Sort Type set to: " + sortType);
+				ApplySort();
+			}
+		
+		}
+
+		function UpdateSortOrder(selectedOption)
+		{
+			if(sortOrder!= selectedOption.value)
+			{
+				sortOrder=selectedOption.value;
+				//console.log("Sort Order set to: " + sortOrder);
+				ApplySort();
+			}
+		
+		}
+
+
+		function ApplySort()
+		{
+		//	console.log("Sorting List: " + sortType);
+
+			var $sortList = $("#resultsList");
+
+			//can use to reverse sort results
+			var sortMult = 1;
+			if(sortOrder == 'descending')
+				sortMult = -1;
+
+			switch(sortType){
+				case 'nameSort':
+					
+					$sortList.find('.personCard').sort(function(a, b){
+						return a.dataset.name.localeCompare(b.dataset.name) * sortMult; 
+					}).appendTo($sortList);
+					break;
+
+				case 'ageNow':
+					
+					$sortList.find('.personCard').sort(function(a, b){
+						return (+a.dataset.agenow - +b.dataset.agenow)* sortMult; 
+					}).appendTo($sortList);
+					break;
+
+				case 'ageMissing':
+
+					$sortList.find('.personCard').sort(function(a, b){
+						return (+a.dataset.agemissing - +b.dataset.agemissing)* sortMult; 
+					}).appendTo($sortList);
+					break;
+
+
+
+				case 'timeMissing':
+					
+					$sortList.find('.personCard').sort(function(a, b){
+						return (+a.dataset.time - +b.dataset.time) * -1 * sortMult; 
+					}).appendTo($sortList);
+					break;
+
+				case 'timeReported':
+					
+					$sortList.find('.personCard').sort(function(a, b){
+						return (+a.dataset.sort - +b.dataset.sort) * -1 * sortMult; 
+					}).appendTo($sortList);
+					break;					
+
+
+			}
+
+		}
+
+		
+
+
+	</script>
+
+
+	
+
+
+	
+
+
+	</body>
+</html>
