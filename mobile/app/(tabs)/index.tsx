@@ -26,6 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CoincidentCasesSheet } from '@/components/cf/coincident-cases-sheet';
 import { EmptyState } from '@/components/cf/empty-state';
 import { ErrorState } from '@/components/cf/error-state';
 import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
@@ -60,6 +61,20 @@ const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   missing: ['missing'],
   unidentified: ['unidentified', 'unclaimed'],
 };
+
+/** Most-common value in a count map. Ties broken by Map insertion
+ *  order (first-encountered key wins). Returns null on empty input. */
+function mode(counts: Map<string, number>): string | null {
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [key, n] of counts) {
+    if (n > bestN) {
+      best = key;
+      bestN = n;
+    }
+  }
+  return best;
+}
 
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
@@ -151,6 +166,21 @@ export default function MapScreen() {
   const handleMarkerPress = useCallback((id: string) => {
     setSelectedSlug(id);
   }, []);
+
+  // Coincident-coord tap-drill state. When the user taps a marker-
+  // cluster cluster icon whose children all share a single lat/lng
+  // (e.g., "211" at the LA centroid), or a stacked marker at high
+  // zoom past clustering, LeafletMap fires onCoincidentCluster with
+  // the coord. This state holds it; CoincidentCasesSheet renders a
+  // stacked side-list of the cases at that lat/lng. null = no drill.
+  const [openCoord, setOpenCoord] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
+  const handleCoincidentCluster = useCallback(
+    (c: { lat: number; lng: number }) => setOpenCoord(c),
+    [],
+  );
+  const handleCoincidentClose = useCallback(() => setOpenCoord(null), []);
 
   // Stepwise recency_alpha → days, mirroring use across the list tab.
   const daysFor = useCallback((c: CaseRowMapBbox) => {
@@ -268,6 +298,44 @@ export default function MapScreen() {
     if (!allowed) return casesAll;
     return casesAll.filter((c) => allowed.includes(c.kind));
   }, [casesAll, filter]);
+
+  // Cases at the tapped coincident coord, filtered by the active kind
+  // chip the same way the marker layer is filtered. casesAll is bbox-
+  // bounded so all of them are loaded; client-side filter by lat/lng
+  // (5-decimal-precision tolerance, same as the WebView's coord index).
+  const coincidentCases = useMemo(() => {
+    if (!openCoord) return [];
+    return cases.filter(
+      (c) =>
+        c.lat != null &&
+        c.lng != null &&
+        Math.abs(c.lat - openCoord.lat) < 1e-6 &&
+        Math.abs(c.lng - openCoord.lng) < 1e-6,
+    );
+  }, [cases, openCoord]);
+
+  // Locale label for the sheet header. Mode-of (city, state) across
+  // the cases at the coord — most coincident pile-ups are city-
+  // centroid groups where every case shares the same city/state, so
+  // mode resolves cleanly. Mixed-locale groups (rare — e.g., a county
+  // centroid spanning cities) fall back to null and the sheet header
+  // renders the "{N} cases at this point" fallback.
+  const coincidentLabel = useMemo(() => {
+    if (coincidentCases.length === 0) return null;
+    const cityCounts = new Map<string, number>();
+    const stateCounts = new Map<string, number>();
+    for (const c of coincidentCases) {
+      if (c.location_city) {
+        cityCounts.set(c.location_city, (cityCounts.get(c.location_city) ?? 0) + 1);
+      }
+      if (c.location_state) {
+        stateCounts.set(c.location_state, (stateCounts.get(c.location_state) ?? 0) + 1);
+      }
+    }
+    const modeCity = mode(cityCounts);
+    const modeState = mode(stateCounts);
+    return modeCity && modeState ? `${modeCity}, ${modeState}` : null;
+  }, [coincidentCases]);
 
   // If the previously-selected pin disappears from the filtered set (e.g.
   // user toggled away from "all"), drop the selection so the sheet header
@@ -415,6 +483,7 @@ export default function MapScreen() {
             selectedSlug={selectedSlug}
             onMarkerPress={handleMarkerPress}
             onMarkerOpen={(slug) => router.push({ pathname: '/case/[slug]', params: { slug } })}
+            onCoincidentCluster={handleCoincidentCluster}
             here={here}
             zones={zoneOverlays}
             zonesVisible={zonesVisible}
@@ -511,6 +580,19 @@ export default function MapScreen() {
         watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
       />
 
+      {/* Coincident-coord tap-drill sheet — stacks above the persistent
+          MapBottomSheet when the user taps a markercluster cluster icon
+          whose children share a single lat/lng, or a stacked pin at high
+          zoom past clustering. Conditional render avoids gorhom's
+          hidden-sheet gesture conflicts. */}
+      {openCoord && coincidentCases.length > 0 ? (
+        <CoincidentCasesSheet
+          cases={coincidentCases}
+          label={coincidentLabel}
+          onClose={handleCoincidentClose}
+        />
+      ) : null}
+
     </View>
   );
 }
@@ -571,6 +653,7 @@ function LeafletRenderer({
   selectedSlug,
   onMarkerPress,
   onMarkerOpen,
+  onCoincidentCluster,
   here,
   zones,
   zonesVisible,
@@ -580,6 +663,7 @@ function LeafletRenderer({
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
   onMarkerOpen?: (id: string) => void;
+  onCoincidentCluster?: (coord: { lat: number; lng: number }) => void;
   here: { lat: number; lng: number; fresh: boolean };
   zones: { id: string; geojson: { type: 'Polygon'; coordinates: [number, number][][] }; label: string | null }[];
   zonesVisible: boolean;
@@ -660,6 +744,7 @@ function LeafletRenderer({
       zonesVisible={zonesVisible}
       onMarkerPress={onMarkerPress}
       onMarkerOpen={onMarkerOpen}
+      onCoincidentCluster={onCoincidentCluster}
       onRegionChange={onRegionChange}
     />
   );
