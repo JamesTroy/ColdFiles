@@ -62,30 +62,6 @@ const KIND_FILTER_TO_RPC: Record<Filter, CaseKind[] | null> = {
   unidentified: ['unidentified', 'unclaimed'],
 };
 
-/**
- * Rank table for cases.location_precision (migration 31). Lower rank =
- * coarser. The renderer's worst-precision-wins logic uses MIN over
- * cluster ranks: a 2+-case cluster with any member ≤ city-precision
- * (rank ≤ 3) routes off ring-jitter — the centroid is an aggregation,
- * not a precise position, and jittering pins around it lies twice
- * (about position AND about there being distinct positions).
- *
- * 'state' is intentionally absent: cases_in_bbox filters it server-
- * side (migration 33) and it never reaches the client. NULL/undefined
- * precision normalizes to 'unknown' (rank 1) — defensive: when in
- * doubt, treat as imprecise rather than risk lying about position.
- */
-const PRECISION_RANK: Record<string, number> = {
-  address: 5,
-  street: 4,
-  city: 3,
-  county: 2,
-  unknown: 1,
-};
-function precisionRank(p: string | null | undefined): number {
-  return p && p in PRECISION_RANK ? PRECISION_RANK[p] : PRECISION_RANK.unknown;
-}
-
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>('all');
@@ -654,122 +630,60 @@ function LeafletRenderer({
   onRegionChange?: (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => void;
 }) {
   // Two-stage memo (Wave 1C performance audit):
-  //   baseMarkers — heavy pass: filter to placeable rows, group by 5-decimal
-  //                 coord, apply deterministic ring-jitter, build popup
-  //                 preview text. Keyed on `cases` only so pin-tap doesn't
-  //                 recompute jitter or popup strings.
+  //   baseMarkers — direct map: each case row → one LeafletMarker, plus
+  //                 the popup preview text. Keyed on `cases` only so
+  //                 pin-tap doesn't recompute popup strings.
   //   markers     — cheap pass: maps over baseMarkers and stamps `selected`.
   //                 Re-runs on `selectedSlug` change.
+  //
+  // Post-migration-35 rebuild: the data layer guarantees that every row
+  // returned by cases_in_bbox has a non-shared coordinate (any coincident
+  // coord is moved to cases_centroids_in_bbox as an aggregate). The
+  // renderer therefore has nothing to disambiguate — no group
+  // computation, no jitter, no precision-rank routing. The whole
+  // editorial responsibility for "this point lies about position"
+  // sits server-side now.
   const baseMarkers = useMemo(() => {
-    // Many cases land on the same fallback coordinate (city centroid,
-    // county centroid, etc.) when the source didn't carry precise
-    // location data. Stacks at the same lat/lng force markercluster
-    // into spiderfy mode, which spirals pins around the cluster center
-    // — visually dramatic, often unstable, and the "0.0 miles" sub-
-    // label reads like a bug. Detect groups of coincident pins and
-    // apply a small deterministic jitter so pins render at distinct
-    // positions without the spiderfy. ~0.0008° ≈ 90 meters at typical
-    // mid-latitudes — visible at zoom 14+ as separate pins, invisible
-    // at low zoom.
-    const filtered = cases.filter((c) => c.lat != null && c.lng != null);
-    const groups = new Map<string, typeof filtered>();
-    for (const c of filtered) {
-      const k = `${(c.lat as number).toFixed(5)}|${(c.lng as number).toFixed(5)}`;
-      const arr = groups.get(k);
-      if (arr) arr.push(c);
-      else groups.set(k, [c]);
-    }
-    return filtered.map((c) => {
-      const k = `${(c.lat as number).toFixed(5)}|${(c.lng as number).toFixed(5)}`;
-      const group = groups.get(k);
-      let lat = c.lat as number;
-      let lng = c.lng as number;
-      if (group && group.length > 1) {
-        // Worst-precision-wins: find the coarsest precision in the
-        // cluster (lowest rank). Cluster jitters only when ALL members
-        // are address- or street-precision — genuine co-location at a
-        // precise address (apartment building, jail, shared landmark)
-        // where two pins ~90m apart is honest disambiguation.
-        //
-        // If any member is ≤ city-precision (rank ≤ 3), the centroid
-        // is an aggregation, not a real position. Skip the jitter; all
-        // cluster members keep the centroid coordinate and stack at
-        // that point. Markercluster aggregates at low zoom; at high
-        // zoom the stack collapses to a single visible pin (others
-        // hidden underneath). The wave of disappeared jitter rings is
-        // the diagnostic signal that the precision branch is firing
-        // on the right clusters. The centroid badge component (with a
-        // count and tap-drill) lands in a follow-up PR.
-        let worstRank = PRECISION_RANK.address;
-        for (const g of group) {
-          const r = precisionRank(g.location_precision);
-          if (r < worstRank) worstRank = r;
-        }
-        const allPrecise = worstRank > PRECISION_RANK.city;
-        if (allPrecise) {
-          const idx = group.findIndex((g) => g.slug === c.slug);
-          if (idx > 0) {
-            // Spread on a ring around the shared point. ~90m radius
-            // (0.0008°) at typical mid-latitudes — visible at zoom
-            // 14+ as separate pins (~9 screen px), invisible at low
-            // zoom. Deterministic by group index so a case always
-            // lands at the same offset across renders.
-            //
-            // Why 90m and not 330m: a previous version used 330m to
-            // escape markercluster's 30px-radius clustering at zoom
-            // 13, but that meant any two cases that happened to share
-            // 5-decimal coordinates (~1m, often after the upstream
-            // 3-decimal privacy-snap) had the second pin yanked
-            // ~330m off the true location. For genuinely-precise
-            // pairs that's a flat-out wrong location; for centroid
-            // stacks of 30+ cases at the same city-centroid coord,
-            // 330m was visual overkill anyway. At 90m, pairs that
-            // happen to share post-snap coordinates render
-            // distinguishably at street zoom but are at most ~45m
-            // off the true location.
-            const angle = (idx / group.length) * Math.PI * 2;
-            lat += Math.cos(angle) * 0.0008;
-            lng += Math.sin(angle) * 0.0008;
-          }
-        }
-      }
-      // Popup preview content. Title = victim name (or "Unidentified
-      // person" for Doe cases that genuinely have no name), meta = kind
-      // label · year · state. Kept terse so it fits comfortably in the
-      // popup card width without truncation. Real wraps happen on the
-      // case-detail screen.
-      const titlePreview =
-        c.victim_name ??
-        ((c.kind === 'unidentified' || c.kind === 'unclaimed')
-          ? 'Unidentified person'
-          : 'Name not released');
-      const yearPreview = c.incident_date
-        ? c.incident_date.slice(0, 4)
-        : null;
-      const kindLabel =
-        c.kind === 'homicide' || c.kind === 'suspicious_death'
-          ? 'Homicide'
-          : c.kind === 'missing'
-          ? 'Missing'
-          : 'Unidentified';
-      const metaPreview = [kindLabel, yearPreview, c.location_state]
-        .filter(Boolean)
-        .join(' · ');
-      return {
-        id: c.slug,
-        lat,
-        lng,
-        kind: c.kind,
-        recentDays:
-          c.recency_alpha != null
-            ? alphaToDays(c.recency_alpha)
-            : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null),
-        popup: {
-          title: titlePreview,
-          meta: metaPreview,
-        },
-      };
-    });
+    return cases
+      .filter((c) => c.lat != null && c.lng != null)
+      .map((c) => {
+        // Popup preview content. Title = victim name (or "Unidentified
+        // person" for Doe cases that genuinely have no name), meta = kind
+        // label · year · state. Kept terse so it fits comfortably in the
+        // popup card width without truncation. Real wraps happen on the
+        // case-detail screen.
+        const titlePreview =
+          c.victim_name ??
+          ((c.kind === 'unidentified' || c.kind === 'unclaimed')
+            ? 'Unidentified person'
+            : 'Name not released');
+        const yearPreview = c.incident_date
+          ? c.incident_date.slice(0, 4)
+          : null;
+        const kindLabel =
+          c.kind === 'homicide' || c.kind === 'suspicious_death'
+            ? 'Homicide'
+            : c.kind === 'missing'
+              ? 'Missing'
+              : 'Unidentified';
+        const metaPreview = [kindLabel, yearPreview, c.location_state]
+          .filter(Boolean)
+          .join(' · ');
+        return {
+          id: c.slug,
+          lat: c.lat as number,
+          lng: c.lng as number,
+          kind: c.kind,
+          recentDays:
+            c.recency_alpha != null
+              ? alphaToDays(c.recency_alpha)
+              : (SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? null),
+          popup: {
+            title: titlePreview,
+            meta: metaPreview,
+          },
+        };
+      });
   }, [cases]);
 
   const markers: LeafletMarker[] = useMemo(
