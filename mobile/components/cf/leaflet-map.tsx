@@ -79,6 +79,14 @@ interface LeafletMapProps {
   zones?: LeafletZoneOverlay[];
   /** Defaults to true. Tied to the layer-stack Z toggle. */
   zonesVisible?: boolean;
+  /**
+   * Fired when the user taps a marker-cluster cluster icon whose
+   * children all share the same lat/lng, OR a marker that has other
+   * markers stacked at its exact coord. The parent should open a
+   * sheet listing the cases at that coordinate. Coordinates returned
+   * are the cluster/marker's lat/lng (5-decimal post-snap precision).
+   */
+  onCoincidentCluster?: (coord: { lat: number; lng: number }) => void;
   /** Fired when the user taps a marker — selects it without opening detail. */
   onMarkerPress?: (id: string) => void;
   /**
@@ -109,6 +117,7 @@ export function LeafletMap({
   here,
   zones = [],
   zonesVisible = true,
+  onCoincidentCluster,
   onMarkerPress,
   onMarkerOpen,
   onRegionChange,
@@ -294,6 +303,15 @@ export function LeafletMap({
         // fire onMarkerOpen so the parent can route to /case/[slug].
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onMarkerOpen?.(msg.id);
+      } else if (msg.type === 'coincident-cluster') {
+        // User tapped a coincident-coord cluster (low zoom) or a stacked
+        // pin (high zoom past clustering threshold). Light haptic same
+        // as marker tap, then surface the coord so the parent can open
+        // a list sheet of cases sharing this lat/lng.
+        Haptics.selectionAsync().catch(() => {});
+        if (typeof msg.lat === 'number' && typeof msg.lng === 'number') {
+          onCoincidentCluster?.({ lat: msg.lat, lng: msg.lng });
+        }
       } else if (msg.type === 'region') {
         // Capture center+zoom for the next mount's initial position so
         // navigating away and back doesn't snap the map to user-location.
@@ -885,6 +903,41 @@ function buildLeafletHtml(
         chunkedLoading: true,
         iconCreateFunction: clusterIconFor,
       }).addTo(map);
+
+      // Coincident-coord cluster intercept: when a cluster's children
+      // ALL share the same lat/lng (e.g., 211 cases at the LA city
+      // centroid), the default zoomToBoundsOnClick is a no-op (one
+      // point → zero-area bounds → no zoom). Tap looks broken. Stop
+      // the default and post a 'coincident-cluster' message so the
+      // React side opens a list sheet of cases at that coord.
+      //
+      // Non-coincident clusters (genuine spatial proximity of distinct
+      // lat/lngs) keep the default behavior — fall through, zoom in.
+      markerLayer.on('clusterclick', function (e) {
+        var children = e.layer.getAllChildMarkers();
+        if (!children || children.length < 2) return;
+        var ll0 = children[0].getLatLng();
+        var allSame = true;
+        for (var ci = 1; ci < children.length; ci++) {
+          var ll = children[ci].getLatLng();
+          if (Math.abs(ll.lat - ll0.lat) > 1e-6 || Math.abs(ll.lng - ll0.lng) > 1e-6) {
+            allSame = false;
+            break;
+          }
+        }
+        if (!allSame) return;
+        // Suppress the default zoom-to-bounds and emit our own event.
+        if (e.originalEvent) {
+          L.DomEvent.stopPropagation(e.originalEvent);
+          L.DomEvent.preventDefault(e.originalEvent);
+        }
+        postMessage({
+          type: 'coincident-cluster',
+          lat: ll0.lat,
+          lng: ll0.lng,
+        });
+      });
+
       var hereMarker = null;
 
       // Trigger the press animation on a marker's icon. Removing the class
@@ -910,6 +963,14 @@ function buildLeafletHtml(
       // before the user can tap a pin."
       var markerById = Object.create(null);
 
+      // coordCount tracks how many live markers share the same 5-decimal
+      // (lat, lng) — i.e., post-snap coincident-coord pile-ups. The marker
+      // click handler branches on it: solo → existing select+popup,
+      // coincident → post a 'coincident-cluster' message so the React
+      // side can open a list sheet of cases at that point. Maintained
+      // alongside markerById through __cf_setMarkers' add/remove diff.
+      var coordCount = Object.create(null);
+
       function buildMarker(m) {
         // Bumped from 14/16 → 18/22 for legibility against dimmed OSM tiles.
         // Build the icon at the un-selected baseline. Selection state is
@@ -934,6 +995,13 @@ function buildLeafletHtml(
         marker._cfId = id;
         marker._cfKind = m.kind;
         marker._cfRecentDays = m.recentDays;
+        // _cfCoordKey is the 5-decimal-precision coord index used to
+        // detect coincident-coord pile-ups at click time. Same precision
+        // the rest of the file uses for coord comparison.
+        marker._cfCoordKey =
+          m.lat.toFixed(5) + '|' + m.lng.toFixed(5);
+        marker._cfLat = m.lat;
+        marker._cfLng = m.lng;
         // _cfKey deliberately excludes 'selected'. Selection mutations
         // ride a separate channel (setIcon, not remove+add) so the
         // open-spider state survives a tap on a pin in the spider.
@@ -972,6 +1040,20 @@ function buildLeafletHtml(
 
         marker.on('click', function () {
           pressFlash(marker);
+          // Coincident-coord branch: if multiple markers share this
+          // exact coord (e.g., 211 cases at the LA centroid 34.048,
+          // -118.254), open the list sheet instead of selecting just
+          // the topmost pin. At high zoom past disableClusteringAtZoom
+          // the stack is otherwise inaccessible — only one of N pins
+          // is visible/tappable.
+          if ((coordCount[marker._cfCoordKey] || 0) > 1) {
+            postMessage({
+              type: 'coincident-cluster',
+              lat: marker._cfLat,
+              lng: marker._cfLng,
+            });
+            return;
+          }
           // Selection still goes back so the React state knows what's
           // active (drives the bottom-sheet header / count UI).
           postMessage({ type: 'marker', id: id });
@@ -997,6 +1079,12 @@ function buildLeafletHtml(
           if (!incoming) {
             toRemove.push(existing);
             delete markerById[id];
+            // Decrement the coord index for the removed marker.
+            var rk = existing._cfCoordKey;
+            if (rk && coordCount[rk]) {
+              coordCount[rk] -= 1;
+              if (coordCount[rk] <= 0) delete coordCount[rk];
+            }
             continue;
           }
           var newKey =
@@ -1006,6 +1094,13 @@ function buildLeafletHtml(
           if (existing._cfKey !== newKey) {
             toRemove.push(existing);
             delete markerById[id];
+            // Removed-and-readded path: decrement here, the add loop
+            // below will increment again with the (possibly new) coord.
+            var rk2 = existing._cfCoordKey;
+            if (rk2 && coordCount[rk2]) {
+              coordCount[rk2] -= 1;
+              if (coordCount[rk2] <= 0) delete coordCount[rk2];
+            }
           }
         }
         if (toRemove.length) markerLayer.removeLayers(toRemove);
@@ -1019,6 +1114,9 @@ function buildLeafletHtml(
           if (markerById[m.id]) continue;
           var built = buildMarker(m);
           markerById[m.id] = built;
+          // Increment the coord index for the new marker.
+          var ak = built._cfCoordKey;
+          if (ak) coordCount[ak] = (coordCount[ak] || 0) + 1;
           toAdd.push(built);
         }
         if (toAdd.length) markerLayer.addLayers(toAdd);
