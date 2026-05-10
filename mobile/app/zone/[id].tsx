@@ -13,12 +13,11 @@
  * toggle. Designing the empty space now means no layout shift later.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -42,7 +41,9 @@ import {
   SansMedium,
   SerifTitle,
 } from '@/components/cf/text';
+import { showToast } from '@/components/cf/toast';
 import { tokens } from '@/constants/theme';
+import { confirmDeleteZone } from '@/lib/confirm-delete-zone';
 import { kindLine } from '@/lib/format';
 import { useWatchZones, type WatchZone } from '@/lib/hooks/use-watch-zones';
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -155,32 +156,23 @@ export default function ZoneDetailScreen() {
   }
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete this zone?',
-      `Your saved area "${zone.label ?? 'Untitled zone'}" will be removed from your zones list. Saved cases are not affected.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await remove(zone.id);
-              router.back();
-            } catch (err) {
-              console.warn(
-                '[zone] delete failed',
-                err instanceof Error ? err.message : String(err),
-              );
-              Alert.alert(
-                "Couldn't delete",
-                "We couldn't delete that zone right now. Check your connection and try again.",
-              );
-            }
-          },
-        },
-      ],
-    );
+    confirmDeleteZone(zone, async () => {
+      try {
+        await remove(zone.id);
+        router.back();
+      } catch (err) {
+        console.warn(
+          '[zone] delete failed',
+          err instanceof Error ? err.message : String(err),
+        );
+        showToast({
+          kind: 'error',
+          message: "Couldn't delete that zone. Check your connection.",
+          actionLabel: 'RETRY',
+          onAction: handleDelete,
+        });
+      }
+    });
   };
 
   return (
@@ -452,10 +444,14 @@ function RenameRow({ zone }: { zone: WatchZone }) {
         '[zone] rename failed',
         err instanceof Error ? err.message : String(err),
       );
-      Alert.alert(
-        "Couldn't rename",
-        "We couldn't save the new name. Check your connection and try again.",
-      );
+      showToast({
+        kind: 'error',
+        message: "Couldn't save the new name. Check your connection.",
+        actionLabel: 'RETRY',
+        onAction: () => {
+          void handleSave();
+        },
+      });
     } finally {
       setSaving(false);
     }

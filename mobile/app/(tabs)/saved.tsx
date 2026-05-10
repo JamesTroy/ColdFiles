@@ -21,12 +21,11 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   type ListRenderItem,
   Pressable,
@@ -37,6 +36,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PinGlyph } from '@/components/cf/pin';
 import { MonoLabel, NarrativeText, SansBody, SansMedium, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
+import { confirmDeleteZone } from '@/lib/confirm-delete-zone';
 import { displayName, kindLine } from '@/lib/format';
 import { useSavedCases } from '@/lib/hooks/use-saved-cases';
 import { useWatchZones, type WatchZone } from '@/lib/hooks/use-watch-zones';
@@ -74,20 +74,9 @@ export default function SavedScreen() {
   };
 
   const handleDeleteZone = (zone: WatchZone) => {
-    Alert.alert(
-      'Delete this zone?',
-      `Your saved area "${zone.label ?? 'Untitled zone'}" and any matching cases will be removed from your zones list. Saved cases are not affected.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            void remove(zone.id);
-          },
-        },
-      ],
-    );
+    confirmDeleteZone(zone, () => {
+      void remove(zone.id);
+    });
   };
 
   return (
