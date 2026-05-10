@@ -215,7 +215,7 @@ function Header({
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close cases list"
-        hitSlop={12}
+        hitSlop={16}
         style={({ pressed }) => [
           {
             width: 32,

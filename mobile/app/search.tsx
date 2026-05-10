@@ -55,7 +55,7 @@ export default function SearchScreen() {
           onPress={() => router.back()}
           accessibilityLabel="Back"
           accessibilityRole="button"
-          hitSlop={12}
+          hitSlop={16}
           style={({ pressed }) => [
             {
               width: 36,
