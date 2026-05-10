@@ -125,7 +125,12 @@ export default function MeScreen() {
             valueMono
             onPress={() => router.push('/tip-history')}
           />
-          <NavRow label="Cases saved" onPress={() => router.push('/(tabs)/saved')} />
+          <Row
+            label="Cases saved"
+            value={String(counts.savedCases)}
+            valueMono
+            onPress={() => router.push('/(tabs)/saved')}
+          />
         </Card>
 
         {/* Card 3 — Data · Sources (mix transparency) */}
