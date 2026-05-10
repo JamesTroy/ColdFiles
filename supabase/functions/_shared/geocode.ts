@@ -29,9 +29,24 @@ export async function mapboxGeocode(
 ): Promise<GeocodeResult | undefined> {
   if (!accessToken) throw new Error('MAPBOX_ACCESS_TOKEN is required for geocoding');
 
+  // types=poi,poi.landmark were added 2026-05-09 to support LLM-extracted
+  // candidates from the location-recovery pipeline (scripts/enrich-
+  // locations.ts). Mapbox POI coverage is sparse — small businesses
+  // ("Banana Boat Lounge"), local landmarks, and even some major
+  // institutions (Orlando International Airport doesn't resolve as a
+  // poi.landmark) fall through to the place/locality match instead. We
+  // include the POI types anyway so the cases that DO match resolve
+  // correctly; the orchestrator (extract-location.ts) gates on
+  // precision='address'|'street' and rejects place-fallback matches.
+  //
+  // Forward-geocoding v5 valid types (per Mapbox docs):
+  //   country, region, postcode, district, place, locality,
+  //   neighborhood, address, poi, poi.landmark
+  // 'street' is NOT a valid type for v5 forward geocoding (despite
+  // appearing in the precision enum) — including it produces a 422.
   const url =
     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-    `?access_token=${accessToken}&country=us&types=address,place,locality,region,postcode`;
+    `?access_token=${accessToken}&country=us&types=address,place,locality,neighborhood,poi,poi.landmark,region,postcode`;
 
   const res = await fetch(url);
   if (!res.ok) return undefined;
@@ -67,6 +82,13 @@ function mapPrecision(placeType?: string): GeocodeResult['precision'] {
       return 'address';
     case 'street':
       return 'street';
+    // POIs (Orlando International Airport, Walmart, etc.) and named
+    // landmarks (Yellowstone National Park, Brooklyn Bridge) are point
+    // locations — treat as 'address' precision so the renderer puts
+    // them on the map at the precise lat/lng Mapbox returned.
+    case 'poi':
+    case 'poi.landmark':
+      return 'address';
     case 'place':
     case 'locality':
     case 'neighborhood':

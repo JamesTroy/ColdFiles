@@ -33,11 +33,14 @@ import {
 } from './llm-extract.ts';
 
 /** Confidence threshold the LLM must meet for the candidate to even
- *  reach the geocoder. Conservative — better to skip an ambiguous
- *  case than to write a wrong upgraded position. The rejected case
- *  stays at city precision; backfill can be re-run with a lower
- *  threshold later if needed. */
-export const CONFIDENCE_THRESHOLD = 0.75;
+ *  reach the geocoder. Tuned from 0.75 → 0.65 after the first 5-case
+ *  smoke run: Claude calibrated 0.70-0.74 on perfectly-geocodable
+ *  named-landmark candidates ("Southside High School, Fort Smith, AR").
+ *  The Mapbox precision gate downstream is the actual quality
+ *  guardrail — if the geocoder doesn't return address/street precision
+ *  we still reject. The threshold's job is to skip the LLM's "I'm
+ *  guessing" outputs, not to second-guess its calibration. */
+export const CONFIDENCE_THRESHOLD = 0.65;
 
 /** Precision tiers we accept as "upgrade." 'county' from the geocoder
  *  is a coarser tier than the 'city' we started with in some sense

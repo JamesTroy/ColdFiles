@@ -709,11 +709,24 @@ function LeafletRenderer({
         const metaPreview = [kindLabel, yearPreview, c.location_state]
           .filter(Boolean)
           .join(' · ');
+        // Map cases.location_precision through to the marker so
+        // LeafletMap's buildMarker can branch on precise vs imprecise
+        // and apply the .cf-pin--imprecise modifier (faded amber +
+        // dashed halo) for city/county/unknown precision rows.
+        const precision =
+          c.location_precision === 'address' ||
+          c.location_precision === 'street' ||
+          c.location_precision === 'city' ||
+          c.location_precision === 'county' ||
+          c.location_precision === 'unknown'
+            ? c.location_precision
+            : null;
         return {
           id: c.slug,
           lat: c.lat as number,
           lng: c.lng as number,
           kind: c.kind,
+          precision,
           recentDays:
             c.recency_alpha != null
               ? alphaToDays(c.recency_alpha)
