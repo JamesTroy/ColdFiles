@@ -31,17 +31,22 @@ export async function mapboxGeocode(
 
   // types=poi,poi.landmark were added 2026-05-09 to support LLM-extracted
   // candidates from the location-recovery pipeline (scripts/enrich-
-  // locations.ts). Without poi types, "Orlando International Airport,
-  // Orlando, FL" returned no features even though Mapbox indexes it as
-  // a poi.landmark. The added types are inclusive — sources passing
-  // city-only strings ("Belen, NM") still match place/locality as
-  // before; the new types only kick in when the query happens to be a
-  // landmark name. Risk to existing persist.ts callers: a source-text
-  // that happens to match a POI gets address-tier precision instead of
-  // 'unknown' — strictly an upgrade, never a degrade.
+  // locations.ts). Mapbox POI coverage is sparse — small businesses
+  // ("Banana Boat Lounge"), local landmarks, and even some major
+  // institutions (Orlando International Airport doesn't resolve as a
+  // poi.landmark) fall through to the place/locality match instead. We
+  // include the POI types anyway so the cases that DO match resolve
+  // correctly; the orchestrator (extract-location.ts) gates on
+  // precision='address'|'street' and rejects place-fallback matches.
+  //
+  // Forward-geocoding v5 valid types (per Mapbox docs):
+  //   country, region, postcode, district, place, locality,
+  //   neighborhood, address, poi, poi.landmark
+  // 'street' is NOT a valid type for v5 forward geocoding (despite
+  // appearing in the precision enum) — including it produces a 422.
   const url =
     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-    `?access_token=${accessToken}&country=us&types=address,street,place,locality,neighborhood,poi,poi.landmark,region,postcode`;
+    `?access_token=${accessToken}&country=us&types=address,place,locality,neighborhood,poi,poi.landmark,region,postcode`;
 
   const res = await fetch(url);
   if (!res.ok) return undefined;
