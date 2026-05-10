@@ -16,6 +16,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import Animated, {
@@ -235,7 +236,12 @@ export default function MapScreen() {
   // to peek, but the persistent sheet's mere presence read as "the list is
   // still there, just hiding." Conditional render is the unambiguous fix.
   const handleMarkerPress = useCallback((id: string) => {
-    setSelectedSlug(id);
+    setSelectedSlug((prev) => {
+      if (prev !== id) {
+        Haptics.selectionAsync().catch(() => {});
+      }
+      return id;
+    });
   }, []);
 
   // Coincident-coord tap-drill state. When the user taps a marker-
@@ -727,24 +733,30 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      {/* Bottom-sheet shows the cases list always. The previously-shown
-          PeekSheet (when a pin was selected) is now replaced by the
-          in-map case-file popup that opens directly above the tapped
-          pin — the bottom-sheet stays put as the cases list browser
-          regardless of selection state. */}
-      <MapBottomSheet
-        ref={sheetRef}
-        cases={cases}
-        totalCount={totalCount}
-        selectedSlug={selectedSlug}
-        daysFor={daysFor}
-        mixByKind={filter === 'all'}
-        animatedIndex={sheetIndex}
-        onWatchHere={() => router.push('/watch-zone')}
-        watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
-        inGridMode={isGrid}
-        gridSummary={gridSummary}
-      />
+      {/* Bottom-sheet shows the cases list as the persistent browse UI.
+          Unmounted while a coincident-coord drill is open (openCoord set):
+          stacking two gorhom sheets leaves the bottom peek's drag area
+          with ambiguous gesture ownership on Android Fabric. Conditional
+          render guarantees only one sheet owns drag input at a time.
+          The previously-shown PeekSheet (when a pin was selected) is now
+          replaced by the in-map case-file popup that opens directly
+          above the tapped pin — the bottom-sheet stays put as the cases
+          list browser regardless of selection state. */}
+      {!openCoord ? (
+        <MapBottomSheet
+          ref={sheetRef}
+          cases={cases}
+          totalCount={totalCount}
+          selectedSlug={selectedSlug}
+          daysFor={daysFor}
+          mixByKind={filter === 'all'}
+          animatedIndex={sheetIndex}
+          onWatchHere={() => router.push('/watch-zone')}
+          watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
+          inGridMode={isGrid}
+          gridSummary={gridSummary}
+        />
+      ) : null}
 
       {/* Coincident-coord tap-drill sheet — stacks above the persistent
           MapBottomSheet when the user taps a markercluster cluster icon
@@ -976,15 +988,15 @@ function LayerToggleButton({
       accessibilityRole="button"
       accessibilityLabel={visible ? 'Hide watch zones' : 'Show watch zones'}
       accessibilityState={{ selected: visible }}
-      hitSlop={6}
+      hitSlop={12}
       style={({ pressed }) => [
         {
           position: 'absolute',
           right: 16,
           top: 12,
-          width: 40,
-          height: 40,
-          borderRadius: 20,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
           backgroundColor: visible ? tokens.color.bg.amberTintCard : tokens.color.bg.elev1,
           borderWidth: 0.5,
           borderColor: visible ? tokens.color.accent.amber : tokens.color.border.strong,
