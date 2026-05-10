@@ -77,9 +77,22 @@ function mustEnv(name: string): string {
   return v;
 }
 
+// Security (audit finding H1, BFLA): the platform JWT gate accepts any valid
+// JWT — including the public anon key shipped with the mobile app. Without an
+// additional caller-identity check, anyone who has captured the anon key can
+// POST { user_ids: ['<victim-uuid>'], … } and target push notifications at a
+// chosen user. Defense-in-depth: require the service-role bearer exactly, so
+// only privileged producers (the migration-19 watch_zone_hit trigger and any
+// future server-side cron / worker) can fan out. Strict equality — substring
+// match would let any header that *contains* the key pass.
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return json({ error: 'method not allowed' }, 405);
+  }
+
+  const authz = req.headers.get('authorization') ?? '';
+  if (authz !== `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`) {
+    return json({ error: 'unauthorized' }, 401);
   }
 
   let body: NotifyPayload;

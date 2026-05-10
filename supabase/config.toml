@@ -59,3 +59,8 @@ import_map = "./functions/import_map.json"
 # Anonymous tips are first-class — the client calls this without an auth token.
 verify_jwt = false
 import_map = "./functions/import_map.json"
+
+[functions.takedown-confirm]
+# Public click link from confirmation email. No JWT required.
+verify_jwt = false
+import_map = "./functions/import_map.json"
