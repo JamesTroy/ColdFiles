@@ -25,9 +25,15 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 import { corsHeaders, preflightResponse } from '../_shared/cors.ts';
+import { internalError } from '../_shared/responses.ts';
 
 const SUPABASE_URL = mustEnv('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = mustEnv('SUPABASE_SERVICE_ROLE_KEY');
+
+// Per-IP cache-MISS budget. 30/hour is generous for legit users saving many
+// distinct watch zones, restrictive enough to deny scripted abuse against
+// the Nominatim upstream (1 req/s ToS ceiling).
+const RL_MISSES_PER_HOUR = 30;
 
 // Identifies us per Nominatim's usage policy. Include both the project URL
 // and a contact email — operator can be reached if traffic looks anomalous.
@@ -57,10 +63,18 @@ Deno.serve(async (req) => {
       status: 200,
       headers: { 'content-type': 'application/json', ...cors },
     });
-  const errResponse = (status: number, error: string): Response =>
+  const errResponse = (
+    status: number,
+    error: string,
+    extraHeaders: Record<string, string> = {},
+  ): Response =>
     new Response(JSON.stringify({ error }), {
       status,
-      headers: { 'content-type': 'application/json', ...cors },
+      headers: {
+        'content-type': 'application/json',
+        ...cors,
+        ...extraHeaders,
+      },
     });
 
   if (req.method === 'OPTIONS') return preflightResponse(req);
@@ -102,6 +116,24 @@ Deno.serve(async (req) => {
     if (raw?.label) {
       return ok({ label: raw.label, source: 'cache' });
     }
+  }
+
+  // Cache MISS path — gate on per-IP rate limit before touching Nominatim.
+  // Cache hits above never reach this code, so legit-heavy users with warm
+  // entries pay zero rate-limit cost.
+  const ipHash = await hashIp(req);
+  if (await isRateLimited(supabase, ipHash)) {
+    return errResponse(429, 'rate_limited', { 'retry-after': '60' });
+  }
+
+  // Log the miss BEFORE the upstream call. The rate-limit fence depends on
+  // these rows landing, so a failed insert means we can't safely proceed —
+  // fail closed via internalError rather than bypass the abuse fence.
+  const { error: rlInsertError } = await supabase
+    .from('reverse_geocode_rate_limit')
+    .insert({ ip_hash: ipHash });
+  if (rlInsertError) {
+    return internalError(req, rlInsertError, 'reverse-geocode.rl-insert');
   }
 
   // Upstream call. Default to en-US so we get readable English place names.
@@ -196,6 +228,37 @@ function clamp(s: string, max: number): string {
   const lastComma = trimmed.lastIndexOf(',');
   if (lastComma > 8) return trimmed.slice(0, lastComma);
   return trimmed.replace(/\s+\S*$/, '') + '…';
+}
+
+async function hashIp(req: Request): Promise<string> {
+  // Mirrors tip-route-submit's hashIp — same ip-v1 prefix so we don't get
+  // hash drift between functions. Cloudflare/Vercel/Supabase set
+  // x-forwarded-for / cf-connecting-ip on the inbound; fall back to
+  // 'unknown' when neither is present (local invocation, smoke tests).
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('cf-connecting-ip') ??
+    'unknown';
+  const data = new TextEncoder().encode(`coldfile-ip-v1:${ip}`);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function isRateLimited(
+  supabase: ReturnType<typeof createClient>,
+  ipHash: string,
+): Promise<boolean> {
+  // 1-hour sliding window. Backed by
+  // reverse_geocode_rate_limit_iphash_created_idx (see migration 45).
+  const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString();
+  const { count } = await supabase
+    .from('reverse_geocode_rate_limit')
+    .select('id', { count: 'exact', head: true })
+    .eq('ip_hash', ipHash)
+    .gte('created_at', oneHourAgo);
+  return (count ?? 0) >= RL_MISSES_PER_HOUR;
 }
 
 const US_STATE_TO_ABBREV: Record<string, string> = {
