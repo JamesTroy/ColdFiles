@@ -44,7 +44,12 @@ import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { alphaToDays } from '@/lib/format';
 import { useCaseCount } from '@/lib/hooks/use-case-count';
-import { useCasesInBbox, type CaseBounds } from '@/lib/hooks/use-cases-in-bbox';
+import {
+  aggregationForZoom,
+  useCasesInBbox,
+  useCellsGridInBbox,
+  type CaseBounds,
+} from '@/lib/hooks/use-cases-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
 import { useWatchZones } from '@/lib/hooks/use-watch-zones';
 import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
@@ -271,35 +276,54 @@ export default function MapScreen() {
   //                  drifts outside the current fetchBounds.
   const [fetchBounds, setFetchBounds] = useState<CaseBounds | null>(null);
   const fetchBoundsRef = useRef<CaseBounds | null>(null);
+  // Current Leaflet zoom — drives aggregationForZoom() routing between
+  // cases_in_bbox (zoom ≥ 8) and cases_grid_in_bbox (zoom < 8). Default
+  // 9 keeps the first frame in point mode on cold start; the WebView
+  // posts the real zoom via its initial `region` message before any
+  // pin-fetch can run.
+  const [zoom, setZoom] = useState<number>(9);
 
-  const handleRegionChange = useCallback((nextVisible: CaseBounds) => {
-    const current = fetchBoundsRef.current;
-    // First report — or new visible bbox extends outside the cached
-    // fetch bbox. Re-fetch with an expanded version so subsequent pans
-    // within the buffer don't re-fire the RPC.
-    const insideCurrent =
-      !!current &&
-      nextVisible.minLng >= current.minLng &&
-      nextVisible.minLat >= current.minLat &&
-      nextVisible.maxLng <= current.maxLng &&
-      nextVisible.maxLat <= current.maxLat;
-    if (insideCurrent) return;
+  const handleRegionChange = useCallback(
+    (region: { bounds: CaseBounds; zoom: number }) => {
+      setZoom(region.zoom);
+      const nextVisible = region.bounds;
+      const current = fetchBoundsRef.current;
+      // First report — or new visible bbox extends outside the cached
+      // fetch bbox. Re-fetch with an expanded version so subsequent pans
+      // within the buffer don't re-fire the RPC.
+      const insideCurrent =
+        !!current &&
+        nextVisible.minLng >= current.minLng &&
+        nextVisible.minLat >= current.minLat &&
+        nextVisible.maxLng <= current.maxLng &&
+        nextVisible.maxLat <= current.maxLat;
+      if (insideCurrent) return;
 
-    // Expand by 50% on each axis around the visible bbox center. With
-    // result_limit:100, the RPC cap absorbs the extra area; if a region
-    // truly has more than 100 cases inside the expanded bbox, the user
-    // will see <100 returned (already true today, the cap was 100).
-    const dLng = nextVisible.maxLng - nextVisible.minLng;
-    const dLat = nextVisible.maxLat - nextVisible.minLat;
-    const expanded: CaseBounds = {
-      minLng: nextVisible.minLng - dLng * 0.5,
-      minLat: nextVisible.minLat - dLat * 0.5,
-      maxLng: nextVisible.maxLng + dLng * 0.5,
-      maxLat: nextVisible.maxLat + dLat * 0.5,
-    };
-    fetchBoundsRef.current = expanded;
-    setFetchBounds(expanded);
-  }, []);
+      // Expand by 50% on each axis around the visible bbox center. With
+      // result_limit:100, the RPC cap absorbs the extra area; if a region
+      // truly has more than 100 cases inside the expanded bbox, the user
+      // will see <100 returned (already true today, the cap was 100).
+      const dLng = nextVisible.maxLng - nextVisible.minLng;
+      const dLat = nextVisible.maxLat - nextVisible.minLat;
+      const expanded: CaseBounds = {
+        minLng: nextVisible.minLng - dLng * 0.5,
+        minLat: nextVisible.minLat - dLat * 0.5,
+        maxLng: nextVisible.maxLng + dLng * 0.5,
+        maxLat: nextVisible.maxLat + dLat * 0.5,
+      };
+      fetchBoundsRef.current = expanded;
+      setFetchBounds(expanded);
+    },
+    [],
+  );
+
+  // Map-aggregation mode + cell size, derived from the current zoom.
+  // Hook PR scope: data plumbing only — `cells` below is fetched but
+  // unrendered. The follow-up renderer-PR will consume `cells` and
+  // gate `useCasesInBbox` off in grid mode. For now both hooks fire
+  // unconditionally so this PR is purely additive (no user-visible
+  // behavior change at any zoom).
+  const aggregation = useMemo(() => aggregationForZoom(zoom), [zoom]);
 
   const {
     data: casesAll,
@@ -331,6 +355,22 @@ export default function MapScreen() {
     // zoom. The earlier centroid-badge layer was retired — see the
     // migration 39 header comment for the editorial rationale.
     limit: 6000,
+  });
+
+  // Tile-grid aggregation hook (mig 44 — cases_grid_in_bbox). Fires
+  // only at low zoom (zoom < 8 → aggregation.mode === 'grid'); idle
+  // otherwise. Hook-PR scope: data is fetched but UNRENDERED. The
+  // follow-up renderer-PR will consume `cells` to draw cell badges,
+  // gate `useCasesInBbox` off in grid mode, and toggle markercluster
+  // accordingly. Until then this is purely additive — no user-visible
+  // behavior change at any zoom.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { data: _cells } = useCellsGridInBbox({
+    bounds: fetchBounds,
+    cellSizeDeg:
+      aggregation.mode === 'grid' ? aggregation.cellSizeDeg : 1.0,
+    kinds: null,
+    enabled: aggregation.mode === 'grid',
   });
 
   // Headline corpus-size stat for the bottom-sheet header. Cached at
@@ -725,7 +765,10 @@ function LeafletRenderer({
   here: { lat: number; lng: number; fresh: boolean };
   zones: { id: string; geojson: { type: 'Polygon'; coordinates: [number, number][][] }; label: string | null }[];
   zonesVisible: boolean;
-  onRegionChange?: (bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number }) => void;
+  onRegionChange?: (region: {
+    bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number };
+    zoom: number;
+  }) => void;
 }) {
   // Two-stage memo (Wave 1C performance audit):
   //   baseMarkers — direct map: each case row → one LeafletMarker, plus
