@@ -3,6 +3,7 @@
 // the query and returns typed results.
 
 import { snapToBlock } from './normalize.ts';
+import { STATE_CENTROID, type StateCode } from './state-bbox.ts';
 
 export interface GeocodeResult {
   lat: number;
@@ -47,6 +48,55 @@ export async function mapboxGeocode(
   const url =
     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
     `?access_token=${accessToken}&country=us&types=address,place,locality,neighborhood,poi,poi.landmark,region,postcode`;
+
+  const res = await fetch(url);
+  if (!res.ok) return undefined;
+  const json = (await res.json()) as MapboxResponse;
+
+  const top = json.features?.[0];
+  if (!top) return undefined;
+
+  const [lng, lat] = top.center;
+  const snapped = snapToBlock(lat, lng);
+
+  return {
+    lat: snapped.lat,
+    lng: snapped.lng,
+    precision: mapPrecision(top.place_type?.[0]),
+    raw: top,
+  };
+}
+
+/**
+ * Same as mapboxGeocode, but biased toward `state` via the proximity
+ * URL parameter (state-centroid lat/lng). Mapbox uses proximity to
+ * break ties on ambiguous queries — "Monroe County" alone returns
+ * whichever match Mapbox ranks highest globally; with proximity set
+ * to FL's centroid, the FL Monroe County wins.
+ *
+ * Bypasses the geocode_cache deliberately. The cache is keyed on the
+ * normalized query string; a state-biased call for "monroe county fl"
+ * would have to mint a different cache key to avoid clobbering the
+ * unbiased entry. This helper is the targeted retry path inside the
+ * persist-time state-validation guard — one extra Mapbox call per
+ * mismatched row, paid only when the unbiased result was wrong.
+ *
+ * Returns undefined on error or no result, identical to mapboxGeocode.
+ */
+export async function mapboxGeocodeWithStateBias(
+  query: string,
+  accessToken: string,
+  state: StateCode,
+): Promise<GeocodeResult | undefined> {
+  if (!accessToken) throw new Error('MAPBOX_ACCESS_TOKEN is required for geocoding');
+
+  const centroid = STATE_CENTROID[state];
+  if (!centroid) return undefined;
+
+  const url =
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
+    `?access_token=${accessToken}&country=us&types=address,place,locality,neighborhood,poi,poi.landmark,region,postcode` +
+    `&proximity=${centroid.lng},${centroid.lat}`;
 
   const res = await fetch(url);
   if (!res.ok) return undefined;

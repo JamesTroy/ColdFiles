@@ -13,6 +13,7 @@ import { buildSlug } from './normalize.ts';
 import { PoliteFetcher, sha256Hex } from './http.ts';
 import { cacheMediaForCase } from './media.ts';
 import { resolveGeocode, makePointWkt } from './geocode-resolver.ts';
+import { validateGeocodeAgainstState } from './geocode-state-validation.ts';
 import { persistCaseEvents } from './case-events.ts';
 import { snapToBlock } from './normalize.ts';
 
@@ -403,11 +404,28 @@ async function ensureGeocode(
   );
   if (!result) return;
 
+  // State-validation guard. The 2026-05-10 audit found ~2.46% of
+  // city-precision rows had Mapbox-returned coords outside their
+  // claimed state's bbox (ambiguous county/city names — "Monroe
+  // County, FL" geocoding to central Missouri). The validator
+  // verifies the result lands in record.location_state's bbox; on
+  // mismatch it retries once with state-centroid proximity bias;
+  // on retry-mismatch it falls back to the state centroid with
+  // precision='state' so the row is honestly off-map rather than
+  // displayed in the wrong place. See geocode-state-validation.ts.
+  const validated = await validateGeocodeAgainstState(
+    result,
+    query,
+    record.location_state,
+    ctx.mapboxToken,
+  );
+  const final = validated.result;
+
   await ctx.supabase
     .from('cases')
     .update({
-      location_point: makePointWkt(result.lng, result.lat),
-      location_precision: result.precision,
+      location_point: makePointWkt(final.lng, final.lat),
+      location_precision: final.precision,
       geocoding_source: 'mapbox',
     })
     .eq('id', caseId);
