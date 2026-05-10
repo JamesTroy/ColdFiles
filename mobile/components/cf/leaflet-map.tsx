@@ -109,11 +109,20 @@ interface LeafletMapProps {
    * popup CTA navigates. Defaults to no-op if not provided.
    */
   onMarkerOpen?: (id: string) => void;
-  onRegionChange?: (bounds: {
-    minLng: number;
-    minLat: number;
-    maxLng: number;
-    maxLat: number;
+  onRegionChange?: (region: {
+    bounds: {
+      minLng: number;
+      minLat: number;
+      maxLng: number;
+      maxLat: number;
+    };
+    /**
+     * Current Leaflet zoom (fractional). Consumer typically calls
+     * `Math.floor(zoom)` and routes between cases_in_bbox (zoom ≥ 8)
+     * and cases_grid_in_bbox (zoom < 8) via aggregationForZoom() in
+     * use-cases-in-bbox.ts.
+     */
+    zoom: number;
   }) => void;
 }
 
@@ -336,7 +345,12 @@ export function LeafletMap({
             zoomLevel: msg.center.zoomLevel,
           };
         }
-        if (onRegionChange) onRegionChange(msg.bounds);
+        if (onRegionChange) {
+          onRegionChange({
+            bounds: msg.bounds,
+            zoom: msg.center?.zoomLevel ?? 0,
+          });
+        }
       }
     } catch {
       // non-JSON message from injected script — ignore

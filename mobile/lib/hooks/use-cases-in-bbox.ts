@@ -39,6 +39,14 @@ interface UseCasesInBboxOptions {
   kinds?: CaseKind[] | null;
   status?: CaseStatus[] | null;
   limit?: number;
+  /**
+   * When false, the hook holds its current data and skips the RPC.
+   * Used by the home screen to gate the point-mode fetch off when
+   * the map is at a low zoom that should call cases_grid_in_bbox
+   * instead. Defaults to true so existing consumers (watch zones,
+   * search) are unaffected.
+   */
+  enabled?: boolean;
 }
 
 export function useCasesInBbox({
@@ -46,11 +54,12 @@ export function useCasesInBbox({
   kinds = null,
   status = null,
   limit = 100,
+  enabled = true,
 }: UseCasesInBboxOptions): QueryResult<CaseRowMapBbox[]> {
   const [data, setData] = useState<CaseRowMapBbox[]>(() =>
     isSupabaseConfigured() ? [] : applySampleFilters(SAMPLE_CASES_MAP, kinds, status),
   );
-  const [loading, setLoading] = useState<boolean>(isSupabaseConfigured() && !!bounds);
+  const [loading, setLoading] = useState<boolean>(isSupabaseConfigured() && !!bounds && enabled);
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -63,6 +72,13 @@ export function useCasesInBbox({
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       setData(applySampleFilters(SAMPLE_CASES_MAP, kinds, status));
+      setLoading(false);
+      return;
+    }
+    // Disabled (caller is in the other map mode). Hold previous data
+    // so flipping back to this hook shows last-known immediately
+    // while the next fetch loads.
+    if (!enabled) {
       setLoading(false);
       return;
     }
@@ -129,6 +145,7 @@ export function useCasesInBbox({
     kindsKey,
     statusKey,
     limit,
+    enabled,
     refreshKey,
   ]);
 
@@ -151,4 +168,185 @@ function applySampleFilters(
     if (status && status.length && !status.includes(r.status)) return false;
     return true;
   });
+}
+
+// ---------------------------------------------------------------------
+// Tile-grid aggregation hook (mig 44 — cases_grid_in_bbox).
+//
+// At low zoom levels the map renders one badge per grid cell instead
+// of one pin per case. This hook calls the server-side aggregation
+// RPC and returns one row per cell with case_count + kind composition
+// + precision floor + max-recency + modal locale label.
+//
+// Mode selection lives client-side via aggregationForZoom() — the
+// home screen picks which hook fires (this one for grid mode,
+// useCasesInBbox for point mode). Both hooks return the same
+// QueryResult shape so the orchestrator can swap between them
+// cleanly. Renderer-PR consumes `data` from this hook and draws
+// cell badges; until then, the hook fires but the result is unused.
+// ---------------------------------------------------------------------
+
+export interface CaseGridCell {
+  cell_lat: number;
+  cell_lng: number;
+  case_count: number;
+  kinds_homicide: number;
+  kinds_missing: number;
+  kinds_doe: number;
+  precision_floor: 'address' | 'street' | 'city' | 'county' | 'unknown';
+  dominant_kind: 'homicide' | 'missing' | 'doe' | 'mixed';
+  recency_max: number;
+  mode_city: string | null;
+  mode_state: string | null;
+}
+
+/**
+ * Editorial schedule. Threshold zoom 8 flips between server-side
+ * grid aggregation (low zoom — too many points to ship cleanly) and
+ * point mode (zoom ≥ 8, where bbox-result-size rarely exceeds 500
+ * and leaflet.markercluster handles the within-screen aggregation).
+ *
+ * Cell sizes roughly halve per zoom step so the on-screen cell
+ * density stays stable as the user zooms in. Tunable per-OTA — the
+ * server function (cases_grid_in_bbox) accepts any cell_size_deg in
+ * [0.05, 20.0] without a migration.
+ */
+export type MapAggregation =
+  | { mode: 'point' }
+  | { mode: 'grid'; cellSizeDeg: number };
+
+const POINT_ZOOM_THRESHOLD = 8;
+
+export function aggregationForZoom(zoom: number): MapAggregation {
+  const z = Math.floor(zoom);
+  if (z >= POINT_ZOOM_THRESHOLD) return { mode: 'point' };
+  if (z >= 7) return { mode: 'grid', cellSizeDeg: 0.5 };
+  if (z >= 6) return { mode: 'grid', cellSizeDeg: 1.0 };
+  if (z >= 5) return { mode: 'grid', cellSizeDeg: 2.0 };
+  return { mode: 'grid', cellSizeDeg: 4.0 };
+}
+
+interface UseCellsGridInBboxOptions {
+  bounds: CaseBounds | null;
+  cellSizeDeg: number;
+  kinds?: CaseKind[] | null;
+  status?: CaseStatus[] | null;
+  limit?: number;
+  enabled?: boolean;
+}
+
+// Module-level kill switch. If the RPC is missing on the server (a
+// fresh OTA shipped against an older Supabase project that doesn't
+// have mig 44 yet, or a transient PGRST202), set this once and stop
+// firing for the rest of the session — the home-screen orchestrator
+// reads it to fall back to point mode at all zooms.
+let gridUnavailable = false;
+export function isGridUnavailable(): boolean {
+  return gridUnavailable;
+}
+
+export function useCellsGridInBbox({
+  bounds,
+  cellSizeDeg,
+  kinds = null,
+  status = null,
+  limit = 2000,
+  enabled = true,
+}: UseCellsGridInBboxOptions): QueryResult<CaseGridCell[]> {
+  const [data, setData] = useState<CaseGridCell[]>([]);
+  const [loading, setLoading] = useState<boolean>(
+    isSupabaseConfigured() && !!bounds && enabled && !gridUnavailable,
+  );
+  const [error, setError] = useState<Error | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  const kindsKey = useMemo(() => (kinds ? kinds.join(',') : ''), [kinds]);
+  const statusKey = useMemo(() => (status ? status.join(',') : ''), [status]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      // No grid RPC sample data; grid mode shows no cells in dev
+      // until a real Supabase env is configured. Acceptable — sample
+      // mode is for local UI work, not corpus-scale rendering.
+      setData([]);
+      setLoading(false);
+      return;
+    }
+    if (gridUnavailable || !enabled) {
+      setLoading(false);
+      return;
+    }
+    if (!bounds) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const supabase = getSupabase();
+    supabase
+      .rpc('cases_grid_in_bbox', {
+        min_lng: bounds.minLng,
+        min_lat: bounds.minLat,
+        max_lng: bounds.maxLng,
+        max_lat: bounds.maxLat,
+        cell_size_deg: cellSizeDeg,
+        filter_kinds: kinds,
+        filter_status: status ?? ['open'],
+        result_limit: limit,
+      })
+      .then(
+        ({ data: rows, error: rpcError }) => {
+          if (cancelled) return;
+          if (rpcError) {
+            // PGRST202 = function not found. Stale OTA on a server
+            // without mig 44 — disable grid mode for the rest of
+            // the session and let the home screen fall back to
+            // point mode.
+            const msg = rpcError.message ?? '';
+            const code = (rpcError as { code?: string }).code ?? '';
+            if (code === 'PGRST202' || msg.includes('not found')) {
+              gridUnavailable = true;
+            }
+            setError(new Error(rpcError.message));
+          } else {
+            setData((rows ?? []) as CaseGridCell[]);
+            setError(null);
+          }
+          setLoading(false);
+        },
+        (err: unknown) => {
+          if (cancelled) return;
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setLoading(false);
+        },
+      );
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    bounds?.minLng,
+    bounds?.minLat,
+    bounds?.maxLng,
+    bounds?.maxLat,
+    cellSizeDeg,
+    kindsKey,
+    statusKey,
+    limit,
+    enabled,
+    refreshKey,
+  ]);
+
+  return {
+    data,
+    loading,
+    error,
+    source: isSupabaseConfigured() ? 'live' : 'sample',
+    refetch,
+  };
 }
