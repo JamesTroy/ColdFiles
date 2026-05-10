@@ -29,9 +29,19 @@ export async function mapboxGeocode(
 ): Promise<GeocodeResult | undefined> {
   if (!accessToken) throw new Error('MAPBOX_ACCESS_TOKEN is required for geocoding');
 
+  // types=poi,poi.landmark were added 2026-05-09 to support LLM-extracted
+  // candidates from the location-recovery pipeline (scripts/enrich-
+  // locations.ts). Without poi types, "Orlando International Airport,
+  // Orlando, FL" returned no features even though Mapbox indexes it as
+  // a poi.landmark. The added types are inclusive — sources passing
+  // city-only strings ("Belen, NM") still match place/locality as
+  // before; the new types only kick in when the query happens to be a
+  // landmark name. Risk to existing persist.ts callers: a source-text
+  // that happens to match a POI gets address-tier precision instead of
+  // 'unknown' — strictly an upgrade, never a degrade.
   const url =
     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-    `?access_token=${accessToken}&country=us&types=address,place,locality,region,postcode`;
+    `?access_token=${accessToken}&country=us&types=address,street,place,locality,neighborhood,poi,poi.landmark,region,postcode`;
 
   const res = await fetch(url);
   if (!res.ok) return undefined;
@@ -67,6 +77,13 @@ function mapPrecision(placeType?: string): GeocodeResult['precision'] {
       return 'address';
     case 'street':
       return 'street';
+    // POIs (Orlando International Airport, Walmart, etc.) and named
+    // landmarks (Yellowstone National Park, Brooklyn Bridge) are point
+    // locations — treat as 'address' precision so the renderer puts
+    // them on the map at the precise lat/lng Mapbox returned.
+    case 'poi':
+    case 'poi.landmark':
+      return 'address';
     case 'place':
     case 'locality':
     case 'neighborhood':

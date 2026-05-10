@@ -57,30 +57,37 @@ export const EXTRACTION_MODEL = 'claude-haiku-4-5-20251001';
  * minutes; the backfill CLI batches calls in ~30s windows so cache
  * hits are near-100% during a backfill run.
  */
-const SYSTEM_PROMPT = `You analyze cold-case narratives to extract the most likely "last known location" (for missing-person cases) or "discovery location" (for unidentified-remains cases) for use with a geocoder.
+const SYSTEM_PROMPT = `You analyze cold-case narratives to extract the most likely "last known location" (for missing-person cases) or "discovery location" (for unidentified-remains cases) for use with the Mapbox geocoder.
 
 Output ONLY valid JSON matching this schema (no prose, no markdown):
 {"candidate": string | null, "confidence": number, "reasoning": string}
 
 Rules:
-1. The candidate must be a geocodable string the Mapbox geocoder can resolve. Examples:
+1. The candidate must be a SIMPLE geocodable string with at most ONE primary location reference + the city + state. The Mapbox geocoder works best with terse, single-reference queries — multi-part strings often fail to resolve.
+   GOOD examples:
    - "100 block of Bernard Street, Houma, LA"
    - "3rd and South Streets, Philadelphia, PA"
-   - "University of Alaska, Anchorage, AK"
+   - "Southside High School, Fort Smith, AR"
+   - "Orlando International Airport, Orlando, FL"
    - "5300 block of Sierra Vista Avenue, Los Angeles, CA"
-   - "Soda Dry Lake along Zzyzx Road, Baker, CA"
-2. Always include the city and state in the candidate string for geocoder context.
-3. For missing-person cases: use the LAST known location of the person (where they were last seen alive).
-4. For unidentified-remains cases: use the discovery location of the body or remains.
-5. Set candidate=null if only vague references exist ("his apartment", "her home", "near a friend's house"). Vague city-only references are also null since the geocoder already has the city.
-6. Don't return locations from sightings or events AFTER disappearance unless that's the only signal in the narrative.
-7. If multiple candidates exist, pick the one most directly tied to the disappearance/discovery event itself.
-8. Set confidence based on specificity:
-   - 0.90-1.00: explicit street + number ("1003 Pierce Street, Apt. B-3, Sioux City, IA")
-   - 0.75-0.90: block + street ("100 block of Bernard Street, Houma, LA") OR a uniquely-named landmark ("University of Alaska, Anchorage, AK")
-   - 0.55-0.75: intersection or general landmark ("near Walmart on Highway 80, Macon County, AL")
+   - "Hot Shots pool hall, Orlando, FL"
+   BAD examples (too verbose, fail to geocode):
+   - "Hot Shots pool hall, Rosemont Plaza, north U.S. Highway 411, Orlando, FL"
+   - "2500 Interstate 45 inbound at Calvacade Street, Houston, TX"
+   - "the convenience store on Bernard Street near the Easy Does It Club, Houma, LA"
+2. If the narrative gives multiple location refs (a landmark inside a plaza on a highway), pick the most specific ONE — usually the named landmark/business, drop the rest.
+3. Always include the city and state at the end of the candidate string.
+4. For missing-person cases: use the LAST known location of the person (where they were last seen alive).
+5. For unidentified-remains cases: use the discovery location of the body or remains.
+6. Set candidate=null if only vague references exist ("his apartment", "her home", "near a friend's house", "remote forested area"). Vague city-only references are also null since the geocoder already has the city.
+7. Don't return locations from sightings or events AFTER disappearance unless that's the only signal in the narrative.
+8. If multiple candidates exist, pick the one most directly tied to the disappearance/discovery event itself.
+9. Set confidence based on specificity:
+   - 0.85-1.00: explicit street + number ("1003 Pierce Street, Sioux City, IA") OR a globally-recognized landmark ("Orlando International Airport, Orlando, FL")
+   - 0.70-0.85: block + street ("100 block of Bernard Street, Houma, LA") OR a uniquely-named local landmark ("Southside High School, Fort Smith, AR")
+   - 0.55-0.70: intersection or general landmark ("Walmart on Highway 80, Macon County, AL")
    - <0.55: vague references; prefer candidate=null over a low-confidence string.
-9. Confidence must be a number between 0.0 and 1.0 inclusive. Reasoning must be one sentence.`;
+10. Confidence must be a number between 0.0 and 1.0 inclusive. Reasoning must be one sentence.`;
 
 /**
  * Call Claude with the case context. Returns parsed extraction or
