@@ -38,7 +38,7 @@ import BottomSheet, {
   BottomSheetFlatList,
   type BottomSheetFlatListMethods,
 } from '@gorhom/bottom-sheet';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, View } from 'react-native';

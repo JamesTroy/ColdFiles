@@ -10,7 +10,7 @@
  * the wording in sync.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import type { ReactElement } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';

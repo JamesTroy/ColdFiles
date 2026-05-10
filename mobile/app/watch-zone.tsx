@@ -21,7 +21,7 @@
  * We never bait the user into the editor before checking sign-in state.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import BottomSheet, { BottomSheetView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';

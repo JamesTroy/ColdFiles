@@ -10,7 +10,7 @@
  * backend configuration and offers a back action — no broken-state form.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
