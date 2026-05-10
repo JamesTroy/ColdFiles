@@ -78,6 +78,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Dark voice — system UI matches.
   themeColor: '#0a0a0a',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 // JSON-LD Organization — cheapest publisher-identity signal a brand-new

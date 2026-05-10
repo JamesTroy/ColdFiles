@@ -85,3 +85,11 @@ a:hover {
 @media (min-width: 768px) {
   .container { padding: 64px 32px; }
 }
+
+.landing-main {
+  padding: 56px 24px;
+}
+
+@media (min-width: 768px) {
+  .landing-main { padding: 96px 32px; }
+}
