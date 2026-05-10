@@ -8,6 +8,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { discoverDetailUrls, extractDetail } from '../_shared/pipeline.ts';
 import { PoliteFetcher, fetchRobots, isAllowed } from '../_shared/http.ts';
 import { ensureSourceRow, persistRecord } from '../_shared/persist.ts';
+import { internalError } from '../_shared/responses.ts';
 import type { RunStats } from '../_shared/types.ts';
 import { SOURCE_BY_SLUG } from '../../../sources/index.ts';
 
@@ -31,10 +32,9 @@ Deno.serve(async (req) => {
   const tickSecret = req.headers.get('x-ingest-tick-secret');
   const expectedSecret = Deno.env.get('INGEST_TICK_SECRET');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (
-    !authz.includes(serviceKey ?? '___never') &&
-    (!expectedSecret || tickSecret !== expectedSecret)
-  ) {
+  const bearerOk = !!serviceKey && authz === `Bearer ${serviceKey}`;
+  const tickOk = !!expectedSecret && tickSecret === expectedSecret;
+  if (!bearerOk && !tickOk) {
     return json({ error: 'unauthorized' }, 401);
   }
 
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     .insert({ source_id: sourceId, status: 'running' })
     .select('id')
     .single();
-  if (runErr) return json({ error: runErr.message }, 500);
+  if (runErr) return internalError(req, runErr, 'ingest-source.source_runs.insert');
   const runId = runRow.id as string;
 
   const stats: RunStats = { cases_seen: 0, cases_new: 0, cases_updated: 0, errors: [] };
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
         errors: [{ url: 'pipeline', message: errMessage(err) }],
       })
       .eq('id', runId);
-    return json({ error: errMessage(err) }, 500);
+    return internalError(req, err, 'ingest-source.pipeline');
   }
 });
 

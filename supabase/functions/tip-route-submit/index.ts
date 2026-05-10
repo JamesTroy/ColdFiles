@@ -22,6 +22,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 import { corsHeaders, preflightResponse } from '../_shared/cors.ts';
+import { internalError } from '../_shared/responses.ts';
 import { resolveTipRoute } from '../_shared/tip-route.ts';
 import type { ResolvedRoute, TipRouteAgency } from '../_shared/tip-route.ts';
 
@@ -109,7 +110,7 @@ Deno.serve(async (req) => {
   try {
     resolved = await resolveRoute(supabase, body.case_id);
   } catch (err) {
-    return json({ error: errMessage(err) }, 500);
+    return internalError(req, err, 'tip-route-submit.resolve-route');
   }
 
   // 3. Insert tip_routings row (audit log — content itself is never stored).
@@ -126,10 +127,11 @@ Deno.serve(async (req) => {
   });
 
   if (insertError) {
-    // Audit-log row failing doesn't block the user's tip handoff — return
-    // the route anyway. But log loudly with structured fields so this surfaces
-    // in Supabase logs (the rate-limit query depends on this row landing, so a
-    // sustained failure mode would also disable rate limiting).
+    // Fail-closed when the audit row can't land: the rate-limit query
+    // depends on tip_routings rows, so silently continuing here would
+    // disable rate limiting under sustained failure. Better to refuse the
+    // handoff (real users see a 500; the route resolved fine, only the
+    // audit insert failed) than to bypass the abuse fence.
     console.error(
       JSON.stringify({
         msg: 'tip-route-submit audit insert failed',
@@ -140,6 +142,7 @@ Deno.serve(async (req) => {
         error: insertError.message,
       }),
     );
+    return internalError(req, insertError, 'tip-route-submit.audit-insert');
   }
 
   // 4. Return the resolved target.
