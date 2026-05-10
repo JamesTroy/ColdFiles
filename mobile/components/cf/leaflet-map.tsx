@@ -38,6 +38,20 @@ export interface LeafletMarker {
   /** Days since last_changed_at (or null). Drives the recency ring. */
   recentDays?: number | null;
   /**
+   * Geocoder precision tier. 'address' / 'street' render as the
+   * standard sharp pin (real position). Anything coarser ('city',
+   * 'county', 'unknown') renders with reduced fill opacity + dashed
+   * outline — the visual cue "this point is approximate, somewhere
+   * in the city/county, not the exact event coordinate."
+   *
+   * Optional because pre-migration-34 / sample-data rows don't carry
+   * precision; renderer treats undefined as 'address' (sharp pin) for
+   * backward compatibility.
+   *
+   * 'state' is filtered server-side and never reaches here.
+   */
+  precision?: 'address' | 'street' | 'city' | 'county' | 'unknown' | null;
+  /**
    * Optional preview content rendered inside the in-map popup that opens
    * on a marker tap. Three lines: title (victim name), meta line
    * (kind · year · state), and a "Read full file →" call to action.
@@ -151,7 +165,7 @@ export function LeafletMap({
   const markersKey = useMemo(
     () =>
       markers
-        .map((m) => `${m.id}|${m.lat.toFixed(5)}|${m.lng.toFixed(5)}|${m.kind}|${m.recentDays ?? ''}`)
+        .map((m) => `${m.id}|${m.lat.toFixed(5)}|${m.lng.toFixed(5)}|${m.kind}|${m.recentDays ?? ''}|${m.precision ?? ''}`)
         .sort()
         .join(','),
     [markers],
@@ -450,6 +464,31 @@ function buildLeafletHtml(
       0%   { transform: scale(1); }
       35%  { transform: scale(0.82); }
       100% { transform: scale(1); }
+    }
+    /* Imprecise-precision modifier — applied to pins whose underlying
+       case has location_precision in (city, county, unknown). Visual
+       cue that the point is approximate (city centroid pile-up, etc.)
+       rather than a real event coordinate.
+
+       Two cues stacked:
+         1. Reduced fill opacity on the SVG pin (faded amber instead
+            of solid).
+         2. Dashed amber halo behind the pin via box-shadow inset on
+            the wrapper div.
+
+       Tap interaction stays the same (tap → select → popup); the
+       coincident-cluster detection (multiple pins at same coord →
+       sheet) also fires on these pins as on precise ones. */
+    .cf-pin--imprecise svg {
+      opacity: 0.55;
+    }
+    .cf-pin--imprecise {
+      border: 1.5px dashed ${tokens.color.cluster.ring};
+      border-radius: 50%;
+      background: rgba(197, 165, 114, 0.08);
+      box-sizing: content-box;
+      margin: -2px;
+      padding: 1px;
     }
     /* "You are here" — solid blue dot, no concentric rings (those collide
        with the open-ring Doe pin grammar). The halo is a separate element
@@ -984,8 +1023,18 @@ function buildLeafletHtml(
           selected: !!m.selected,
           recentDays: m.recentDays,
         });
+        // Precision tier — address/street precision render as the
+        // standard sharp pin (real position). Anything coarser
+        // ('city', 'county', 'unknown') gets the .cf-pin--imprecise
+        // modifier: reduced opacity + dashed halo. Visual cue for
+        // "this point is approximate." Pre-migration-34 rows that
+        // don't carry precision render as standard pins (treated as
+        // address-precision for backward compat).
+        var precise =
+          !m.precision || m.precision === 'address' || m.precision === 'street';
+        var className = precise ? 'cf-pin' : 'cf-pin cf-pin--imprecise';
         var icon = L.divIcon({
-          className: 'cf-pin',
+          className: className,
           html: svg.html,
           iconSize: [svg.size, svg.size],
           iconAnchor: [svg.size / 2, svg.size / 2],
@@ -1008,7 +1057,8 @@ function buildLeafletHtml(
         marker._cfKey =
           id + '|' + m.lat.toFixed(5) + '|' + m.lng.toFixed(5) +
           '|' + m.kind +
-          '|' + (m.recentDays == null ? '' : m.recentDays);
+          '|' + (m.recentDays == null ? '' : m.recentDays) +
+          '|' + (m.precision == null ? '' : m.precision);
 
         // Bind in-map popup with the case-file preview. HTML is hand-built
         // with already-escaped values (escapeHtml below) — leaflet will
@@ -1090,7 +1140,8 @@ function buildLeafletHtml(
           var newKey =
             incoming.id + '|' + incoming.lat.toFixed(5) + '|' + incoming.lng.toFixed(5) +
             '|' + incoming.kind +
-            '|' + (incoming.recentDays == null ? '' : incoming.recentDays);
+            '|' + (incoming.recentDays == null ? '' : incoming.recentDays) +
+            '|' + (incoming.precision == null ? '' : incoming.precision);
           if (existing._cfKey !== newKey) {
             toRemove.push(existing);
             delete markerById[id];
