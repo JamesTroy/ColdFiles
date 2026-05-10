@@ -215,7 +215,7 @@ export type MapAggregation =
   | { mode: 'point' }
   | { mode: 'grid'; cellSizeDeg: number };
 
-const POINT_ZOOM_THRESHOLD = 8;
+export const POINT_ZOOM_THRESHOLD = 8;
 
 export function aggregationForZoom(zoom: number): MapAggregation {
   const z = Math.floor(zoom);
