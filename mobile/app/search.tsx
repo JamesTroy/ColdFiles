@@ -6,7 +6,7 @@
  * server-side `cases_search` RPC with full-text indexing.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
@@ -55,7 +55,7 @@ export default function SearchScreen() {
           onPress={() => router.back()}
           accessibilityLabel="Back"
           accessibilityRole="button"
-          hitSlop={12}
+          hitSlop={16}
           style={({ pressed }) => [
             {
               width: 36,

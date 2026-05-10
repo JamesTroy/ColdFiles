@@ -19,13 +19,14 @@
  * row. The screen owns the UI timing.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  AccessibilityInfo,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -45,6 +46,7 @@ import {
   SansMedium,
   SerifTitle,
 } from '@/components/cf/text';
+import { showToast } from '@/components/cf/toast';
 import { TrustDisclosureCallout } from '@/components/cf/trust-disclosure';
 import { tokens } from '@/constants/theme';
 import { useCaseDetail } from '@/lib/hooks/use-case-detail';
@@ -104,6 +106,16 @@ export default function TipModalScreen() {
 
     setPhase('anticipating');
     setFallbackResult(null);
+    // A11y: haptics are the only "submit started" cue for sighted users with
+    // vibration on. Screen-reader users with vibration off otherwise get
+    // silence between tap and the deep-link handoff. Announce the start
+    // immediately. No SUCCESS announcement — Linking.openURL hands off to
+    // the destination app/dialer, which carries its own cue.
+    try {
+      AccessibilityInfo.announceForAccessibility('Sending your tip…');
+    } catch {
+      // announceForAccessibility is synchronous void on RN; defensive only.
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
     try {
@@ -143,6 +155,14 @@ export default function TipModalScreen() {
       router.back();
     } catch {
       // submit() failed — also surface as fallback. Trust contract still holds.
+      showToast({
+        kind: 'error',
+        message: "Couldn't send your tip. Try again.",
+        actionLabel: 'RETRY',
+        onAction: () => {
+          void handleSubmit();
+        },
+      });
       setFallbackResult(null);
       setPhase('fallback');
     }

@@ -19,7 +19,7 @@
  * Pure components only — no client-side state, no refs that survive re-render.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import type { ReactElement, ReactNode } from 'react';
 import { Pressable, View, type ViewStyle } from 'react-native';

@@ -17,7 +17,7 @@ import BottomSheet, {
   BottomSheetFlatList,
   type BottomSheetFlatListMethods,
 } from '@gorhom/bottom-sheet';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import {
   forwardRef,
@@ -219,9 +219,10 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
           height: 4,
         }}
         handleStyle={{ paddingTop: 10, paddingBottom: 8 }}
-        // Don't enable contentPanningGesture for the list — BottomSheetFlatList
-        // already coordinates list-scroll vs sheet-drag. We only want the
-        // handle + peek-row to be drag affordances.
+        // enableContentPanningGesture lets gorhom coordinate list-scroll vs
+        // sheet-drag at the top of the list. BottomSheetFlatList handles the
+        // handoff: drag the sheet when the list is scrolled to top, scroll
+        // the list otherwise. This is the standard gorhom default.
         enableContentPanningGesture
       >
         <BottomSheetFlatList

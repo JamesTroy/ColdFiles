@@ -20,7 +20,7 @@
  * value is used to send the confirmation reply, never persisted.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -36,6 +36,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA } from '@/components/cf/cta-button';
 import { Mono, MonoLabel, NarrativeText, SansBody, SansMedium, SerifTitle } from '@/components/cf/text';
+import { showToast } from '@/components/cf/toast';
 import { tokens } from '@/constants/theme';
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -181,10 +182,14 @@ export default function TakedownRequestScreen() {
         '[takedown] submit failed',
         err instanceof Error ? err.message : String(err),
       );
-      Alert.alert(
-        "Couldn't submit",
-        "We couldn't send your request right now. Check your connection and try again — your draft is still here.",
-      );
+      showToast({
+        kind: 'error',
+        message: "Couldn't send your request. Your draft is still here.",
+        actionLabel: 'RETRY',
+        onAction: () => {
+          void handleSubmit();
+        },
+      });
     } finally {
       setSubmitting(false);
     }

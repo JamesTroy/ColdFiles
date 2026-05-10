@@ -137,9 +137,6 @@ const config: ExpoConfig = {
         backgroundColor: '#0a0a0a',
       },
     ],
-    // MapLibre GL Native — open-source map SDK. No API key, no signup, no
-    // Google Cloud. Tiles served by openfreemap.org (community-funded OSM).
-    '@maplibre/maplibre-react-native',
     // expo-location plugin — sets the iOS usage strings. Android FINE_LOCATION
     // is auto-merged by this plugin with no opt-out; the inline manifest
     // tightener below strips it at manifest-merge time.

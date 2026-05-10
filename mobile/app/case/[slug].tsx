@@ -10,7 +10,7 @@
  * source-chip ordering — all carried by the primitives.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, Text, View } from 'react-native';
@@ -238,6 +238,7 @@ export default function CaseDetailScreen() {
         {c.narrative ? (
           <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
             <MonoLabel
+              accessibilityRole="header"
               size={tokens.size.monoChip}
               tracking={tokens.tracking.chip}
               color={tokens.color.text.secondary}
@@ -297,6 +298,7 @@ export default function CaseDetailScreen() {
         {data.sources.length > 0 ? (
           <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
             <MonoLabel
+              accessibilityRole="header"
               size={tokens.size.monoChip}
               tracking={tokens.tracking.chip}
               color={tokens.color.text.secondary}
@@ -591,6 +593,7 @@ function LastSeenBlock({ c }: { c: CaseRowFull }) {
   return (
     <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
       <MonoLabel
+        accessibilityRole="header"
         size={tokens.size.monoChip}
         tracking={tokens.tracking.chip}
         color={tokens.color.text.secondary}
@@ -686,6 +689,7 @@ function PhysicalDescriptionBlock({ c }: { c: CaseRowFull }) {
   return (
     <View style={{ paddingHorizontal: 16, marginTop: 22 }}>
       <MonoLabel
+        accessibilityRole="header"
         size={tokens.size.monoChip}
         tracking={tokens.tracking.chip}
         color={tokens.color.text.secondary}

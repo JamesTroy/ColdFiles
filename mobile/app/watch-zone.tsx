@@ -21,8 +21,8 @@
  * We never bait the user into the editor before checking sign-in state.
  */
 
-import { Ionicons } from '@expo/vector-icons';
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import BottomSheet, { BottomSheetView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -30,7 +30,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +38,7 @@ import { AmberCTA } from '@/components/cf/cta-button';
 import { AmberSlider } from '@/components/cf/amber-slider';
 import { DrawZoneMap } from '@/components/cf/draw-zone-map';
 import { Mono, MonoLabel, NarrativeText, SansBody, SerifTitle } from '@/components/cf/text';
+import { showToast } from '@/components/cf/toast';
 import { tokens } from '@/constants/theme';
 import { useHere } from '@/lib/hooks/use-here';
 import { useUser } from '@/lib/hooks/use-user';
@@ -515,7 +515,7 @@ function SaveSheet({
   const handleSave = async () => {
     const label = name.trim();
     if (!label) {
-      Alert.alert('Name your zone', 'A short label helps you find it again later.');
+      showToast({ kind: 'error', message: 'Name your zone before saving.' });
       return;
     }
     setSubmitting(true);
@@ -526,10 +526,14 @@ function SaveSheet({
         '[watch-zone] save failed',
         err instanceof Error ? err.message : String(err),
       );
-      Alert.alert(
-        "Couldn't save",
-        "We couldn't save that zone right now. Check your connection and try again.",
-      );
+      showToast({
+        kind: 'error',
+        message: "Couldn't save that zone. Check your connection.",
+        actionLabel: 'RETRY',
+        onAction: () => {
+          void handleSave();
+        },
+      });
     } finally {
       setSubmitting(false);
     }
@@ -537,7 +541,7 @@ function SaveSheet({
 
   return (
     <KeyboardAvoidingView
-      style={{ position: 'absolute', inset: 0 }}
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <BottomSheet
@@ -585,7 +589,7 @@ function SaveSheet({
           >
             ZONE NAME
           </MonoLabel>
-          <TextInput
+          <BottomSheetTextInput
             value={name}
             onChangeText={(t) => {
               setName(t);

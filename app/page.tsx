@@ -26,13 +26,13 @@ export default function HomePage() {
       }}
     >
       <main
+        className="landing-main"
         style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '64px 24px',
           textAlign: 'center',
         }}
       >
@@ -45,7 +45,7 @@ export default function HomePage() {
         <h1
           className="serif"
           style={{
-            fontSize: 56,
+            fontSize: 'clamp(32px, 8vw, 56px)',
             lineHeight: 1.1,
             margin: '0 0 24px 0',
             maxWidth: 720,
@@ -126,6 +126,10 @@ export default function HomePage() {
             letterSpacing: '0.05em',
             margin: 0,
             lineHeight: 1.7,
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: 4,
           }}
         >
           MATTE BLACK DEV LLC · VENTURA, CA
@@ -135,7 +139,10 @@ export default function HomePage() {
             style={{
               color: 'var(--text-secondary)',
               borderBottom: 'none',
-              marginRight: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
             }}
           >
             Privacy
@@ -145,7 +152,10 @@ export default function HomePage() {
             style={{
               color: 'var(--text-secondary)',
               borderBottom: 'none',
-              marginRight: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
             }}
           >
             Terms
@@ -155,14 +165,24 @@ export default function HomePage() {
             style={{
               color: 'var(--text-secondary)',
               borderBottom: 'none',
-              marginRight: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
             }}
           >
             Takedown
           </Link>
           <Link
             href="/account/delete"
-            style={{ color: 'var(--text-secondary)', borderBottom: 'none' }}
+            style={{
+              color: 'var(--text-secondary)',
+              borderBottom: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
+            }}
           >
             Delete account
           </Link>

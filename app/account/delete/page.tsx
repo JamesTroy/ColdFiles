@@ -39,6 +39,11 @@ export default function DeleteAccountPage() {
             letterSpacing: '0.05em',
             textTransform: 'uppercase',
             borderBottom: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            minHeight: 44,
+            padding: '0 4px',
+            marginLeft: -4,
           }}
         >
           ← The Cold File
@@ -48,7 +53,7 @@ export default function DeleteAccountPage() {
       <header style={{ marginBottom: 32 }}>
         <h1
           className="serif"
-          style={{ fontSize: 36, lineHeight: 1.15, margin: '0 0 12px 0' }}
+          style={{ fontSize: 'clamp(26px, 6vw, 36px)', lineHeight: 1.15, margin: '0 0 12px 0' }}
         >
           Delete account
         </h1>
@@ -180,6 +185,9 @@ export default function DeleteAccountPage() {
             letterSpacing: '0.05em',
             margin: 0,
             lineHeight: 1.7,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 4,
           }}
         >
           MATTE BLACK DEV LLC · VENTURA, CA
@@ -189,7 +197,10 @@ export default function DeleteAccountPage() {
             style={{
               color: 'var(--text-secondary)',
               borderBottom: 'none',
-              marginRight: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
             }}
           >
             Privacy
@@ -199,14 +210,24 @@ export default function DeleteAccountPage() {
             style={{
               color: 'var(--text-secondary)',
               borderBottom: 'none',
-              marginRight: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
             }}
           >
             Terms
           </Link>
           <Link
             href="/legal/takedown"
-            style={{ color: 'var(--text-secondary)', borderBottom: 'none' }}
+            style={{
+              color: 'var(--text-secondary)',
+              borderBottom: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
+            }}
           >
             Takedown
           </Link>

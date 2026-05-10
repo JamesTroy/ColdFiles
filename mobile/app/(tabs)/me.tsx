@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card, NavRow, Row } from '@/components/cf/screen-shell';
 import { Mono, MonoLabel, SansBody, SerifTitle } from '@/components/cf/text';
+import { showToast } from '@/components/cf/toast';
 import { tokens } from '@/constants/theme';
 import { assembleDiagnosticsText } from '@/lib/diagnostics';
 import { useMeCounts } from '@/lib/hooks/use-me-counts';
@@ -63,7 +64,7 @@ export default function MeScreen() {
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert('Email unavailable', `Reach us at ${SUPPORT_EMAIL}.`);
+      showToast({ kind: 'info', message: `Reach us at ${SUPPORT_EMAIL}.` });
     }
   };
 

@@ -134,6 +134,19 @@ export function AmberSlider({
         max: maximumValue,
         now: value,
       }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={(e) => {
+        const delta = e.nativeEvent.actionName === 'increment' ? step : -step;
+        const next = Math.max(
+          minimumValue,
+          Math.min(maximumValue, lastValueRef.current + delta),
+        );
+        if (next !== lastValueRef.current) {
+          lastValueRef.current = next;
+          onValueChange(next);
+          onSlidingComplete?.(next);
+        }
+      }}
     >
       {/* Background track */}
       <View

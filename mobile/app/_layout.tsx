@@ -6,16 +6,12 @@
  * it inverts surfaces + text only and keeps accents and pins untouched.
  */
 
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-} from '@expo-google-fonts/inter';
-import {
-  JetBrainsMono_500Medium,
-  JetBrainsMono_600SemiBold,
-} from '@expo-google-fonts/jetbrains-mono';
-import { Newsreader_500Medium } from '@expo-google-fonts/newsreader';
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono/500Medium';
+import { JetBrainsMono_600SemiBold } from '@expo-google-fonts/jetbrains-mono/600SemiBold';
+import { Newsreader_500Medium } from '@expo-google-fonts/newsreader/500Medium';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { router, Stack, usePathname } from 'expo-router';
@@ -29,6 +25,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BrandSplash } from '@/components/cf/brand-splash';
 import { ErrorBoundary } from '@/components/cf/error-boundary';
+import { CFToastProvider } from '@/components/cf/toast';
 import { tokens } from '@/constants/theme';
 import { useAuthCallback } from '@/lib/hooks/use-auth-callback';
 import { useNotificationRouter } from '@/lib/hooks/use-notification-router';
@@ -45,18 +42,54 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   /* ignore — already hidden in some lifecycles */
 });
 
+// Module-level mutable ref tracking the currently-viewed case slug, if any.
+// Updated by a useEffect in RootLayout watching usePathname(). The
+// notification handler below is set at module load and cannot read React
+// state directly, so this ref is the bridge between "what route is the user
+// on" and "should we banner an incoming push."
+let activeCaseSlug: string | null = null;
+
 // Foreground notification handler. Without this, Android suppresses system
 // notifications while our app is in the foreground (background notifications
 // still display via FCM's own logic). With it, the OS shows the banner +
-// plays sound + adds badge regardless of foreground/background state. Set
-// at module load — runs once on bundle eval.
+// adds the list entry regardless of foreground/background state. Set at
+// module load — runs once on bundle eval.
+//
+// Sound is intentionally OFF for ALL foreground notifications: when the user
+// is actively using the app, a system chime over the running UI is jarring
+// and adds nothing — the banner already signals.
+//
+// Suppression: if the incoming notification's case_slug matches the case
+// the user is currently reading, drop the banner entirely. The user is
+// already looking at that case; a banner over the same content is noise.
+// Still record it in the list / notification center so it isn't lost.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data as
+      | { case_slug?: unknown }
+      | null
+      | undefined;
+    const incomingSlug =
+      data && typeof data.case_slug === 'string' ? data.case_slug : null;
+    const onMatchingCase =
+      incomingSlug !== null && incomingSlug === activeCaseSlug;
+
+    if (onMatchingCase) {
+      return {
+        shouldShowBanner: false,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+
+    return {
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 export const unstable_settings = {
@@ -115,6 +148,26 @@ export default function RootLayout() {
   // the moment v1.0.2 push delivery lands.
   useNotificationRouter();
 
+  // Track the currently-viewed case slug into the module-level activeCaseSlug
+  // ref so the foreground notification handler (set at module load, outside
+  // React) can decide whether to suppress an incoming banner when it matches
+  // the case the user is reading. usePathname() returns the route-encoded
+  // path (e.g. "/case/test-slug-123"); match the simple case-detail shape
+  // and clear on any other route. Per CLAUDE.md: hook lives above any
+  // early return and uses optional-chaining inside the body, never a guard
+  // above the hook.
+  const pathname = usePathname();
+  useEffect(() => {
+    const match = pathname?.match(/^\/case\/(.+)$/);
+    activeCaseSlug = match ? match[1] : null;
+    return () => {
+      // Defensive: if this effect tears down without a follow-up navigation
+      // event (unmount during cleanup), clear so a stale slug doesn't
+      // suppress a legitimate foreground banner.
+      activeCaseSlug = null;
+    };
+  }, [pathname]);
+
   // Hide the native splash as soon as JS mounts — don't wait for fonts.
   // Our BrandSplash overlay covers the screen from this point so there's
   // no flash of un-themed app shell.
@@ -139,6 +192,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider value={navTheme}>
           <ErrorBoundary>
+            <CFToastProvider>
             <OnboardingGate />
             <Stack
             screenOptions={{
@@ -191,6 +245,7 @@ export default function RootLayout() {
             <Stack.Screen name="region-prefs" options={{ animation: 'slide_from_right' }} />
           </Stack>
             <StatusBar style="light" backgroundColor={tokens.color.bg.base} />
+            </CFToastProvider>
           </ErrorBoundary>
         </ThemeProvider>
       </SafeAreaProvider>

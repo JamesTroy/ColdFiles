@@ -20,7 +20,7 @@
  * photo (either no warning, or they've already passed the gate on the hero).
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import type { ReactElement } from 'react';
 import { Dimensions, Modal, Pressable, View } from 'react-native';
