@@ -76,6 +76,64 @@ function mode(counts: Map<string, number>): string | null {
   return best;
 }
 
+/**
+ * FNV-1a 32-bit hash. Deterministic, no crypto needed. Used to
+ * generate stable per-slug offsets for the imprecise-pin spread
+ * (cases that share a city centroid get unique deterministic
+ * positions within ~2-5km of the centroid so they render as
+ * separately-clickable pins instead of an invisible stack).
+ */
+function fnv1a(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return h;
+}
+
+/**
+ * Imprecise-pin spread. Cases with `location_precision` coarser than
+ * 'street' (city / county / unknown) all share their city's centroid
+ * coordinate as imported. Stacking N pins invisibly at one coord is
+ * the worst of both worlds — visually one pin, only the topmost
+ * clickable. The original centroid is already a "fake distinct
+ * position" claim (the source said only "Oxnard, CA"; the geocoder
+ * picked the city centroid as a stand-in); spreading the cases
+ * deterministically within the city's geographic area is no MORE of
+ * a lie and is dramatically more browseable.
+ *
+ * Spread radius 0.02-0.045° (~2-5km at mid-latitudes). Wide enough
+ * that pins separate visually at city zoom (zoom 12+); tight enough
+ * that they still fall within the city's actual extent for major US
+ * cities. Smaller cities may have pins fall just outside the city
+ * boundary — acceptable, the dashed halo (LeafletMarker.precision
+ * → cf-pin--imprecise) communicates the imprecision.
+ *
+ * Hash → angle + radius via two independent halves of the 32-bit
+ * fnv1a output. Stable across renders (same slug → same position).
+ *
+ * Address/street precision returns the input lat/lng unchanged —
+ * those are real event coordinates, never spread.
+ */
+function applyImpreciseSpread(
+  slug: string,
+  lat: number,
+  lng: number,
+  precision: string | null,
+): { lat: number; lng: number } {
+  if (precision === 'address' || precision === 'street') {
+    return { lat, lng };
+  }
+  const h = fnv1a(slug);
+  const angle = ((h & 0xffff) / 0xffff) * Math.PI * 2;
+  const radius = 0.02 + ((h >>> 16) / 0xffff) * 0.025;
+  return {
+    lat: lat + Math.cos(angle) * radius,
+    lng: lng + Math.sin(angle) * radius,
+  };
+}
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<Filter>('all');
@@ -721,10 +779,20 @@ function LeafletRenderer({
           c.location_precision === 'unknown'
             ? c.location_precision
             : null;
+        // Spread imprecise cases deterministically around the city
+        // centroid so each gets a distinct clickable position. See
+        // applyImpreciseSpread comment for the editorial rationale.
+        // Address/street precision passes through unchanged.
+        const { lat, lng } = applyImpreciseSpread(
+          c.slug,
+          c.lat as number,
+          c.lng as number,
+          precision,
+        );
         return {
           id: c.slug,
-          lat: c.lat as number,
-          lng: c.lng as number,
+          lat,
+          lng,
           kind: c.kind,
           precision,
           recentDays:
