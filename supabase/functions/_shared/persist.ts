@@ -17,6 +17,9 @@ import { validateGeocodeAgainstState } from './geocode-state-validation.ts';
 import { persistCaseEvents } from './case-events.ts';
 import { snapToBlock } from './normalize.ts';
 
+/** Defensive cap on the photos array per record — see 2026-05-10 audit L1. */
+const MAX_PHOTOS_PER_RECORD = 20;
+
 interface PersistContext {
   supabase: SupabaseClient;
   source: SourceConfig;
@@ -78,6 +81,13 @@ export async function persistRecord(
   record: CaseRecord,
   stats: RunStats,
 ): Promise<void> {
+  if (record.photos && record.photos.length > MAX_PHOTOS_PER_RECORD) {
+    console.warn(
+      `persistRecord: capping photos ${record.photos.length} → ${MAX_PHOTOS_PER_RECORD} for source=${record.source_external_id ?? '<unknown>'}`,
+    );
+    record = { ...record, photos: record.photos.slice(0, MAX_PHOTOS_PER_RECORD) };
+  }
+
   // Normalize: for missing-kind cases the source's "missing since" date
   // typically lands in incident_date (Charley, Doe MP, PCC, etc. all map
   // their primary date that way), but the schema also has a parallel
