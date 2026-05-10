@@ -85,23 +85,29 @@ interface FilterChipProps {
 
 export function FilterChip({ label, count, active = false, onPress }: FilterChipProps) {
   const text = count !== undefined ? `${label} · ${count}` : label;
+  const base: ViewStyle = {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: tokens.radius.chip,
+    alignSelf: 'flex-start',
+    marginRight: 6,
+  };
+  const activeStyle: ViewStyle = { backgroundColor: tokens.color.accent.amber };
+  const inactiveStyle: ViewStyle = {
+    borderWidth: StyleSheetHairline,
+    borderColor: tokens.color.border.strong,
+  };
   return (
     <Pressable
       onPress={onPress}
-      style={[
-        {
-          paddingVertical: 6,
-          paddingHorizontal: 12,
-          borderRadius: tokens.radius.chip,
-          alignSelf: 'flex-start',
-          marginRight: 6,
-        },
-        active
-          ? { backgroundColor: tokens.color.accent.amber }
-          : {
-              borderWidth: StyleSheetHairline,
-              borderColor: tokens.color.border.strong,
-            },
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={count !== undefined ? `${label}, ${count} cases` : label}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      style={({ pressed }) => [
+        base,
+        active ? activeStyle : inactiveStyle,
+        { opacity: pressed ? 0.7 : 1 },
       ]}
     >
       <Mono

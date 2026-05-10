@@ -413,6 +413,7 @@ function ListChrome({
 function SectionLabel({ children }: { children: string }) {
   return (
     <MonoLabel
+      accessibilityRole="header"
       size={tokens.size.monoLabel}
       tracking={tokens.tracking.label}
       color={tokens.color.text.secondary}

@@ -70,6 +70,13 @@ export function CaseRow({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={[
+        displayName(row),
+        kindLine(row),
+        isFresh ? `updated ${daysSinceUpdate} days ago` : null,
+        trailingLine,
+      ].filter(Boolean).join(', ')}
       style={({ pressed }) => [
         {
           flexDirection: 'row',
