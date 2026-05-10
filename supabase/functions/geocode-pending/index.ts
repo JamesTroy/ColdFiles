@@ -6,6 +6,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { resolveGeocode, makePointWkt } from '../_shared/geocode-resolver.ts';
+import { validateGeocodeAgainstState } from '../_shared/geocode-state-validation.ts';
 
 Deno.serve(async (req) => {
   const secret = req.headers.get('x-ingest-tick-secret');
@@ -45,11 +46,25 @@ Deno.serve(async (req) => {
     const result = await resolveGeocode({ supabase, mapboxToken }, query);
     if (!result) continue;
 
+    // State-validation guard. Same shape as persist.ts (PR #97). The
+    // backfill query is unstructured ("city, county, state" join);
+    // Mapbox can return wrong-state results for ambiguous components.
+    // Validator retries with state-centroid bias on mismatch; on
+    // retry-fail, falls back to state centroid + precision='state'
+    // (which the map filters off — better off-map than wrong-place).
+    const validated = await validateGeocodeAgainstState(
+      result,
+      query,
+      row.location_state,
+      mapboxToken,
+    );
+    const final = validated.result;
+
     await supabase
       .from('cases')
       .update({
-        location_point: makePointWkt(result.lng, result.lat),
-        location_precision: result.precision,
+        location_point: makePointWkt(final.lng, final.lat),
+        location_precision: final.precision,
       })
       .eq('id', row.id);
     geocoded += 1;

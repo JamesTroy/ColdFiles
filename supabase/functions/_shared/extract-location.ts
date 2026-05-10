@@ -25,6 +25,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { resolveGeocode, makePointWkt } from './geocode-resolver.ts';
+import { validateGeocodeAgainstState } from './geocode-state-validation.ts';
 import {
   EXTRACTION_MODEL,
   extractLocation,
@@ -249,6 +250,24 @@ export async function extractAndUpgradeCase(
       error_detail: null,
     });
   }
+
+  // Step 3.5: state-validation guard. Same shape as persist.ts (see
+  // PR #97). The LLM-extracted candidate is unstructured text — Mapbox
+  // can return a wrong-state result when the candidate hits an
+  // ambiguous match ("Monroe County" exists in 17 states; the LLM may
+  // emit a county name without state context). Validate against the
+  // case's authoritative location_state and retry with state-centroid
+  // proximity bias on mismatch. On retry-fail, the validator returns
+  // a state-centroid + precision='state' result, which the precision
+  // gate below will reject as imprecise — better to leave the
+  // existing precision than overwrite with a state-centroid downgrade.
+  const validated = await validateGeocodeAgainstState(
+    geocoded,
+    llmResult.candidate,
+    caseRow.location_state,
+    ctx.mapboxToken,
+  );
+  geocoded = validated.result;
 
   // Step 4: precision gate.
   if (!UPGRADE_PRECISIONS.has(geocoded.precision)) {
