@@ -170,7 +170,7 @@ function SegmentButton({
       style={({ pressed }) => [
         {
           flex: 1,
-          paddingVertical: 9,
+          paddingVertical: 12,
           paddingHorizontal: 14,
           borderRadius: 10,
           backgroundColor: active ? tokens.color.accent.amber : 'transparent',
