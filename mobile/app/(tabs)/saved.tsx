@@ -500,6 +500,7 @@ function ZoneThumbnail({ label }: { label: string }) {
 
 function SavedRow({ row }: { row: CaseRowMapNear }) {
   const display = displayName(row);
+  const isDoe = row.kind === 'unidentified' || row.kind === 'unclaimed';
   return (
     <Pressable
       onPress={() =>
@@ -517,7 +518,7 @@ function SavedRow({ row }: { row: CaseRowMapNear }) {
         },
       ]}
     >
-      <View style={{ marginRight: 12, marginTop: 4 }}>
+      <View style={{ marginRight: 12, marginTop: 4, opacity: isDoe ? 0.5 : 1 }}>
         <PinGlyph kind={PIN_KIND_FOR_LIST[row.kind]} />
       </View>
       <View style={{ flex: 1 }}>
