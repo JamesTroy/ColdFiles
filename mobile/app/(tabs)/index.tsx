@@ -16,7 +16,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -29,7 +29,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CoincidentCasesSheet } from '@/components/cf/coincident-cases-sheet';
 import { EmptyState } from '@/components/cf/empty-state';
 import { ErrorState } from '@/components/cf/error-state';
-import { LeafletMap, type LeafletMarker } from '@/components/cf/leaflet-map';
+import {
+  LeafletMap,
+  type LeafletCell,
+  type LeafletCellPress,
+  type LeafletMapHandle,
+  type LeafletMarker,
+} from '@/components/cf/leaflet-map';
 import {
   MapBottomSheet,
   type MapBottomSheetHandle,
@@ -45,7 +51,9 @@ import { tokens } from '@/constants/theme';
 import { alphaToDays } from '@/lib/format';
 import { useCaseCount } from '@/lib/hooks/use-case-count';
 import {
+  POINT_ZOOM_THRESHOLD,
   aggregationForZoom,
+  isGridUnavailable,
   useCasesInBbox,
   useCellsGridInBbox,
   type CaseBounds,
@@ -245,6 +253,12 @@ export default function MapScreen() {
   );
   const handleCoincidentClose = useCallback(() => setOpenCoord(null), []);
 
+  // Imperative handle for "drill into a cell on tap." Used by
+  // handleCellPress below. Declared early so the ref reference is
+  // stable across the render; the handler that consumes it is
+  // declared further down once `zoom` and `isGrid` exist.
+  const mapRef = useRef<LeafletMapHandle>(null);
+
   // Stepwise recency_alpha → days, mirroring use across the list tab.
   const daysFor = useCallback((c: CaseRowMapBbox) => {
     return alphaToDays(c.recency_alpha) ?? SAMPLE_LAST_CHANGED_DAYS[c.slug] ?? 999;
@@ -318,12 +332,14 @@ export default function MapScreen() {
   );
 
   // Map-aggregation mode + cell size, derived from the current zoom.
-  // Hook PR scope: data plumbing only — `cells` below is fetched but
-  // unrendered. The follow-up renderer-PR will consume `cells` and
-  // gate `useCasesInBbox` off in grid mode. For now both hooks fire
-  // unconditionally so this PR is purely additive (no user-visible
-  // behavior change at any zoom).
+  // isGrid is the load-bearing render-mode flag — gates which hook
+  // fetches and which Leaflet layer the WebView attaches. The
+  // gridUnavailable kill-switch (set by the cell hook on PGRST202
+  // when a stale OTA hits a server without mig 44) flips us back to
+  // point mode for the rest of the session — silent fail-open.
   const aggregation = useMemo(() => aggregationForZoom(zoom), [zoom]);
+  const isGrid = aggregation.mode === 'grid' && !isGridUnavailable();
+  const isPoint = !isGrid;
 
   const {
     data: casesAll,
@@ -334,44 +350,90 @@ export default function MapScreen() {
   } = useCasesInBbox({
     bounds: fetchBounds,
     kinds: null,
-    // Limit set well above the active corpus so a continental-zoom
-    // bbox returns every case, never silently clipping the
-    // longest-cold rows off the bottom of ORDER BY last_changed_at
-    // DESC NULLS LAST. With the doe_uid rescrape the corpus crossed
-    // ~3,800 active cases (vs the ~3,100 baseline) and 3,500 was
-    // visibly clipping. 6,000 headroom covers the next two scrape
-    // cycles at the current growth pace.
-    //
-    // Performance: at low zoom this returns the full corpus, which
-    // leaflet-markercluster handles fine via chunkedLoading. The
-    // index on cases(last_changed_at DESC NULLS LAST) WHERE
-    // deleted_at IS NULL (migration 23) keeps the ORDER BY + LIMIT
-    // path index-walked, so RPC time scales with limit not with
-    // corpus size.
-    //
-    // Post-migration-39: cases_in_bbox returns ALL cases in the bbox
-    // (no dense_points filter). Coincident-coord cases stack at the
-    // shared lat/lng and markercluster groups them visually at low
-    // zoom. The earlier centroid-badge layer was retired — see the
-    // migration 39 header comment for the editorial rationale.
+    // 6000 limit is the legacy "fetch everything" headroom from the
+    // pre-B1 era when the client did all aggregation. Now that grid
+    // mode handles low zoom server-side, this cap only matters at
+    // zoom ≥ 8 (point mode) where the bbox is small enough that
+    // ≤500 rows is the typical return. The 6000 ceiling stays as
+    // belt-and-suspenders headroom for future corpus growth — it
+    // doesn't bite in either mode at current scale.
     limit: 6000,
+    // Gated off in grid mode — the hook holds its last point-mode
+    // snapshot internally so flipping back to point mode shows
+    // last-known pins immediately while the next fetch loads.
+    enabled: isPoint,
   });
 
   // Tile-grid aggregation hook (mig 44 — cases_grid_in_bbox). Fires
-  // only at low zoom (zoom < 8 → aggregation.mode === 'grid'); idle
-  // otherwise. Hook-PR scope: data is fetched but UNRENDERED. The
-  // follow-up renderer-PR will consume `cells` to draw cell badges,
-  // gate `useCasesInBbox` off in grid mode, and toggle markercluster
-  // accordingly. Until then this is purely additive — no user-visible
-  // behavior change at any zoom.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { data: _cells } = useCellsGridInBbox({
+  // only in grid mode; idle otherwise. Cell-size pulls from the
+  // editorial schedule in aggregationForZoom(). The fallback 1.0°
+  // cellSize when in point mode is unused (enabled=false) but keeps
+  // the prop type narrow.
+  const { data: cells } = useCellsGridInBbox({
     bounds: fetchBounds,
     cellSizeDeg:
       aggregation.mode === 'grid' ? aggregation.cellSizeDeg : 1.0,
     kinds: null,
-    enabled: aggregation.mode === 'grid',
+    enabled: isGrid,
   });
+
+  // Translation: snake_case CaseGridCell from the RPC → camelCase
+  // LeafletCell that LeafletMap consumes. Keeps LeafletMap agnostic
+  // of the RPC schema; field-name churn at either end stays local.
+  const leafletCells: LeafletCell[] = useMemo(
+    () =>
+      cells.map((c) => ({
+        lat: c.cell_lat,
+        lng: c.cell_lng,
+        count: c.case_count,
+        dominantKind: c.dominant_kind,
+        precisionFloor: c.precision_floor,
+        recencyMax: c.recency_max,
+        modeCity: c.mode_city,
+        modeState: c.mode_state,
+      })),
+    [cells],
+  );
+
+  // Grid-mode bottom-sheet header summary. Sums the per-cell counts
+  // for the "{N} cases · {M} regions" sub-line. When in point mode
+  // the sheet ignores this prop, so the cheap recompute on every
+  // render is fine (~tens of cells max in grid mode anyway).
+  const gridSummary = useMemo(
+    () => ({
+      cellCount: cells.length,
+      totalCases: cells.reduce((n, c) => n + c.case_count, 0),
+    }),
+    [cells],
+  );
+
+  // Cell-tap zoom-in handler. Drills by 2 zoom levels from the
+  // current zoom, capped at POINT_ZOOM_THRESHOLD so any tap from
+  // grid mode crosses one full step toward pins. Continental cells
+  // (zoom 4 → 6) stay in grid mode but at finer cell size; metro-
+  // adjacent cells (zoom 7 → 9) cross into point mode and surface
+  // individual pins. Progressive disclosure: continental → regional
+  // → state → city → addresses.
+  const handleCellPress = useCallback(
+    (cell: LeafletCellPress) => {
+      const target = Math.max(zoom + 2, POINT_ZOOM_THRESHOLD);
+      mapRef.current?.setView({
+        lat: cell.lat,
+        lng: cell.lng,
+        zoomLevel: target,
+      });
+    },
+    [zoom],
+  );
+
+  // Defensive: if the user lands in grid mode while a coincident-
+  // sheet is open (rare — would require crossing the threshold
+  // mid-sheet), close it. The cluster-tap that opened it can't
+  // happen in grid mode (markercluster layer is detached), so
+  // there's no path back to opening another while in grid.
+  useEffect(() => {
+    if (isGrid && openCoord) setOpenCoord(null);
+  }, [isGrid, openCoord]);
 
   // Headline corpus-size stat for the bottom-sheet header. Cached at
   // module scope inside the hook (5min TTL) so this is a no-op on
@@ -577,6 +639,7 @@ export default function MapScreen() {
           />
         ) : (
           <LeafletRenderer
+            ref={mapRef}
             cases={cases}
             selectedSlug={selectedSlug}
             onMarkerPress={handleMarkerPress}
@@ -586,6 +649,9 @@ export default function MapScreen() {
             zones={zoneOverlays}
             zonesVisible={zonesVisible}
             onRegionChange={handleRegionChange}
+            mode={isGrid ? 'grid' : 'point'}
+            cells={leafletCells}
+            onCellPress={handleCellPress}
           />
         )}
         {zoneOverlays.length > 0 ? (
@@ -676,6 +742,8 @@ export default function MapScreen() {
         animatedIndex={sheetIndex}
         onWatchHere={() => router.push('/watch-zone')}
         watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
+        inGridMode={isGrid}
+        gridSummary={gridSummary}
       />
 
       {/* Coincident-coord tap-drill sheet — stacks above the persistent
@@ -746,17 +814,7 @@ function NativeRenderer({
   );
 }
 
-function LeafletRenderer({
-  cases,
-  selectedSlug,
-  onMarkerPress,
-  onMarkerOpen,
-  onCoincidentCluster,
-  here,
-  zones,
-  zonesVisible,
-  onRegionChange,
-}: {
+interface LeafletRendererProps {
   cases: CaseRowMapBbox[];
   selectedSlug: string | null;
   onMarkerPress: (id: string) => void;
@@ -769,7 +827,28 @@ function LeafletRenderer({
     bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number };
     zoom: number;
   }) => void;
-}) {
+  mode?: 'point' | 'grid';
+  cells?: LeafletCell[];
+  onCellPress?: (cell: LeafletCellPress) => void;
+}
+
+const LeafletRenderer = forwardRef<LeafletMapHandle, LeafletRendererProps>(function LeafletRenderer(
+  {
+    cases,
+    selectedSlug,
+    onMarkerPress,
+    onMarkerOpen,
+    onCoincidentCluster,
+    here,
+    zones,
+    zonesVisible,
+    onRegionChange,
+    mode = 'point',
+    cells = [],
+    onCellPress,
+  },
+  ref,
+) {
   // Two-stage memo (Wave 1C performance audit):
   //   baseMarkers — direct map: each case row → one LeafletMarker, plus
   //                 the popup preview text. Keyed on `cases` only so
@@ -857,6 +936,7 @@ function LeafletRenderer({
 
   return (
     <LeafletMap
+      ref={ref}
       center={{
         lat: here.lat,
         lng: here.lng,
@@ -870,9 +950,12 @@ function LeafletRenderer({
       onMarkerOpen={onMarkerOpen}
       onCoincidentCluster={onCoincidentCluster}
       onRegionChange={onRegionChange}
+      mode={mode}
+      cells={cells}
+      onCellPress={onCellPress}
     />
   );
-}
+});
 
 /**
  * Layer-toggle for the right-edge stack (spec §7). The "Z" glyph maps to

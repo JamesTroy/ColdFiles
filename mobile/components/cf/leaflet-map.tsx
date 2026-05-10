@@ -17,7 +17,7 @@
  */
 
 import * as Haptics from 'expo-haptics';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
@@ -73,6 +73,70 @@ export interface LeafletZoneOverlay {
   label?: string | null;
 }
 
+/**
+ * Render mode. 'point' = case markers + leaflet.markercluster (the
+ * pre-B1 default). 'grid' = server-side tile-grid badges (one per
+ * cell from cases_grid_in_bbox). The home screen flips between modes
+ * based on Leaflet zoom via aggregationForZoom() in
+ * use-cases-in-bbox.ts. The active mode determines which underlying
+ * Leaflet layer is attached to the map; the inactive layer's data
+ * still flows in (cheap; lets mode-flip be instant) but isn't
+ * rendered.
+ */
+export type LeafletMapMode = 'point' | 'grid';
+
+/**
+ * One grid cell from cases_grid_in_bbox (mig 44). Camel-cased mirror
+ * of the RPC's snake_case row shape. The home screen does the
+ * translation so LeafletMap stays agnostic of the RPC schema.
+ */
+export interface LeafletCell {
+  /** Cell centroid lat (snapped lower-left + half-cell). */
+  lat: number;
+  /** Cell centroid lng. */
+  lng: number;
+  /** Number of cases aggregated into this cell. */
+  count: number;
+  /**
+   * Coarsest precision among the cell's member cases (precision-floor
+   * pattern from mig 34). Drives the imprecise-modifier styling.
+   */
+  precisionFloor: 'address' | 'street' | 'city' | 'county' | 'unknown';
+  /**
+   * 'homicide' | 'missing' | 'doe' when ≥60% of the cell is one
+   * family; 'mixed' otherwise. Drives badge tint. See mig 44 header
+   * for the 50/60/75 threshold rationale.
+   */
+  dominantKind: 'homicide' | 'missing' | 'doe' | 'mixed';
+  /** MAX recency_alpha across cell members. 0 / 0.5 / 1.0 stepwise. */
+  recencyMax: number;
+  /** Modal city name in the cell, or null when no member has one. */
+  modeCity: string | null;
+  /** Modal state code in the cell, or null when no member has one. */
+  modeState: string | null;
+}
+
+/** Payload posted from the WebView when the user taps a cell badge. */
+export interface LeafletCellPress {
+  lat: number;
+  lng: number;
+  count: number;
+  dominantKind: LeafletCell['dominantKind'];
+  precisionFloor: LeafletCell['precisionFloor'];
+  modeCity: string | null;
+  modeState: string | null;
+}
+
+/**
+ * Imperative handle exposed via forwardRef. Currently only `setView`
+ * (programmatic re-center + zoom). Added so the home screen can
+ * "drill into" a cell on tap without prop-drilling a one-shot
+ * command. Mirrors the existing __cf_setCenter WebView setter.
+ */
+export interface LeafletMapHandle {
+  setView: (target: { lat: number; lng: number; zoomLevel?: number }) => void;
+}
+
 interface LeafletMapProps {
   center: { lat: number; lng: number; zoomLevel?: number };
   markers: LeafletMarker[];
@@ -124,6 +188,26 @@ interface LeafletMapProps {
      */
     zoom: number;
   }) => void;
+  /**
+   * Active render mode. Defaults to 'point' (backward-compatible
+   * for any consumer that doesn't pass it — pre-B1 behavior). When
+   * 'grid' the marker layer detaches and the cell badges render.
+   */
+  mode?: LeafletMapMode;
+  /**
+   * Grid cells from cases_grid_in_bbox. Always passed; ignored in
+   * 'point' mode. Both arrays alive simultaneously cuts memory
+   * churn at mode-flip — switching back to point mode finds the
+   * marker layer's incremental-diff path warm.
+   */
+  cells?: LeafletCell[];
+  /**
+   * Fired when the user taps a cell badge in 'grid' mode. The
+   * payload carries the cell's centroid + summary; the consumer
+   * typically calls the imperative handle's setView() to drill in
+   * by ~2 zoom levels.
+   */
+  onCellPress?: (cell: LeafletCellPress) => void;
 }
 
 // Module-level memory of the last-viewed map center. Survives Leaflet
@@ -134,19 +218,44 @@ interface LeafletMapProps {
 // region across remounts keeps the user where they were browsing.
 let lastViewedCenter: { lat: number; lng: number; zoomLevel?: number } | null = null;
 
-export function LeafletMap({
-  center,
-  markers,
-  here,
-  zones = [],
-  zonesVisible = true,
-  onCoincidentCluster,
-  onMarkerPress,
-  onMarkerOpen,
-  onRegionChange,
-}: LeafletMapProps) {
+export const LeafletMap = forwardRef<LeafletMapHandle, LeafletMapProps>(function LeafletMap(
+  {
+    center,
+    markers,
+    here,
+    zones = [],
+    zonesVisible = true,
+    onCoincidentCluster,
+    onMarkerPress,
+    onMarkerOpen,
+    onRegionChange,
+    mode = 'point',
+    cells = [],
+    onCellPress,
+  },
+  ref,
+) {
   const webRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
+
+  // Imperative handle for "drill into a cell on tap." The home screen
+  // calls setView() with the cell's centroid + a target zoom (typically
+  // current zoom + 2, capped at the point-mode threshold so a tap on a
+  // continental cell crosses one mode boundary toward pins). Mirrors
+  // __cf_setCenter on the WebView side, which already accepts an
+  // optional zoomLevel and animates internally.
+  useImperativeHandle(
+    ref,
+    () => ({
+      setView: ({ lat, lng, zoomLevel }) => {
+        webRef.current?.injectJavaScript(`
+          try { window.__cf_setCenter && window.__cf_setCenter(${JSON.stringify({ lat, lng, zoomLevel })}); } catch (e) {}
+          true;
+        `);
+      },
+    }),
+    [],
+  );
 
   // Use the remembered center on remount when one exists. The first ever
   // mount in a session falls through to the parent-supplied center
@@ -184,6 +293,24 @@ export function LeafletMap({
     () => markers.find((m) => m.selected)?.id ?? null,
     [markers],
   );
+  // cellsKey mirrors markersKey: stable identity over the cell set so
+  // the cells layer only rebuilds when something actually changed
+  // (centroid moved, count changed, kind tint flipped, recency changed,
+  // precision_floor changed). 4-decimal lat/lng matches the server-
+  // side ST_SnapToGrid centroid resolution; finer would cause spurious
+  // rebuilds on float round-trip noise.
+  const cellsKey = useMemo(
+    () =>
+      cells
+        .map(
+          (c) =>
+            `${c.lat.toFixed(4)}|${c.lng.toFixed(4)}|${c.count}|${c.dominantKind}|${c.precisionFloor}|${c.recencyMax}`,
+        )
+        .sort()
+        .join(','),
+    [cells],
+  );
+  const cellsJson = useMemo(() => JSON.stringify(cells), [cells]);
   const hereJson = JSON.stringify(here ?? null);
   const zonesJson = JSON.stringify(zones);
 
@@ -199,6 +326,34 @@ export function LeafletMap({
     `);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, markersKey]);
+
+  // Cells channel — push the grid-cell set into the WebView. Same
+  // stable-key + incremental-diff pattern as markers. Runs even when
+  // mode === 'point' (cheap when cells is []) so flipping back into
+  // grid mode finds the WebView's cellById diff path warm.
+  useEffect(() => {
+    if (!ready) return;
+    webRef.current?.injectJavaScript(`
+      try {
+        window.__cf_setCells && window.__cf_setCells(${cellsJson});
+      } catch (e) {}
+      true;
+    `);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, cellsKey]);
+
+  // Mode channel — toggles which Leaflet layer is attached. The
+  // WebView side no-ops when next === currentMode so this is safe to
+  // fire on every mode dependency change.
+  useEffect(() => {
+    if (!ready) return;
+    webRef.current?.injectJavaScript(`
+      try {
+        window.__cf_setMode && window.__cf_setMode(${JSON.stringify(mode)});
+      } catch (e) {}
+      true;
+    `);
+  }, [ready, mode]);
 
   // Selection channel — push the currently-selected marker id into the
   // WebView. The dedicated function mutates icons in place (setIcon),
@@ -335,6 +490,24 @@ export function LeafletMap({
         if (typeof msg.lat === 'number' && typeof msg.lng === 'number') {
           onCoincidentCluster?.({ lat: msg.lat, lng: msg.lng });
         }
+      } else if (msg.type === 'cell-press') {
+        // User tapped a grid-cell badge (low zoom, mode === 'grid').
+        // Selection haptic matches the cluster-tap precedent. The
+        // payload is self-contained so the consumer can act without
+        // re-looking-up the cell (the bbox may have shifted between
+        // the press and the message round-trip).
+        Haptics.selectionAsync().catch(() => {});
+        if (typeof msg.lat === 'number' && typeof msg.lng === 'number') {
+          onCellPress?.({
+            lat: msg.lat,
+            lng: msg.lng,
+            count: msg.case_count,
+            dominantKind: msg.dominant_kind,
+            precisionFloor: msg.precision_floor,
+            modeCity: msg.mode_city ?? null,
+            modeState: msg.mode_state ?? null,
+          });
+        }
       } else if (msg.type === 'region') {
         // Capture center+zoom for the next mount's initial position so
         // navigating away and back doesn't snap the map to user-location.
@@ -390,7 +563,7 @@ export function LeafletMap({
       />
     </View>
   );
-}
+});
 
 /* -------------------------------------------------------------------------- */
 /*  HTML generation                                                            */
@@ -570,6 +743,65 @@ function buildLeafletHtml(
     }
     /* Defang the markercluster default classes so they don't bleed through. */
     .marker-cluster, .marker-cluster div { background: transparent !important; color: transparent !important; }
+
+    /* Grid cell badge — server-side aggregated region (cases_grid_in_bbox).
+       Square (file-tab radius) so it's visually distinct from the round
+       .cf-cluster (client-side coincident-coord aggregation) and the round
+       pins. Three-rung shape grammar at every zoom: square = grid cell,
+       round-fuzzy = cluster, pin = single case. Tinted by dominant_kind
+       — homicide/missing/doe each carry the same color the pin uses,
+       'mixed' falls back to the brand amber + cluster ring grammar. */
+    .cf-cell {
+      background: transparent;
+      border: 0;
+    }
+    .cf-cell-inner {
+      border-radius: 4px;
+      box-shadow:
+        0 0 0 6px ${tokens.color.cluster.halo},
+        0 1px 3px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: ${tokens.color.cluster.text};
+      font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    /* Kind tints — fill is the kind color at low alpha so map tiles
+       show through (same editorial argument as .cf-cluster); ring is
+       the kind color at full opacity. Mixed falls back to the cluster
+       palette so the brand-amber posture is preserved when no single
+       kind is ≥60% of the cell. */
+    .cf-cell--homicide {
+      background: rgba(154, 133, 105, 0.20);
+      border: 1.5px solid ${tokens.color.pin.homicide};
+    }
+    .cf-cell--missing {
+      background: rgba(197, 165, 114, 0.20);
+      border: 1.5px solid ${tokens.color.pin.missing};
+    }
+    .cf-cell--doe {
+      background: rgba(213, 205, 184, 0.20);
+      border: 1.5px solid ${tokens.color.pin.doe};
+    }
+    .cf-cell--mixed {
+      background: ${tokens.color.cluster.fill};
+      border: 1.5px solid ${tokens.color.cluster.ring};
+    }
+    /* Imprecise modifier — dashed border carries the same editorial
+       weight as .cf-pin--imprecise (this aggregate's coarsest member
+       is at city-or-coarser precision). Overrides the solid border
+       set by the kind class via specificity. */
+    .cf-cell--imprecise {
+      border-style: dashed;
+    }
+    /* Press-flash — reuse cf-pin-press keyframes (defined elsewhere).
+       Class name overlap is intentional; the animation is identity-
+       agnostic. */
+    .cf-cell-press {
+      animation: cf-pin-press 220ms ease-out;
+    }
 
     /* Case-file popup. Replaces leaflet's default white-rectangle styling
        with a token-matched dark card. The .leaflet-popup-content-wrapper
@@ -956,6 +1188,112 @@ function buildLeafletHtml(
         chunkedLoading: true,
         iconCreateFunction: clusterIconFor,
       }).addTo(map);
+
+      // Cell layer — flat L.layerGroup (NOT a clusterGroup; cells are
+      // already aggregated server-side via ST_SnapToGrid in mig 44).
+      // Not addTo(map) at construction — controlled by __cf_setMode
+      // based on the active render mode. Starts detached so the
+      // initial point-mode default doesn't paint phantom badges.
+      var cellLayer = L.layerGroup();
+      var cellById = Object.create(null);
+      var currentMode = 'point';
+
+      // Cell badge factory. Diameter scales sqrt(count) like clusters
+      // but tighter — cells are coarser than clusters so the count-
+      // to-area mapping is gentler. Class name combines the kind tint
+      // (.cf-cell--{kind}) with an optional .cf-cell--imprecise
+      // modifier when the precision_floor is coarser than 'street'.
+      // recency_max (server-stepped 0/0.5/1.0) modulates inner-div
+      // opacity so a stale-only cell reads dimmer than a fresh one.
+      function cellIconFor(cell) {
+        var n = cell.count || cell.case_count || 0;
+        var d = Math.max(28, Math.min(56, Math.round(28 + Math.sqrt(n) * 2.5)));
+        var kind = cell.dominantKind || cell.dominant_kind || 'mixed';
+        var prec = cell.precisionFloor || cell.precision_floor || 'unknown';
+        var imprecise = prec === 'city' || prec === 'county' || prec === 'unknown';
+        var rec = cell.recencyMax;
+        if (rec == null) rec = cell.recency_max;
+        if (rec == null) rec = 0;
+        var alpha = 0.45 + 0.55 * rec; // [0.45, 1.0]
+        var label = n >= 1000 ? Math.round(n / 100) / 10 + 'k' : String(n);
+        var cls = 'cf-cell-inner cf-cell--' + kind + (imprecise ? ' cf-cell--imprecise' : '');
+        return L.divIcon({
+          className: 'cf-cell',
+          html:
+            '<div class="' + cls + '" style="width:' + d + 'px;height:' + d + 'px;font-size:' + (n >= 100 ? 13 : 12) + 'px;opacity:' + alpha + ';">' +
+              escapeHtml(label) +
+            '</div>',
+          iconSize: [d, d],
+          iconAnchor: [d / 2, d / 2],
+        });
+      }
+
+      // Incremental-diff push, mirrors __cf_setMarkers. Key includes
+      // every field that changes the rendered icon so a count or kind
+      // shift triggers a layer swap. 4-decimal lat/lng precision
+      // matches the server's snapped centroid resolution.
+      window.__cf_setCells = function (list) {
+        if (!Array.isArray(list)) return;
+        var nextById = Object.create(null);
+        for (var i = 0; i < list.length; i++) {
+          var c = list[i];
+          var key =
+            c.lat.toFixed(4) + '|' + c.lng.toFixed(4) +
+            '|' + (c.count || c.case_count) +
+            '|' + (c.dominantKind || c.dominant_kind) +
+            '|' + (c.precisionFloor || c.precision_floor) +
+            '|' + (c.recencyMax != null ? c.recencyMax : c.recency_max);
+          nextById[key] = c;
+        }
+        // Remove cells gone from the new set (or whose key changed).
+        for (var k in cellById) {
+          if (!nextById[k]) {
+            cellLayer.removeLayer(cellById[k]);
+            delete cellById[k];
+          }
+        }
+        // Add new cells. Existing keys are no-ops (already in layer).
+        for (var nk in nextById) {
+          if (cellById[nk]) continue;
+          var cell = nextById[nk];
+          var marker = L.marker([cell.lat, cell.lng], {
+            icon: cellIconFor(cell),
+            keyboard: false,
+          });
+          marker._cfCell = cell;
+          marker.on('click', function (e) {
+            var t = e.target;
+            postMessage({
+              type: 'cell-press',
+              lat: t._cfCell.lat,
+              lng: t._cfCell.lng,
+              case_count: t._cfCell.count || t._cfCell.case_count,
+              dominant_kind: t._cfCell.dominantKind || t._cfCell.dominant_kind,
+              precision_floor: t._cfCell.precisionFloor || t._cfCell.precision_floor,
+              mode_city: t._cfCell.modeCity != null ? t._cfCell.modeCity : t._cfCell.mode_city,
+              mode_state: t._cfCell.modeState != null ? t._cfCell.modeState : t._cfCell.mode_state,
+            });
+          });
+          cellLayer.addLayer(marker);
+          cellById[nk] = marker;
+        }
+      };
+
+      // Mode toggle — attach/detach the active layer. Hard cutover
+      // (no cross-fade); the WebView region-change debounce on the
+      // React side absorbs any rapid threshold-crossing during a
+      // pinch gesture.
+      window.__cf_setMode = function (next) {
+        if (next === currentMode) return;
+        currentMode = next;
+        if (next === 'grid') {
+          if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
+          if (!map.hasLayer(cellLayer)) cellLayer.addTo(map);
+        } else {
+          if (map.hasLayer(cellLayer)) map.removeLayer(cellLayer);
+          if (!map.hasLayer(markerLayer)) markerLayer.addTo(map);
+        }
+      };
 
       // Coincident-coord cluster intercept: when a cluster's children
       // ALL share the same lat/lng (e.g., 211 cases at the LA city
