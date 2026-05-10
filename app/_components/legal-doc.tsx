@@ -38,6 +38,11 @@ export function LegalDoc({ title, lastUpdated, sections }: LegalDocProps): React
             letterSpacing: '0.05em',
             textTransform: 'uppercase',
             borderBottom: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            minHeight: 44,
+            padding: '0 4px',
+            marginLeft: -4,
           }}
         >
           ← The Cold File
@@ -47,7 +52,7 @@ export function LegalDoc({ title, lastUpdated, sections }: LegalDocProps): React
       <header style={{ marginBottom: 32 }}>
         <h1
           className="serif"
-          style={{ fontSize: 36, lineHeight: 1.15, margin: '0 0 12px 0' }}
+          style={{ fontSize: 'clamp(26px, 6vw, 36px)', lineHeight: 1.15, margin: '0 0 12px 0' }}
         >
           {title}
         </h1>
@@ -105,6 +110,9 @@ export function LegalDoc({ title, lastUpdated, sections }: LegalDocProps): React
             letterSpacing: '0.05em',
             margin: 0,
             lineHeight: 1.7,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 4,
           }}
         >
           MATTE BLACK DEV LLC · VENTURA, CA
@@ -114,7 +122,10 @@ export function LegalDoc({ title, lastUpdated, sections }: LegalDocProps): React
             style={{
               color: 'var(--text-secondary)',
               borderBottom: 'none',
-              marginRight: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
             }}
           >
             Privacy
@@ -124,7 +135,10 @@ export function LegalDoc({ title, lastUpdated, sections }: LegalDocProps): React
             style={{
               color: 'var(--text-secondary)',
               borderBottom: 'none',
-              marginRight: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
             }}
           >
             Terms
@@ -134,7 +148,10 @@ export function LegalDoc({ title, lastUpdated, sections }: LegalDocProps): React
             style={{
               color: 'var(--text-secondary)',
               borderBottom: 'none',
-              marginRight: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 44,
+              padding: '0 12px',
             }}
           >
             Takedown
