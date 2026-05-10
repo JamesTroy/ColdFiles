@@ -15,6 +15,8 @@
     "scrape:dryrun": "tsx --env-file-if-exists=.env scripts/scrape-cli.ts --dryrun",
     "scrape": "tsx --env-file-if-exists=.env scripts/scrape-cli.ts",
     "scrape:tick": "tsx --env-file-if-exists=.env scripts/scrape-cli.ts --tick",
+    "enrich:dryrun": "tsx --env-file-if-exists=.env scripts/enrich-locations.ts --dryrun",
+    "enrich": "tsx --env-file-if-exists=.env scripts/enrich-locations.ts",
     "vendor:fixture": "tsx tools/vendor-fixture.ts",
     "load:agencies": "tsx --env-file-if-exists=.env scripts/load-agencies.ts",
     "test": "vitest run"
