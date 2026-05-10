@@ -45,10 +45,26 @@ interface NotificationData {
 }
 
 function routeFromData(data: NotificationData | null | undefined): void {
-  if (!data) return;
-  const slug = typeof data.case_slug === 'string' ? data.case_slug : null;
-  if (!slug) return;
-  router.push({ pathname: '/case/[slug]', params: { slug } });
+  const slug =
+    data && typeof data.case_slug === 'string' && data.case_slug.length > 0
+      ? data.case_slug
+      : null;
+
+  if (slug) {
+    router.push({ pathname: '/case/[slug]', params: { slug } });
+    return;
+  }
+
+  // Bad / missing payload: tap should still land the user somewhere useful
+  // rather than whatever route happened to be visible when the OS handed
+  // off. Route to home and log the kind only (no full payload — push
+  // payloads can carry case identifiers we don't want to leak into device
+  // logs / Crashlytics).
+  console.warn(
+    '[notify-router] missing case_slug, kind=',
+    data?.kind ?? 'unknown',
+  );
+  router.push('/');
 }
 
 export function useNotificationRouter(): void {

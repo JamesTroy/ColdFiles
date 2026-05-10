@@ -12,12 +12,13 @@
 
 import * as Clipboard from 'expo-clipboard';
 import { Stack } from 'expo-router';
-import { Alert, Linking, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA } from '@/components/cf/cta-button';
 import { Card, PushScreenHeader } from '@/components/cf/screen-shell';
 import { InfoText, Mono, SansBody } from '@/components/cf/text';
+import { showToast } from '@/components/cf/toast';
 import { tokens } from '@/constants/theme';
 import {
   useNotificationPrefs,
@@ -65,27 +66,34 @@ export default function NotificationsScreen() {
         if (result.error) {
           console.warn('[notifications] registration not completed', result.error);
         }
-        Alert.alert(
-          'Notifications not turned on',
-          result.status === 'denied'
-            ? 'Notifications are blocked at the system level. Open Settings to grant permission, then come back and try again.'
-            : "We couldn't finish registering this device for notifications. Check your connection and try again.",
-        );
-      } else {
-        Alert.alert(
-          'Notifications on',
-          "You'll start getting alerts for the categories you've turned on below.",
-        );
+        if (result.status === 'denied') {
+          showToast({
+            kind: 'error',
+            message: 'Notifications are blocked at the system level. Open Settings to grant permission.',
+            actionLabel: 'OPEN SETTINGS',
+            onAction: () => {
+              void Linking.openSettings();
+            },
+          });
+        } else {
+          showToast({
+            kind: 'error',
+            message: "Couldn't finish turning on notifications. Check your connection.",
+          });
+        }
       }
+      // Success path is intentionally silent — the inline "Notifications on"
+      // row with green dot below the CTA is the confirmation. A second modal
+      // ack on top of the OS permission prompt is redundant interruption.
     } catch (err) {
       console.warn(
         '[notifications] registration threw',
         err instanceof Error ? err.message : String(err),
       );
-      Alert.alert(
-        "Couldn't turn on notifications",
-        "Something went wrong while turning on notifications. Check your connection and try again.",
-      );
+      showToast({
+        kind: 'error',
+        message: "Something went wrong turning on notifications. Check your connection.",
+      });
     }
   };
 
@@ -132,6 +140,8 @@ export default function NotificationsScreen() {
 
         {pushError ? (
           <View
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
             style={{
               marginHorizontal: 16,
               marginBottom: 12,
