@@ -49,6 +49,7 @@ import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseRowMapBbox } from '@/lib/types/database';
 
 import { CaseRow } from './case-row';
+import { PEEK_SNAP_POINT } from './map-bottom-sheet';
 import { MonoLabel, SerifTitle } from './text';
 
 interface CoincidentCasesSheetProps {
@@ -165,7 +166,7 @@ export function CoincidentCasesSheet({
         data={cases}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 96 }}
+        contentContainerStyle={{ paddingBottom: PEEK_SNAP_POINT }}
         showsVerticalScrollIndicator={false}
       />
     </BottomSheet>
