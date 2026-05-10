@@ -6,10 +6,12 @@
  * not a row here. See "Pill grammar" in docs/04_DESIGN_SYSTEM.md.
  */
 
+import { Fragment } from 'react';
 import { View } from 'react-native';
 
 import { tokens } from '@/constants/theme';
 
+import { Divider } from './divider';
 import { Mono, MonoLabel, SansBody } from './text';
 
 export interface KeyFact {
@@ -32,33 +34,33 @@ export function KeyFactsTable({ facts }: { facts: KeyFact[] }) {
       }}
     >
       {facts.map((fact, i) => (
-        <View
-          key={fact.label}
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            paddingVertical: 9,
-            borderBottomWidth: i < facts.length - 1 ? 0.5 : 0,
-            borderBottomColor: tokens.color.border.subtle,
-          }}
-        >
-          <MonoLabel
-            size={tokens.size.monoChip}
-            tracking={tokens.tracking.chip}
+        <Fragment key={fact.label}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              paddingVertical: 9,
+            }}
           >
-            {fact.label}
-          </MonoLabel>
-          {fact.mono ? (
-            <Mono size={tokens.size.monoData} style={{ textAlign: 'right', flexShrink: 1 }}>
-              {fact.value}
-            </Mono>
-          ) : (
-            <SansBody style={{ textAlign: 'right', flexShrink: 1, fontSize: tokens.size.meta }}>
-              {fact.value}
-            </SansBody>
-          )}
-        </View>
+            <MonoLabel
+              size={tokens.size.monoChip}
+              tracking={tokens.tracking.chip}
+            >
+              {fact.label}
+            </MonoLabel>
+            {fact.mono ? (
+              <Mono size={tokens.size.monoData} style={{ textAlign: 'right', flexShrink: 1 }}>
+                {fact.value}
+              </Mono>
+            ) : (
+              <SansBody style={{ textAlign: 'right', flexShrink: 1, fontSize: tokens.size.meta }}>
+                {fact.value}
+              </SansBody>
+            )}
+          </View>
+          {i < facts.length - 1 ? <Divider /> : null}
+        </Fragment>
       ))}
     </View>
   );

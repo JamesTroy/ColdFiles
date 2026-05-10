@@ -32,7 +32,7 @@
  * attention-color in the app.
  */
 
-import type { ReactElement } from 'react';
+import { Fragment, type ReactElement } from 'react';
 import { View } from 'react-native';
 
 import { tokens } from '@/constants/theme';
@@ -44,6 +44,7 @@ import {
   type SourceState,
 } from '@/lib/hooks/use-source-health';
 
+import { Divider } from './divider';
 import { MonoLabel, NarrativeText } from './text';
 
 interface Props {
@@ -69,7 +70,10 @@ export function SourceHealthList({ sources, loading }: Props): ReactElement {
   return (
     <View>
       {sources.map((s) => (
-        <SourceHealthRow key={s.source_slug} source={s} />
+        <Fragment key={s.source_slug}>
+          <SourceHealthRow source={s} />
+          <Divider />
+        </Fragment>
       ))}
     </View>
   );
@@ -85,8 +89,6 @@ function SourceHealthRow({ source }: { source: SourceHealth }) {
         justifyContent: 'space-between',
         alignItems: 'baseline',
         paddingVertical: 8,
-        borderBottomWidth: 0.5,
-        borderBottomColor: tokens.color.border.subtle,
         gap: 12,
       }}
     >
