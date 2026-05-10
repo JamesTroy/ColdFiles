@@ -74,7 +74,7 @@ export default function TipHistoryScreen() {
 
 function EmptyState() {
   return (
-    <View style={{ paddingHorizontal: 24, paddingTop: 56, alignItems: 'center' }}>
+    <View style={{ paddingHorizontal: tokens.space.card, paddingTop: 56, alignItems: 'center' }}>
       <SerifTitle size="h2" style={{ fontSize: 18, textAlign: 'center' }}>
         You haven&apos;t submitted any tips yet.
       </SerifTitle>
