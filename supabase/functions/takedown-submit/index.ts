@@ -2,8 +2,8 @@
 //
 // Anonymous-friendly takedown request endpoint. Receives a case-scoped report
 // from a family member, subject, legal counsel, journalist, or rights holder.
-// Returns a short reference code; emails both the operator and the submitter
-// so the request feels like it landed on a desk, not into a void.
+// Returns a short reference code; emails the submitter a confirmation link
+// so we can prove they control the address before the operator sees the row.
 //
 // Contract (matches mobile/app/takedown-request/[slug].tsx):
 //   POST /takedown-submit
@@ -23,10 +23,16 @@
 // Privacy posture:
 //   - Email hashed with a salted SHA-256 before DB persistence.
 //   - Phone hashed the same way.
-//   - The raw email + phone live in memory long enough to send the operator
-//     and submitter notification emails, then go out of scope.
+//   - The raw email + phone live in memory long enough to send the
+//     confirmation email, then go out of scope.
 //   - Reference code is stored unique-indexed so the operator can paste it
 //     from the email into the dashboard to find the row.
+//
+// Audit H3 (BOLA) — email-confirmation gate:
+//   Row inserts with `confirmed_at = NULL`. The operator review queue
+//   filters on `confirmed_at IS NOT NULL`. Submitter clicks a link from
+//   the confirmation email; takedown-confirm flips the gate and notifies
+//   the operator. This function NEVER notifies the operator directly.
 //
 // Migration 04 blocks direct anon writes to takedown_requests; this function
 // uses the service-role key to bypass RLS.
@@ -34,6 +40,14 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 import { corsHeaders, preflightResponse } from '../_shared/cors.ts';
+import { internalError } from '../_shared/responses.ts';
+import {
+  type FormattedCaseInfo,
+  type NotifyContext,
+  isSubmitterNotifyConfigured,
+  logSendError,
+  sendConfirmationEmail,
+} from '../_shared/takedown-notify.ts';
 
 // Spam-guard tiers — per the spec, the (case_id, email)-per-24h check is the
 // real one (catches the legitimate-abuse pattern of someone hitting submit
@@ -46,13 +60,13 @@ const MAX_BODY_BYTES = 8 * 1024;
 const MAX_REASON_LEN = 1000;
 const MIN_REASON_LEN = 20;
 
+// 7 days. Don't make this configurable in this pass — operationally a
+// fixed window is easier to reason about across email-deliverability
+// horizons (spam-folder discovery, vacation auto-reply scenarios, etc.).
+const CONFIRMATION_TTL_MS = 7 * 24 * 3600 * 1000;
+
 const SUPABASE_URL = mustEnv('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = mustEnv('SUPABASE_SERVICE_ROLE_KEY');
-const NOTIFY_FROM = Deno.env.get('TAKEDOWN_NOTIFY_FROM') ?? null;
-const NOTIFY_TO = Deno.env.get('TAKEDOWN_NOTIFY_TO') ?? null;
-const NOTIFY_REPLY_TO = Deno.env.get('TAKEDOWN_REPLY_TO') ?? 'takedown@coldfile.app';
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? null;
-const APP_NAME = Deno.env.get('TAKEDOWN_APP_NAME') ?? 'The Cold File';
 
 function mustEnv(name: string): string {
   const v = Deno.env.get(name);
@@ -212,6 +226,17 @@ Deno.serve(async (req) => {
     return rateLimited();
   }
 
+  // Generate the confirmation token BEFORE the insert. 32 bytes / 256 bits
+  // is well past the brute-force horizon; base64url keeps the URL clean
+  // (no '+', '/', or '=' padding to escape). We persist only the SHA-256
+  // hash — a DB read can't reproduce the clickable URL.
+  const rawTokenBytes = new Uint8Array(32);
+  crypto.getRandomValues(rawTokenBytes);
+  const rawToken = base64UrlEncode(rawTokenBytes);
+  const tokenHash = await sha256Hex(rawToken);
+  const sentAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + CONFIRMATION_TTL_MS).toISOString();
+
   // Generate a unique reference code. 14M possibilities at 5 chars; we retry
   // up to 3 times on a unique-violation just in case.
   let reference = generateReference();
@@ -234,6 +259,11 @@ Deno.serve(async (req) => {
         reason,
         reference_code: reference,
         notes: ipPrefix,
+        confirmation_token_hash: tokenHash,
+        confirmation_sent_at: sentAt,
+        confirmation_expires_at: expiresAt,
+        // confirmed_at remains NULL — operator queue filters this out
+        // until takedown-confirm flips it.
       })
       .select('id, created_at')
       .single();
@@ -250,27 +280,24 @@ Deno.serve(async (req) => {
   }
 
   if (!inserted) {
-    return new Response(
-      JSON.stringify({ error: 'server', message: lastError ?? 'insert failed' }),
-      jsonInit(500),
-    );
+    return internalError(req, new Error(lastError ?? 'insert failed'), 'takedown-submit.insert');
   }
 
-  // Fetch case info for the notify emails. The submitter's confirmation needs
-  // to identify which case they reported on — months from now, when they go
-  // looking for the receipt, the ref code alone won't tell them. The
-  // operator notify benefits from the same context.
+  // Fetch case info for the confirmation email. The submitter's confirmation
+  // needs to identify which case they reported on — months from now, when
+  // they go looking for the receipt, the ref code alone won't tell them.
   const { data: caseRow } = await supabase
     .from('cases')
     .select('slug, victim_name, kind, location_city, location_state, case_number_primary')
     .eq('id', body.case_id)
     .maybeSingle();
 
-  // Best-effort notifies. Don't block the response — DB row is the
-  // authoritative record; emails are operator + submitter convenience.
-  if (RESEND_API_KEY) {
+  // Best-effort confirmation email. Don't block the response — DB row is
+  // the authoritative record. We do NOT notify the operator here; that
+  // happens in takedown-confirm after the click verifies email ownership.
+  if (isSubmitterNotifyConfigured()) {
     const caseInfo = formatCaseInfo(caseRow);
-    const notifyContext = {
+    const notifyContext: NotifyContext = {
       reference,
       caseId: body.case_id,
       caseInfo,
@@ -283,12 +310,10 @@ Deno.serve(async (req) => {
       contactPhone: body.phone?.trim() || null,
       requestId: inserted.id,
     };
-    if (NOTIFY_FROM && NOTIFY_TO) {
-      notifyOperator(notifyContext).catch(logSendError('operator notify'));
-    }
-    if (NOTIFY_FROM) {
-      notifySubmitter(notifyContext).catch(logSendError('submitter confirmation'));
-    }
+    const confirmUrl =
+      `${SUPABASE_URL}/functions/v1/takedown-confirm?token=${rawToken}`;
+    sendConfirmationEmail({ ctx: notifyContext, confirmUrl })
+      .catch(logSendError('confirmation email'));
   }
 
   return new Response(
@@ -304,12 +329,6 @@ interface CaseRow {
   location_city: string | null;
   location_state: string | null;
   case_number_primary: string | null;
-}
-
-interface FormattedCaseInfo {
-  title: string;
-  metaLine: string;
-  identifier: string;
 }
 
 function formatCaseInfo(row: unknown): FormattedCaseInfo {
@@ -332,138 +351,18 @@ function generateReference(): string {
   return out;
 }
 
-interface NotifyContext {
-  reference: string;
-  caseId: string;
-  caseInfo: FormattedCaseInfo;
-  relationship: string;
-  relationshipOther: string | null;
-  resolutions: string[];
-  reasonFull: string;
-  contactEmail: string;
-  contactPhone: string | null;
-  requestId: string;
-}
-
-async function notifyOperator(ctx: NotifyContext): Promise<void> {
-  const subject = `[${ctx.reference}] Takedown · ${ctx.relationship} · ${ctx.caseInfo.identifier}`;
-  const lines = [
-    `Reference: ${ctx.reference}`,
-    `Request id: ${ctx.requestId}`,
-    `Case: ${ctx.caseInfo.title}`,
-    `       ${ctx.caseInfo.metaLine}`,
-    `Case id: ${ctx.caseId}`,
-    `Relationship: ${ctx.relationship}${ctx.relationshipOther ? ` (${ctx.relationshipOther})` : ''}`,
-    `Wanted outcomes: ${ctx.resolutions.join(', ')}`,
-    `Contact email: ${ctx.contactEmail}`,
-    ...(ctx.contactPhone ? [`Contact phone: ${ctx.contactPhone}`] : []),
-    '',
-    'Reason:',
-    ctx.reasonFull,
-    '',
-    `Review: select * from takedown_requests where reference_code = '${ctx.reference}';`,
-  ];
-  await sendEmail({
-    to: NOTIFY_TO!,
-    subject,
-    text: lines.join('\n'),
-    replyTo: ctx.contactEmail,
-  });
-}
-
 /**
- * Confirmation email to the submitter. This is the receipt they'll go looking
- * for months later — include enough context that they can pick it up cold
- * without remembering exactly which case they reported on. Subject carries
- * the reference up front so it's findable in inbox search.
+ * URL-safe base64 encoding without padding. Deno's std/encoding has
+ * `encodeBase64Url` but we keep this inline to avoid an import dependency
+ * on a single short helper. Mirrors RFC 4648 §5.
  */
-async function notifySubmitter(ctx: NotifyContext): Promise<void> {
-  const subject = `We received your request — ${ctx.reference}`;
-  const lines = [
-    `Thanks for sending this. A real person on our team will read your request and reply within 5 business days.`,
-    '',
-    `Reference: ${ctx.reference}`,
-    '',
-    `If you don't hear back by then, just reply to this email and we'll follow up.`,
-    '',
-    `── What you sent us ──`,
-    '',
-    `Case: ${ctx.caseInfo.title}`,
-    `       ${ctx.caseInfo.metaLine}`,
-    '',
-    `Your relationship: ${formatRelationship(ctx.relationship)}${ctx.relationshipOther ? ` (${ctx.relationshipOther})` : ''}`,
-    `What you'd like us to do: ${ctx.resolutions.map(formatResolution).join(', ')}`,
-    '',
-    `Your reason:`,
-    ctx.reasonFull,
-    '',
-    `── ──`,
-    '',
-    `Reply to this email if you need to add anything or clarify.`,
-    '',
-    `— ${APP_NAME}`,
-  ];
-  await sendEmail({
-    to: ctx.contactEmail,
-    subject,
-    text: lines.join('\n'),
-    replyTo: NOTIFY_REPLY_TO,
-  });
-}
-
-function formatRelationship(r: string): string {
-  switch (r) {
-    case 'family': return 'family member of the subject';
-    case 'subject': return 'the subject';
-    case 'legal': return 'legal representative';
-    case 'journalist': return 'journalist or researcher';
-    default: return 'other';
-  }
-}
-
-function formatResolution(r: string): string {
-  switch (r) {
-    case 'remove_photo': return 'remove photo(s)';
-    case 'remove_case': return 'remove this case';
-    case 'correct_info': return 'correct information';
-    default: return 'other';
-  }
-}
-
-async function sendEmail(input: {
-  to: string;
-  subject: string;
-  text: string;
-  replyTo?: string;
-}): Promise<void> {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: NOTIFY_FROM,
-      to: input.to,
-      subject: input.subject,
-      text: input.text,
-      ...(input.replyTo ? { reply_to: input.replyTo } : {}),
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Resend ${res.status}: ${await res.text()}`);
-  }
-}
-
-function logSendError(label: string) {
-  return (err: unknown) => {
-    console.error(
-      JSON.stringify({
-        msg: `takedown ${label} failed`,
-        error: err instanceof Error ? err.message : String(err),
-      }),
-    );
-  };
+function base64UrlEncode(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin)
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '');
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -489,4 +388,3 @@ function isUuid(s: string): boolean {
 function isEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim()) && s.trim().length <= 254;
 }
-
