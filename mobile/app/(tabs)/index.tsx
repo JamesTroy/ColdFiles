@@ -395,6 +395,18 @@ export default function MapScreen() {
     [cells],
   );
 
+  // Grid-mode bottom-sheet header summary. Sums the per-cell counts
+  // for the "{N} cases · {M} regions" sub-line. When in point mode
+  // the sheet ignores this prop, so the cheap recompute on every
+  // render is fine (~tens of cells max in grid mode anyway).
+  const gridSummary = useMemo(
+    () => ({
+      cellCount: cells.length,
+      totalCases: cells.reduce((n, c) => n + c.case_count, 0),
+    }),
+    [cells],
+  );
+
   // Cell-tap zoom-in handler. Drills by 2 zoom levels from the
   // current zoom, capped at POINT_ZOOM_THRESHOLD so any tap from
   // grid mode crosses one full step toward pins. Continental cells
@@ -730,6 +742,8 @@ export default function MapScreen() {
         animatedIndex={sheetIndex}
         onWatchHere={() => router.push('/watch-zone')}
         watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
+        inGridMode={isGrid}
+        gridSummary={gridSummary}
       />
 
       {/* Coincident-coord tap-drill sheet — stacks above the persistent

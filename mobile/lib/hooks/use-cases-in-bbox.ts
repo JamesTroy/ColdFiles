@@ -200,31 +200,15 @@ export interface CaseGridCell {
   mode_state: string | null;
 }
 
-/**
- * Editorial schedule. Threshold zoom 8 flips between server-side
- * grid aggregation (low zoom — too many points to ship cleanly) and
- * point mode (zoom ≥ 8, where bbox-result-size rarely exceeds 500
- * and leaflet.markercluster handles the within-screen aggregation).
- *
- * Cell sizes roughly halve per zoom step so the on-screen cell
- * density stays stable as the user zooms in. Tunable per-OTA — the
- * server function (cases_grid_in_bbox) accepts any cell_size_deg in
- * [0.05, 20.0] without a migration.
- */
-export type MapAggregation =
-  | { mode: 'point' }
-  | { mode: 'grid'; cellSizeDeg: number };
-
-export const POINT_ZOOM_THRESHOLD = 8;
-
-export function aggregationForZoom(zoom: number): MapAggregation {
-  const z = Math.floor(zoom);
-  if (z >= POINT_ZOOM_THRESHOLD) return { mode: 'point' };
-  if (z >= 7) return { mode: 'grid', cellSizeDeg: 0.5 };
-  if (z >= 6) return { mode: 'grid', cellSizeDeg: 1.0 };
-  if (z >= 5) return { mode: 'grid', cellSizeDeg: 2.0 };
-  return { mode: 'grid', cellSizeDeg: 4.0 };
-}
+// Schedule lives in map-aggregation.ts — pure-helper file with no
+// React imports so vitest (node-only config) can unit-test it
+// directly. Re-exported here so existing consumers
+// (`from '@/lib/hooks/use-cases-in-bbox'`) keep working unchanged.
+export {
+  POINT_ZOOM_THRESHOLD,
+  aggregationForZoom,
+  type MapAggregation,
+} from './map-aggregation';
 
 interface UseCellsGridInBboxOptions {
   bounds: CaseBounds | null;

@@ -84,6 +84,21 @@ interface MapBottomSheetProps {
    * exhausted, rather than just disappearing.
    */
   watchHereDisabled?: boolean;
+  /**
+   * When true, the sheet is in grid-mode: low zoom, server-side
+   * tile-grid badges on the map (cases_grid_in_bbox). The list of
+   * individual cases doesn't apply at this scale (~tens of cells
+   * aggregating thousands of cases). Header shows a zoom-in CTA +
+   * region-level summary; list is replaced with an empty-state row.
+   * The WATCH chip stays (drawing a watch zone over a region is
+   * still a coherent verb at this zoom).
+   */
+  inGridMode?: boolean;
+  /**
+   * Aggregate summary for the grid-mode header. Required when
+   * inGridMode is true; ignored otherwise.
+   */
+  gridSummary?: { cellCount: number; totalCases: number };
 }
 
 // Four snap points:
@@ -106,6 +121,8 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
       animatedIndex,
       onWatchHere,
       watchHereDisabled = false,
+      inGridMode = false,
+      gridSummary,
     },
     ref,
   ) {
@@ -168,9 +185,18 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
           totalCount={totalCount}
           onWatchHere={onWatchHere}
           watchHereDisabled={watchHereDisabled}
+          inGridMode={inGridMode}
+          gridSummary={gridSummary}
         />
       ),
-      [cases.length, totalCount, onWatchHere, watchHereDisabled],
+      [
+        cases.length,
+        totalCount,
+        onWatchHere,
+        watchHereDisabled,
+        inGridMode,
+        gridSummary,
+      ],
     );
 
     return (
@@ -200,10 +226,18 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
       >
         <BottomSheetFlatList
           ref={listRef}
-          data={ordered}
+          // In grid mode, the per-case list doesn't apply — the map
+          // is showing ~tens of cells aggregating thousands of cases.
+          // Swap data to [] and let ListEmptyComponent surface the
+          // zoom-in CTA. Keep `ordered` referenced via the prop so
+          // the list state isn't blown away on mode flips back to
+          // point — gorhom's FlatList preserves scroll position
+          // across data identity changes when keys are stable.
+          data={inGridMode ? [] : ordered}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           ListHeaderComponent={ListHeader}
+          ListEmptyComponent={inGridMode ? <GridModeEmptyState /> : null}
           contentContainerStyle={{ paddingBottom: 96 }}
           showsVerticalScrollIndicator={false}
         />
@@ -233,15 +267,47 @@ function ListHeaderInner({
   totalCount,
   onWatchHere,
   watchHereDisabled,
+  inGridMode,
+  gridSummary,
 }: {
   count: number;
   totalCount: number | null;
   onWatchHere?: () => void;
   watchHereDisabled: boolean;
+  inGridMode: boolean;
+  gridSummary?: { cellCount: number; totalCases: number };
 }) {
-  const inView = `${count.toLocaleString()} IN VIEW`;
-  const tracked = totalCount != null ? `${totalCount.toLocaleString()} TRACKED` : null;
-  const headline = tracked ? `${inView} · ${tracked}` : inView;
+  // Headline + sub-line vary by mode.
+  //   point mode (default):
+  //     "{N} IN VIEW · {totalCount} TRACKED"
+  //     orange-dot legend "UPDATED < 10 DAYS"
+  //   grid mode:
+  //     "ZOOM IN TO BROWSE CASES"
+  //     "{totalCases} CASES · {cellCount} REGIONS"
+  // The WATCH chip stays in both modes — drawing a watch zone over a
+  // region is a coherent verb at any zoom.
+  let headline: string;
+  let subLine: { text: string; color: string; withDot: boolean };
+  if (inGridMode) {
+    headline = 'ZOOM IN TO BROWSE CASES';
+    const total = gridSummary?.totalCases ?? 0;
+    const cellCount = gridSummary?.cellCount ?? 0;
+    subLine = {
+      text: `${total.toLocaleString()} CASES · ${cellCount.toLocaleString()} REGIONS`,
+      color: tokens.color.text.disabled,
+      withDot: false,
+    };
+  } else {
+    const inView = `${count.toLocaleString()} IN VIEW`;
+    const tracked =
+      totalCount != null ? `${totalCount.toLocaleString()} TRACKED` : null;
+    headline = tracked ? `${inView} · ${tracked}` : inView;
+    subLine = {
+      text: 'UPDATED < 10 DAYS',
+      color: tokens.color.text.disabled,
+      withDot: true,
+    };
+  }
 
   return (
     <View
@@ -279,30 +345,62 @@ function ListHeaderInner({
           marginTop: 6,
         }}
       >
-        <View
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: tokens.color.accent.amberHot,
-          }}
-        />
+        {subLine.withDot ? (
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: tokens.color.accent.amberHot,
+            }}
+          />
+        ) : null}
         {/* flexShrink:1 lets RN compress this Text to the available width
             so it wraps gracefully on narrow viewports instead of clipping
             mid-word — RN's default for an un-shrinkable Text in a flex
             row is to take intrinsic width + overflow-clip past the parent
-            edge. The shorter label keeps the precision (math notation
-            <10 days) while reading on a single line on every device we
-            ship to. */}
+            edge. */}
         <MonoLabel
           size={11}
           tracking={tokens.tracking.label}
-          color={tokens.color.text.disabled}
+          color={subLine.color}
           style={{ flexShrink: 1 }}
         >
-          {'UPDATED < 10 DAYS'}
+          {subLine.text}
         </MonoLabel>
       </View>
+    </View>
+  );
+}
+
+/**
+ * Empty-state row for the grid-mode FlatList. Shows when the sheet's
+ * data is [] because the map is in grid mode (low zoom, server-side
+ * tile-grid badges). The header already carries the headline + region
+ * summary; this row is a quiet "you can drill in" affordance.
+ *
+ * Filter chips on the home screen stay interactive in grid mode but
+ * don't refilter cells (cells are pre-aggregated server-side at
+ * status='open'); the sub-text here flags that.
+ */
+function GridModeEmptyState() {
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 24, paddingBottom: 24 }}>
+      <MonoLabel
+        size={11}
+        tracking={tokens.tracking.label}
+        color={tokens.color.text.disabled}
+      >
+        TAP A REGION OR PINCH IN TO SEE INDIVIDUAL CASES.
+      </MonoLabel>
+      <MonoLabel
+        size={11}
+        tracking={tokens.tracking.label}
+        color={tokens.color.text.disabled}
+        style={{ marginTop: 6 }}
+      >
+        FILTER CHIPS APPLY ONCE PINS ARE VISIBLE.
+      </MonoLabel>
     </View>
   );
 }
