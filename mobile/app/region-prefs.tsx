@@ -131,7 +131,7 @@ export default function RegionPrefsScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {sortedStates.length === 0 ? (
-            <View style={{ paddingHorizontal: 18, paddingTop: 24 }}>
+            <View style={{ paddingHorizontal: tokens.space.card, paddingTop: tokens.space.section }}>
               <SansBody style={{ color: tokens.color.text.secondary }}>
                 No states match &quot;{query}&quot;.
               </SansBody>
