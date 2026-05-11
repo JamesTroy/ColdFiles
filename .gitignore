@@ -36,6 +36,10 @@ supabase/.temp
 scraper-fixtures/*.html
 !scraper-fixtures/README.md
 
+# Deno (scrape-cli + edge function local runs regenerate this; not the source of
+# truth for deployed deps)
+deno.lock
+
 # Coverage
 coverage/
 .nyc_output/
