@@ -183,7 +183,7 @@ export class PoliteFetcher {
     private userAgent: string = DEFAULT_UA,
   ) {}
 
-  async get(url: string, init?: SafeFetchOptions): Promise<Response> {
+  async get(url: string, init?: PoliteFetchOptions): Promise<Response> {
     // Two retry envelopes layered together:
     //   - HTTP-level (429 / 503): server told us to back off; we honor it
     //     and retry indefinitely (Retry-After capped at 10 minutes).
@@ -201,12 +201,14 @@ export class PoliteFetcher {
 
       let res: Response;
       try {
+        const cookieHeader = init?.jar?.cookieHeader();
         res = await safeFetch(url, {
           ...init,
           headers: {
             'User-Agent': this.userAgent,
             Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
+            ...(cookieHeader ? { Cookie: cookieHeader } : {}),
             ...(init?.headers ?? {}),
           },
         });
@@ -232,11 +234,12 @@ export class PoliteFetcher {
         continue;
       }
 
+      init?.jar?.ingest(res);
       return res;
     }
   }
 
-  async getText(url: string, init?: SafeFetchOptions): Promise<string> {
+  async getText(url: string, init?: PoliteFetchOptions): Promise<string> {
     const res = await this.get(url, init);
     if (!res.ok) {
       throw new HttpError(`GET ${url} failed: ${res.status}`, res.status);
@@ -244,7 +247,7 @@ export class PoliteFetcher {
     return res.text();
   }
 
-  async getJson<T = unknown>(url: string, init?: SafeFetchOptions): Promise<T> {
+  async getJson<T = unknown>(url: string, init?: PoliteFetchOptions): Promise<T> {
     const res = await this.get(url, {
       ...init,
       headers: {
@@ -322,6 +325,134 @@ export class PoliteFetcher {
       return (await res.json()) as T;
     }
   }
+
+  /**
+   * POST application/x-www-form-urlencoded form data and return the raw
+   * Response. Used by sources fronted by ASP.NET MVC / classic ASP forms
+   * where the search dispatcher requires a real HTML-form submission
+   * (TX DPS MPCH posts an antiforgery-token pair; classic-ASP sites like
+   * FDLE MEPIC use a session cookie established on the search-page GET).
+   *
+   * Returns the Response so the caller can inspect non-2xx (e.g. a 302
+   * redirect to the form page indicates the server rejected the criteria
+   * — a real signal, not a transport failure). Use `getText`-style on the
+   * result if you want the HTML body.
+   *
+   * Cookie state: pass a CookieJar via `init.jar` and call .get() on it
+   * after a prior get()/getText() against the form page to seed the jar
+   * with whatever session cookies the server set. The jar is consulted
+   * for the outgoing Cookie header and updated with Set-Cookie from the
+   * response — both must use the same jar instance.
+   */
+  async postForm(
+    url: string,
+    body: Record<string, string>,
+    init?: PoliteFetchOptions,
+  ): Promise<Response> {
+    const params = new URLSearchParams(body).toString();
+    let networkAttempts = 0;
+    while (true) {
+      const wait = Math.max(0, this.lastRequest + this.rateLimitMs - Date.now());
+      if (wait > 0) await sleep(wait);
+      this.lastRequest = Date.now();
+
+      let res: Response;
+      try {
+        const cookieHeader = init?.jar?.cookieHeader();
+        res = await safeFetch(url, {
+          ...init,
+          method: 'POST',
+          body: params,
+          headers: {
+            'User-Agent': this.userAgent,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+            ...(init?.headers ?? {}),
+          },
+        });
+      } catch (err) {
+        if (err instanceof HttpError) throw err;
+        if (networkAttempts >= 2) throw err;
+        const backoffMs = 1000 * Math.pow(3, networkAttempts);
+        networkAttempts += 1;
+        await sleep(backoffMs);
+        continue;
+      }
+
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') ?? '60', 10);
+        await sleep(Math.min(retryAfter, 600) * 1000);
+        networkAttempts = 0;
+        continue;
+      }
+      if (res.status === 503) {
+        await sleep(60_000);
+        networkAttempts = 0;
+        continue;
+      }
+      init?.jar?.ingest(res);
+      return res;
+    }
+  }
+}
+
+/**
+ * Per-request options for PoliteFetcher methods that participate in a
+ * cookie-jar session. Same shape as SafeFetchOptions plus an optional
+ * jar that the method reads on the way out (Cookie header) and writes
+ * on the way back (ingest Set-Cookie). Use the same jar instance across
+ * a multi-step flow (GET form → POST submit) to keep session state.
+ */
+export interface PoliteFetchOptions extends SafeFetchOptions {
+  jar?: CookieJar;
+}
+
+/**
+ * Minimal in-memory cookie jar — name/value pairs only, no attribute
+ * honoring (Path/Domain/Expires/Max-Age/SameSite). Sufficient for the
+ * short-lived single-host form-submit flows we use it for: the jar's
+ * lifetime is one discoverFn invocation, the host is fixed by the
+ * source, and we don't care if cookies "expire" mid-flow because the
+ * flow is sub-second from form-GET to form-POST.
+ *
+ * Reads multi-Set-Cookie via Headers.getSetCookie() (undici/Deno) with
+ * a single-header fallback for older runtimes.
+ */
+export interface CookieJar {
+  cookieHeader(): string | undefined;
+  ingest(res: Response): void;
+}
+
+export function makeCookieJar(): CookieJar {
+  const cookies = new Map<string, string>();
+  return {
+    cookieHeader(): string | undefined {
+      if (cookies.size === 0) return undefined;
+      return [...cookies].map(([k, v]) => `${k}=${v}`).join('; ');
+    },
+    ingest(res: Response): void {
+      // Node 18.14+ and Deno expose getSetCookie() returning string[];
+      // older runtimes only have get('set-cookie') which folds multiple
+      // headers into a single comma-joined string (technically wrong for
+      // cookies since values can contain commas, but acceptable for the
+      // simple session cookies we see in practice on these sources).
+      const headers = res.headers as Headers & { getSetCookie?: () => string[] };
+      const list = typeof headers.getSetCookie === 'function'
+        ? headers.getSetCookie()
+        : res.headers.get('set-cookie')
+          ? [res.headers.get('set-cookie')!]
+          : [];
+      for (const sc of list) {
+        const semi = sc.indexOf(';');
+        const pair = semi >= 0 ? sc.slice(0, semi) : sc;
+        const eq = pair.indexOf('=');
+        if (eq < 1) continue;
+        cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+      }
+    },
+  };
 }
 
 export class HttpError extends Error {
