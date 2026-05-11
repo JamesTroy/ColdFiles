@@ -10,6 +10,8 @@
  * accents/pins untouched (see "Light mode" in the design doc).
  */
 
+import { StyleSheet } from 'react-native';
+
 export const tokens = {
   color: {
     bg: {
@@ -149,6 +151,26 @@ export const tokens = {
     monoCaption: 9,
   },
 
+  /**
+   * Paired line-heights for the `size` namespace. Headings use ~1.2× to keep
+   * stacked title rows tight; body / narrative / mono use ~1.4× for legible
+   * multi-line reading. Mono caption stays at 1.2× — single-line evidence
+   * chrome shouldn't open vertical air.
+   */
+  lineHeight: {
+    serifH1: 34,
+    serifH2: 24,
+    h3: 22,
+    body: 20,
+    meta: 17,
+    narrative: 18,
+    rowName: 20,
+    monoLabel: 14,
+    monoData: 17,
+    monoChip: 15,
+    monoCaption: 11,
+  },
+
   tracking: {
     label: 0.10,
     chip: 0.05,
@@ -160,6 +182,34 @@ export const tokens = {
     card: 8,
     sheet: 16,
     pill: 12,
+    /** Inner radius on photo brackets / nested clips inside a card.bg. */
+    inner: 6,
+    /** Tight chrome — source-chip strips, mono pill outlines. */
+    tight: 3,
+    /** Selected-state radio cards, larger callouts. */
+    cardLg: 18,
+    /** Photo frames + sheet-internal panels. */
+    frame: 20,
+    /** Hero surfaces: case-detail header card, modal containers. */
+    hero: 24,
+  },
+
+  /**
+   * Spacing scale. Semantic anchors first (the values consumers reach for
+   * by intent), numeric step aliases second. `row` is the de-facto inline
+   * gap inside a single card row; `card` is the inset between a card edge
+   * and its content; `section` separates stacked card groups; `screen` is
+   * the outer screen-edge gutter on settings-style layouts.
+   */
+  space: {
+    hair: 4,
+    tight: 8,
+    row: 12,
+    card: 16,
+    group: 20,
+    section: 24,
+    screen: 32,
+    gulf: 40,
   },
 
   /**
@@ -171,6 +221,18 @@ export const tokens = {
    */
   layout: {
     cardGap: 12,
+  },
+
+  /**
+   * Border widths. `thin` is the platform sub-pixel hairline (≈0.5 on @2x);
+   * `regular` is the everyday 1dp divider; `bold` is reserved for selected
+   * radio cards + active filter chip outlines, where the extra 0.5dp carries
+   * the affordance.
+   */
+  hairline: {
+    thin: StyleSheet.hairlineWidth,
+    regular: 1,
+    bold: 1.5,
   },
 
   pin: {

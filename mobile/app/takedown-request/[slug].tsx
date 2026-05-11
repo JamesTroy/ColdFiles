@@ -35,6 +35,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmberCTA } from '@/components/cf/cta-button';
+import { Divider } from '@/components/cf/divider';
 import { Mono, MonoLabel, NarrativeText, SansBody, SansMedium, SerifTitle } from '@/components/cf/text';
 import { showToast } from '@/components/cf/toast';
 import { tokens } from '@/constants/theme';
@@ -239,7 +240,7 @@ export default function TakedownRequestScreen() {
 
         {caseSummary ? (
           <>
-            <Divider />
+            <SectionDivider />
             <View style={{ paddingHorizontal: 16, paddingTop: 18 }}>
               <SectionLabel>ABOUT THIS CASE</SectionLabel>
               <SansMedium style={{ fontSize: 18 }}>{caseSummary.title}</SansMedium>
@@ -257,7 +258,7 @@ export default function TakedownRequestScreen() {
           </>
         ) : caseLoadError ? (
           <>
-            <Divider />
+            <SectionDivider />
             <View style={{ paddingHorizontal: 16, paddingTop: 18 }}>
               <SectionLabel>ABOUT THIS CASE</SectionLabel>
               <NarrativeText
@@ -274,7 +275,7 @@ export default function TakedownRequestScreen() {
           </>
         ) : null}
 
-        <Divider />
+        <SectionDivider />
 
         <SectionLabel required>YOUR RELATIONSHIP TO THIS CASE</SectionLabel>
         <Dropdown
@@ -412,7 +413,7 @@ export default function TakedownRequestScreen() {
           />
         </View>
 
-        <Divider top={28} />
+        <SectionDivider top={28} />
 
         <NarrativeText
           style={{
@@ -665,16 +666,11 @@ function SectionLabel({ children, required }: { children: string; required?: boo
   );
 }
 
-function Divider({ top = 18 }: { top?: number } = {}) {
+function SectionDivider({ top = 18 }: { top?: number } = {}) {
   return (
-    <View
-      style={{
-        marginTop: top,
-        marginHorizontal: 16,
-        borderBottomWidth: 0.5,
-        borderBottomColor: tokens.color.border.subtle,
-      }}
-    />
+    <View style={{ marginTop: top, marginHorizontal: 16 }}>
+      <Divider />
+    </View>
   );
 }
 
