@@ -101,14 +101,30 @@ interface MapBottomSheetProps {
   gridSummary?: { cellCount: number; totalCases: number };
 }
 
+/**
+ * Peek snap height — count + WATCH chip visible. Exported so map-screen
+ * overlays (FABs, drawer-mode banners) can clear the sheet without
+ * re-deriving the magic number, which used to drift silently when the
+ * peek snap was tweaked. See CLAUDE.md → "Map FABs clear the bottom-sheet
+ * peek".
+ */
+export const PEEK_SNAP_POINT = 96;
+
+/**
+ * Bottom inset for overlays that must clear the peek sheet
+ * (PEEK_SNAP_POINT + 16px breathing room — the same 16px gutter used
+ * elsewhere in the map UI).
+ */
+export const FAB_CLEARANCE = PEEK_SNAP_POINT + 16;
+
 // Four snap points:
 //   0: 28px — minimized; just the handle bar visible. User dragged the
 //      sheet down to "hide" the cases list and reclaim map real estate.
 //      Swipe up from the handle returns to peek.
-//   1: 96px — peek; count + WATCH chip visible. Default starting state.
+//   1: PEEK_SNAP_POINT — peek; count + WATCH chip visible. Default starting state.
 //   2: 45%   — mid; cases list visible at half-screen.
 //   3: 92%   — full; list expanded over the map.
-const SNAP_POINTS = [28, 96, '45%', '92%'] as const;
+const SNAP_POINTS = [28, PEEK_SNAP_POINT, '45%', '92%'] as const;
 
 export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetProps>(
   function MapBottomSheet(
@@ -239,7 +255,7 @@ export const MapBottomSheet = forwardRef<MapBottomSheetHandle, MapBottomSheetPro
           renderItem={renderItem}
           ListHeaderComponent={ListHeader}
           ListEmptyComponent={inGridMode ? <GridModeEmptyState /> : null}
-          contentContainerStyle={{ paddingBottom: 96 }}
+          contentContainerStyle={{ paddingBottom: PEEK_SNAP_POINT }}
           showsVerticalScrollIndicator={false}
         />
       </BottomSheet>

@@ -38,6 +38,7 @@ import {
   type LeafletMarker,
 } from '@/components/cf/leaflet-map';
 import {
+  FAB_CLEARANCE,
   MapBottomSheet,
   type MapBottomSheetHandle,
 } from '@/components/cf/map-bottom-sheet';
@@ -982,6 +983,7 @@ function LayerToggleButton({
   visible: boolean;
   onPress: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Pressable
       onPress={onPress}
@@ -993,7 +995,7 @@ function LayerToggleButton({
         {
           position: 'absolute',
           right: 16,
-          top: 12,
+          top: insets.top + 12,
           width: 44,
           height: 44,
           borderRadius: 22,
@@ -1048,11 +1050,10 @@ function LocationFAB({
         {
           position: 'absolute',
           right: 16,
-          // 96 = MapBottomSheet's peek snap height (see SNAP_POINTS in
-          // map-bottom-sheet.tsx). The original 16px sat behind that
-          // peek and was effectively invisible whenever the user had
-          // already granted location. 112 = peek + 16 breathing room.
-          bottom: 112,
+          // FAB_CLEARANCE = peek + 16 breathing room. The original 16px
+          // sat behind the peek sheet and was effectively invisible
+          // whenever the user had already granted location.
+          bottom: FAB_CLEARANCE,
           width: 48,
           height: 48,
           borderRadius: 24,
