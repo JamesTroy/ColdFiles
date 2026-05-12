@@ -197,6 +197,14 @@ export interface CaseRowFull {
   primary_agency_id: string | null;
   /** Joined agency fields when present. */
   primary_agency: AgencyRow | null;
+  /**
+   * Per-case DNA-funding handoff (migration 48). Optional in the type
+   * because pre-mig sample-data fixtures don't carry the columns; live DB
+   * reads always return them (null when unset). The case-detail screen
+   * hides the funding CTA when either is missing — see DnaFundingCallout.
+   */
+  dna_funding_url?: string | null;
+  dna_funding_kind?: DnaFundingKind | null;
 }
 
 export interface AgencyRow {
@@ -326,3 +334,10 @@ export type TipRouteKind =
   | 'fbi_tip'
   | 'namus_form'
   | 'email';
+
+/**
+ * Funding-platform dimension for the per-case DNA funding handoff (mig 48).
+ * Matches the CHECK constraint on cases.dna_funding_kind. Add new values
+ * via a migration before populating them in data.
+ */
+export type DnaFundingKind = 'othram' | 'season_of_justice' | 'other';
