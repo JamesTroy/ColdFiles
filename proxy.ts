@@ -1,5 +1,12 @@
 /**
- * CSP nonce middleware for coldfile.app.
+ * CSP nonce proxy for coldfile.app.
+ *
+ * (Renamed from middleware.ts → proxy.ts during the Next 16 upgrade.
+ * Next.js deprecated the `middleware` file convention in v16; `proxy.ts`
+ * is the new name. The proxy runtime is always nodejs — edge is no longer
+ * supported here. This file's logic is runtime-agnostic, so the runtime
+ * change is a non-issue. See
+ * https://nextjs.org/docs/app/guides/upgrading/version-16#middleware-to-proxy.)
  *
  * Mints a fresh per-request nonce, attaches it to the request headers
  * (so Server Components can read it via `next/headers` and pass it to
@@ -77,7 +84,7 @@ function buildCsp(nonce: string): string {
   ].join('; ');
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const nonce = generateNonce();
   const csp = buildCsp(nonce);
 

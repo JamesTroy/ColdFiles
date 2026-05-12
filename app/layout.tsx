@@ -108,7 +108,7 @@ const ORG_LD = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  // Nonce stamped by middleware.ts so the CSP nonce-source-list entry
+  // Nonce stamped by proxy.ts so the CSP nonce-source-list entry
   // accepts this inline JSON-LD <script>. `application/ld+json` is
   // technically a data block (browsers don't execute it as JS), but
   // CSP3 still applies script-src to the element, so the nonce is

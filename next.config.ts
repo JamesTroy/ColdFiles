@@ -19,10 +19,10 @@
  *     as resources to fingerprint logged-in state). CORP same-origin
  *     blocks the cross-origin load.
  *
- * Content-Security-Policy is set from middleware.ts on a per-request
- * basis because it carries a fresh nonce. Don't add CSP here — it'd
- * be the static value, and the dynamic value from middleware would
- * win on every request anyway.
+ * Content-Security-Policy is set from proxy.ts on a per-request basis
+ * because it carries a fresh nonce. Don't add CSP here — it'd be the
+ * static value, and the dynamic value from proxy.ts would win on every
+ * request anyway. (Renamed from middleware.ts during the Next 16 upgrade.)
  *
  * No CSP `report-uri` wired in v1.0 — add post-launch when traffic
  * justifies a Sentry / Report-To endpoint.
