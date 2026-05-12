@@ -19,17 +19,22 @@
     "enrich": "tsx --env-file-if-exists=.env scripts/enrich-locations.ts",
     "vendor:fixture": "tsx tools/vendor-fixture.ts",
     "load:agencies": "tsx --env-file-if-exists=.env scripts/load-agencies.ts",
+    "ingest:map": "tsx --env-file-if-exists=.env scripts/ingest-map-shr.ts",
+    "ingest:map:dryrun": "tsx --env-file-if-exists=.env scripts/ingest-map-shr.ts --dry-run",
     "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.3",
     "cheerio": "^1.0.0",
     "next": "^15.0.0",
+    "pg": "^8.13.1",
+    "pg-copy-streams": "^6.0.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tsx": "^4.19.0",
