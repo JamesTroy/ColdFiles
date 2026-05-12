@@ -105,9 +105,38 @@ For each populated route, submit one test tip identifying yourself as the develo
 
 When a route is confirmed, set `routing_last_verified_at` to the date of the confirmation. The agencies that don't respond go in the log with `routing_last_verified_at` left null and a `notes` annotation: _"live route, no confirmation feedback loop, monitor for issues."_
 
-### Day 3 callback log
+### Day 3 callback log — LA County
 
-_(One row per attempt. Format: date · agency · route · contact · result.)_
+Day-2 backfill completed 2026-05-12 (PRs #119, #120). 7 of 8 agencies
+populated with working-assumption routes; LA DA-BI intentionally null
+pending the day-3 "do you accept public tips at all?" call.
+
+Status legend: ⏳ pending · ✅ confirmed · ⚠️ no-response (keep route,
+annotate notes) · ❌ rejected (re-route)
+
+| Date | Agency | Route | Test method | Status | Result |
+|------|--------|-------|-------------|--------|--------|
+| — | LASD | P3 ID 365 | submit test tip + callback to LASD Homicide | ⏳ | — |
+| — | LAPD | P3 ID 365 | submit test tip + callback to RHD | ⏳ | — |
+| — | Long Beach PD | P3 ID 365 | submit test tip | ⏳ | — |
+| — | Pasadena PD | P3 ID 365 | submit test tip (Crime Stoppers ack) | ⏳ | — |
+| — | Beverly Hills PD | Nixle (nixle.com/tip/bhpdalert) | submit test tip via Nixle | ⏳ | — |
+| — | Santa Monica PD | (310) 458-8491 | call + log receipt | ⏳ | — |
+| — | LA DA-BI | _undetermined_ | call (213) 974-3512 to ask if they accept public cold-case tips | ⏳ | route TBD |
+| 2026-05-12 | FBI LA | tips.fbi.gov | day-1 baseline; fbi_tip route is well-publicized | ✅ | baseline |
+
+When a route confirms: flip the agency's `routing_last_verified_at` to
+the confirmation date in `data/agencies/los_angeles.json`, then re-run
+`npm run load:agencies`. Update the corresponding row above with the
+confirmation date and `✅`. No-responses after 14 days: mark the row
+`⚠️` and add the annotation noted at the top of this section to
+`agencies.notes`.
+
+For LA DA-BI specifically: the call may reveal that the Bureau of
+Investigation doesn't accept public tips on cold cases at all — in
+which case the row stays `tip_url=null`, `tip_route_kind=null` and the
+resolver correctly falls through to the state clearinghouse (CA-DOJ
+MUPS phone) for any case where LA DA-BI is the primary agency.
 
 ---
 
