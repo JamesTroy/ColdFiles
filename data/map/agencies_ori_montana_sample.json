@@ -1,0 +1,50 @@
+{
+  "comment": "ORI → centroid lookup for Montana SHR-sample agencies. Centroids are approximate city/county-seat coordinates from public sources (city hall lat/lng for city PDs, county-seat coordinates for sheriff's offices). NOT incident locations — see docs/integrations/map-ingestion-plan.md §4a.",
+  "source_release": "fixture_2026_05_11",
+  "agencies": [
+    {
+      "ori": "MT0560100",
+      "agency_name": "Billings Police Department",
+      "agency_type": "city_pd",
+      "state": "MT",
+      "city": "Billings",
+      "county": "Yellowstone",
+      "centroid_lat": 45.7833,
+      "centroid_lng": -108.5007,
+      "centroid_source": "city_hall"
+    },
+    {
+      "ori": "MT0040100",
+      "agency_name": "Bozeman Police Department",
+      "agency_type": "city_pd",
+      "state": "MT",
+      "city": "Bozeman",
+      "county": "Gallatin",
+      "centroid_lat": 45.6770,
+      "centroid_lng": -111.0429,
+      "centroid_source": "city_hall"
+    },
+    {
+      "ori": "MT0250000",
+      "agency_name": "Missoula County Sheriff's Office",
+      "agency_type": "county_sheriff",
+      "state": "MT",
+      "city": null,
+      "county": "Missoula",
+      "centroid_lat": 46.8721,
+      "centroid_lng": -113.9940,
+      "centroid_source": "county_seat"
+    },
+    {
+      "ori": "MT0070100",
+      "agency_name": "Great Falls Police Department",
+      "agency_type": "city_pd",
+      "state": "MT",
+      "city": "Great Falls",
+      "county": "Cascade",
+      "centroid_lat": 47.5053,
+      "centroid_lng": -111.3008,
+      "centroid_source": "city_hall"
+    }
+  ]
+}

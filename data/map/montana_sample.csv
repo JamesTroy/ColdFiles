@@ -1,0 +1,13 @@
+ORI,Agency,State,Region,Agentype,Population,Year,Month,Incident,VicOrdinal,VicAge,VicSex,VicRace,VicEthnic,OffAge,OffSex,OffRace,OffEthnic,Weapon,Relationship,Circumstance,Subcircumstance,VicCount,OffCount,Solved,Source
+MT0560100,Billings Police Department,MT,4,city_pd,117116,1985,7,1,1,34,Male,White,Not Hispanic,28,Male,White,Not Hispanic,Handgun,Acquaintance,Argument,,1,1,Y,fbi_reported
+MT0560100,Billings Police Department,MT,4,city_pd,117116,1992,3,1,1,22,Female,White,Not Hispanic,999,Unknown,Unknown,Unknown,Knife,Stranger,Robbery,,1,1,N,fbi_reported
+MT0560100,Billings Police Department,MT,4,city_pd,117116,2005,11,1,1,41,Male,Native American,Not Hispanic,999,Unknown,Unknown,Unknown,Firearm type not stated,Unknown,Unknown,,1,1,N,foia_obtained
+MT0040100,Bozeman Police Department,MT,4,city_pd,55343,2014,2,1,1,19,Female,White,Not Hispanic,21,Male,White,Not Hispanic,Strangulation,Acquaintance,Argument,,1,1,Y,fbi_reported
+MT0040100,Bozeman Police Department,MT,4,city_pd,55343,2018,9,1,1,28,Male,White,Hispanic,999,Unknown,Unknown,Unknown,Handgun,Stranger,Unknown,,1,1,N,foia_obtained
+MT0250000,Missoula County Sheriff's Office,MT,4,county_sheriff,121290,1999,6,1,1,52,Male,White,Not Hispanic,49,Male,White,Not Hispanic,Rifle,Acquaintance,Argument,,1,1,Y,fbi_reported
+MT0250000,Missoula County Sheriff's Office,MT,4,county_sheriff,121290,2003,4,1,1,33,Female,White,Not Hispanic,999,Unknown,Unknown,Unknown,Unknown,Unknown,Unknown,,1,1,N,fbi_reported
+MT0250000,Missoula County Sheriff's Office,MT,4,county_sheriff,121290,2010,8,2,1,27,Male,Native American,Not Hispanic,29,Male,Native American,Not Hispanic,Knife,Acquaintance,Argument,,2,1,Y,fbi_reported
+MT0250000,Missoula County Sheriff's Office,MT,4,county_sheriff,121290,2010,8,2,2,24,Female,Native American,Not Hispanic,29,Male,Native American,Not Hispanic,Knife,Other Family,Argument,,2,1,Y,fbi_reported
+MT0070100,Great Falls Police Department,MT,4,city_pd,58505,1988,12,1,1,67,Female,White,Not Hispanic,999,Unknown,Unknown,Unknown,Blunt object,Unknown,Robbery,,1,1,N,fbi_reported
+MT0070100,Great Falls Police Department,MT,4,city_pd,58505,2001,1,1,1,45,Male,White,Not Hispanic,999,Unknown,Unknown,Unknown,Handgun,Stranger,Unknown,,1,1,N,foia_obtained
+MT0070100,Great Falls Police Department,MT,4,city_pd,58505,2022,5,1,1,31,Male,Native American,Not Hispanic,999,Unknown,Unknown,Unknown,Handgun,Unknown,Unknown,,1,1,N,foia_obtained
