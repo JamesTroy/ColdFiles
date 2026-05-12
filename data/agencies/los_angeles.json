@@ -1,6 +1,6 @@
 {
   "metro": "los_angeles",
-  "comment": "LA County agencies — v1 launch metro. Day 1 (structure) seed: agency identity is populated, tip routing fields are honest nulls pending verification (days 2-3). Update routing_last_verified_at when a route is confirmed live; nullable fields stay null until verified, never guessed.",
+  "comment": "LA County agencies — v1 launch metro. Day 1 (structure) seed populated; day 2 (2026-05-12) populated tip_route_kind + tip_url + tip_url_template for LASD/LAPD/LBPD against LA Crime Stoppers (P3 ID 365) per docs/research/p3-prefill-probe.md. routing_last_verified_at stays null on all rows until day-3 callbacks confirm receipt — the per-row notes mark which routes are working-assumption vs verified.",
   "agencies": [
     {
       "slug": "lasd",
@@ -14,9 +14,10 @@
       "cold_case_url": null,
       "phone_general": null,
       "phone_tip": null,
-      "tip_url": null,
-      "tip_route_kind": null,
-      "notes": "Homicide Bureau owns most county-jurisdiction cold cases. Working assumption: tip_route_kind=crime_stoppers_p3, tip_url=LA Crime Stoppers (lacrimestoppers.org). Pending day-2 verification of P3 affiliate and day-3 confirmation of LASD detective routing.",
+      "tip_url": "https://www.p3tips.com/tipform.aspx?ID=365",
+      "tip_url_template": "https://www.p3tips.com/tipform.aspx?ID=365&case={case_external_ref}&url={case_detail_url}",
+      "tip_route_kind": "crime_stoppers_p3",
+      "notes": "Homicide Bureau owns most county-jurisdiction cold cases. Day-2 (2026-05-12): routes via LA Crime Stoppers, P3 affiliate ID 365. Direct verification against lasd.org WAF-blocked from the probe environment; working assumption from docs/05_TIP_ROUTING.md + the county-level Crime Stoppers serving the entire LA County. Day-3 callback to LASD Homicide pending — flip routing_last_verified_at on confirmation. See docs/research/p3-prefill-probe.md for the affiliate-ID lookup.",
       "routing_last_verified_at": null
     },
     {
@@ -31,9 +32,10 @@
       "cold_case_url": null,
       "phone_general": null,
       "phone_tip": null,
-      "tip_url": null,
-      "tip_route_kind": null,
-      "notes": "Robbery-Homicide Division owns most city-jurisdiction cold cases. Working assumption: same LA Crime Stoppers P3 portal as LASD. Pending day-2 verification.",
+      "tip_url": "https://www.p3tips.com/tipform.aspx?ID=365",
+      "tip_url_template": "https://www.p3tips.com/tipform.aspx?ID=365&case={case_external_ref}&url={case_detail_url}",
+      "tip_route_kind": "crime_stoppers_p3",
+      "notes": "Robbery-Homicide Division owns most city-jurisdiction cold cases. Day-2 (2026-05-12): routes via LA Crime Stoppers, P3 affiliate ID 365 (same portal as LASD). Direct verification against lapdonline.org WAF-blocked; working assumption per docs/05_TIP_ROUTING.md + the county-Crime-Stoppers coverage model. Day-3 callback pending. See docs/research/p3-prefill-probe.md.",
       "routing_last_verified_at": null
     },
     {
@@ -44,13 +46,14 @@
       "state": "CA",
       "county": "Los Angeles",
       "city": "Long Beach",
-      "website_url": null,
+      "website_url": "https://www.longbeach.gov/police",
       "cold_case_url": null,
       "phone_general": null,
       "phone_tip": null,
-      "tip_url": null,
-      "tip_route_kind": null,
-      "notes": "Independent of LASD jurisdictionally; routes through Long Beach Crime Stoppers, NOT LA Crime Stoppers, per architecture review. P3 affiliate slug + portal URL pending day-2 verification.",
+      "tip_url": "https://www.p3tips.com/tipform.aspx?ID=365",
+      "tip_url_template": "https://www.p3tips.com/tipform.aspx?ID=365&case={case_external_ref}&url={case_detail_url}",
+      "tip_route_kind": "crime_stoppers_p3",
+      "notes": "Day-2 (2026-05-12) correction: LBPD uses LA Crime Stoppers (P3 ID 365), NOT a separate Long Beach Crime Stoppers affiliate. Confirmed directly via longbeach.gov/police — the page's Submit-a-Tip button links to p3tips.com/TipForm.aspx?ID=365. The 'separate LB affiliate' assumption in the pre-launch architecture review was wrong as of this date. Day-3 callback pending. See docs/research/p3-prefill-probe.md.",
       "routing_last_verified_at": null
     },
     {
@@ -66,6 +69,7 @@
       "phone_general": null,
       "phone_tip": null,
       "tip_url": null,
+      "tip_url_template": null,
       "tip_route_kind": null,
       "notes": "Independent of LASD. May not have a P3 affiliate — likely routes via agency_form (web) or agency_phone. Determine in day-2 research.",
       "routing_last_verified_at": null
@@ -83,6 +87,7 @@
       "phone_general": null,
       "phone_tip": null,
       "tip_url": null,
+      "tip_url_template": null,
       "tip_route_kind": null,
       "notes": "Has its own anonymous tip system per architecture review. Likely tip_route_kind=agency_form. URL pending day-2 verification.",
       "routing_last_verified_at": null
@@ -100,6 +105,7 @@
       "phone_general": null,
       "phone_tip": null,
       "tip_url": null,
+      "tip_url_template": null,
       "tip_route_kind": null,
       "notes": "Independent. May not have a P3 affiliate. Pending verification.",
       "routing_last_verified_at": null
@@ -117,6 +123,7 @@
       "phone_general": null,
       "phone_tip": null,
       "tip_url": null,
+      "tip_url_template": null,
       "tip_route_kind": null,
       "notes": "DA's Bureau of Investigation owns a small subset of cases that would otherwise be LASD's. Different tip pathway than LASD Homicide. Day-3 callback to confirm whether they accept public tips on cold cases at all, or whether everything routes through the original investigating agency.",
       "routing_last_verified_at": null
@@ -134,8 +141,9 @@
       "phone_general": null,
       "phone_tip": null,
       "tip_url": "https://tips.fbi.gov",
+      "tip_url_template": null,
       "tip_route_kind": "fbi_tip",
-      "notes": "tips.fbi.gov is the federal tip portal — well-publicized and stable. Phone (1-800-CALL-FBI) deliberately left null pending verification of cold-case-specific routing for the LA field office.",
+      "notes": "tips.fbi.gov is the federal tip portal — well-publicized and stable. Phone (1-800-CALL-FBI) deliberately left null pending verification of cold-case-specific routing for the LA field office. tip_url_template: null — tips.fbi.gov is a single intake page without per-case prefill support; the P3 prefill mechanism doesn't apply.",
       "routing_last_verified_at": null
     }
   ]
