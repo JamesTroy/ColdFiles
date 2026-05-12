@@ -48,6 +48,13 @@ const SUPABASE_URL = mustEnv('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = mustEnv('SUPABASE_SERVICE_ROLE_KEY');
 const SUPABASE_ANON_KEY = mustEnv('SUPABASE_ANON_KEY');
 
+// Public-facing app URL for {case_detail_url} substitution into P3 prefill
+// templates. Overridable via env for preview deploys; the production app
+// lives at thecoldfile.app. Note: operator-side, this URL is what the
+// Crime Stoppers operator clicks to cross-reference our case page — it
+// must point to the canonical domain, not a per-deploy preview.
+const PUBLIC_APP_URL = Deno.env.get('PUBLIC_APP_URL') ?? 'https://thecoldfile.app';
+
 function mustEnv(name: string): string {
   const v = Deno.env.get(name);
   if (!v) throw new Error(`tip-route-submit: missing required env ${name}`);
@@ -181,14 +188,18 @@ async function resolveRoute(
   caseId: string,
 ): Promise<ResolvedRoute> {
   // Single read: case + primary agency, both their tip_* fields. location_state
-  // is included so we can route to the state clearinghouse when no agency FK.
+  // routes to the state clearinghouse when no agency FK is present.
+  // slug + tip_external_ref feed the P3 prefill template constructor (mig 47);
+  // tip_url_template on agencies opts the agency into prefill when set.
   const { data, error } = await supabase
     .from('cases')
     .select(`
       id,
+      slug,
       tip_route_kind,
       tip_url,
       tip_phone,
+      tip_external_ref,
       location_state,
       primary_agency:agencies!cases_primary_agency_id_fkey (
         id,
@@ -196,6 +207,7 @@ async function resolveRoute(
         short_name,
         tip_route_kind,
         tip_url,
+        tip_url_template,
         phone_tip
       )
     `)
@@ -206,14 +218,20 @@ async function resolveRoute(
   if (error) throw error;
   if (!data) throw new Error('case not found');
 
+  const caseSlug = (data as { slug: string | null }).slug;
+
   return resolveTipRoute(
     {
       tip_route_kind: (data as { tip_route_kind: ResolvedRoute['route_kind'] | null }).tip_route_kind,
       tip_url: (data as { tip_url: string | null }).tip_url,
       tip_phone: (data as { tip_phone: string | null }).tip_phone,
+      tip_external_ref: (data as { tip_external_ref: string | null }).tip_external_ref,
       location_state: (data as { location_state: string | null }).location_state,
     },
     data.primary_agency as TipRouteAgency | null,
+    {
+      case_detail_url: caseSlug ? `${PUBLIC_APP_URL}/c/${caseSlug}` : null,
+    },
   );
 }
 
