@@ -118,12 +118,18 @@ function fnv1a(s: string): number {
  * deterministically within the city's geographic area is no MORE of
  * a lie and is dramatically more browseable.
  *
- * Spread radius 0.02-0.045° (~2-5km at mid-latitudes). Wide enough
- * that pins separate visually at city zoom (zoom 12+); tight enough
- * that they still fall within the city's actual extent for major US
- * cities. Smaller cities may have pins fall just outside the city
- * boundary — acceptable, the dashed halo (LeafletMarker.precision
- * → cf-pin--imprecise) communicates the imprecision.
+ * Spread radius 0.003-0.008° (~300-900m at mid-latitudes). Tight
+ * enough that pins still cluster into a SINGLE markercluster cluster
+ * icon at low/mid zoom — the user keeps seeing the "30 cases here"
+ * count without it fragmenting into multiple small clusters. Wide
+ * enough that pins separate visually at zoom 14+ where clustering
+ * is disabled (per disableClusteringAtZoom in leaflet-map.tsx).
+ *
+ * Earlier 2-5km radius produced the right outcome at zoom 14+ but
+ * fragmented the cluster at zoom 12-13 (where most users sit when
+ * looking at "their area"). User feedback: "only 2 cases remain"
+ * after a 30-pin centroid — the 30-cluster icon had broken into
+ * scattered smaller clusters that read as missing data.
  *
  * Hash → angle + radius via two independent halves of the 32-bit
  * fnv1a output. Stable across renders (same slug → same position).
@@ -142,7 +148,7 @@ function applyImpreciseSpread(
   }
   const h = fnv1a(slug);
   const angle = ((h & 0xffff) / 0xffff) * Math.PI * 2;
-  const radius = 0.02 + ((h >>> 16) / 0xffff) * 0.025;
+  const radius = 0.003 + ((h >>> 16) / 0xffff) * 0.005;
   return {
     lat: lat + Math.cos(angle) * radius,
     lng: lng + Math.sin(angle) * radius,
