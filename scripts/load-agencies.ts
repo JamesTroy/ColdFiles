@@ -30,6 +30,7 @@ interface AgencyRow {
   phone_general: string | null;
   phone_tip: string | null;
   tip_url: string | null;
+  tip_url_template: string | null;
   tip_route_kind: string | null;
   notes: string | null;
   routing_last_verified_at: string | null;
