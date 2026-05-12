@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CaseLocationMap } from '@/components/cf/case-location-map';
 import { AmberCTA, SecondaryCTA } from '@/components/cf/cta-button';
+import { DnaFundingCallout } from '@/components/cf/dna-funding-callout';
 import { ErrorState } from '@/components/cf/error-state';
 import { KeyFactsTable, type KeyFact } from '@/components/cf/key-facts';
 import { PhotoFrame } from '@/components/cf/photo-frame';
@@ -308,6 +309,20 @@ export default function CaseDetailScreen() {
             </MonoLabel>
             <SourceChipRow chips={sourceChipsFor(data.sources)} />
           </View>
+        ) : null}
+
+        {/* DNA-funding callout (migration 48) — surfaces only when the case
+            row carries both url AND kind. Sits between SOURCES and the
+            trust-disclosure callout: the trust callout supports the tip
+            CTA below; this one is its own per-case opportunity that
+            shouldn't get conflated with the tip-trust posture. See
+            docs/13_DNA_FUNDING.md. */}
+        {c.dna_funding_url && c.dna_funding_kind ? (
+          <DnaFundingCallout
+            caseId={c.id}
+            fundingKind={c.dna_funding_kind}
+            fallbackFundingUrl={c.dna_funding_url}
+          />
         ) : null}
 
         {/* Body-position trust callout — same promise as the sticky-bar caption,
