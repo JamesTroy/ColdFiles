@@ -137,10 +137,80 @@ Still on the to-do list, but **not gated on prefill working** (it does):
 - **One operator conversation** with an LA Crime Stoppers contact to
   confirm `case` is the param name they'd want, vs. some agency-specific
   term. Cheap; informs the v1 default before per-affiliate backfill.
-- **LA Crime Stoppers P3 affiliate ID** — not yet known. Probably
-  documented at `lacrimestoppers.org` or via a `/tipform.aspx?ID=` link
-  on that site. Needs to be looked up before Phase 5 backfill against
-  `data/agencies/los_angeles.json`.
+
+## Affiliate ID lookups (Phase 0 followup, 2026-05-12)
+
+Verified directly against each affiliate's public site + probed against
+`p3tips.com/tipform.aspx?ID=<id>` to confirm the AFV panel renders.
+
+| Affiliate                 | P3 ID | Account key | Covers (verified)               |
+|---------------------------|-------|-------------|---------------------------------|
+| LA Crime Stoppers         | 365   | 68          | LAPD, LASD (assumed)¹, LBPD²    |
+| Orange County Crime Stoppers | 913 | 1162       | OC agencies³                    |
+
+¹ LAPD + LASD direct sites WAF-blocked from this probe environment;
+inferred from `docs/05_TIP_ROUTING.md`'s working assumption ("Most
+agencies → LA Crime Stoppers (P3) — LASD, LAPD probably resolve here").
+Confirmation via the operator conversation, or via a logged-in browser
+load of `lasd.org` / `lapdonline.org`, will close this gap.
+
+² **Confirmed via longbeach.gov/police** — LBPD's "Submit a Tip"
+button links to `https://www.p3tips.com/TipForm.aspx?ID=365` (LA Crime
+Stoppers), not a separate "Long Beach Crime Stoppers" affiliate. This
+**contradicts the working assumption in `docs/05_TIP_ROUTING.md`**
+which describes Long Beach as a separate P3 affiliate. The doc's
+day-2 research checklist should reflect the verified-against-source
+finding when the day-2 ceremony runs.
+
+³ Out of scope for v1 (LA-county launch metro) but recorded for the
+next-metro expansion since OC borders LA and a small number of cold
+cases will straddle the line.
+
+### Template values for the agencies above
+
+```
+https://www.p3tips.com/tipform.aspx?ID=365&case={case_external_ref}&url={case_detail_url}
+https://www.p3tips.com/tipform.aspx?ID=913&case={case_external_ref}&url={case_detail_url}
+```
+
+Note: LA Crime Stoppers' own landing-on-form URL includes empty
+`&C=&T=` params (`https://www.p3tips.com/TipForm.aspx?ID=365&C=&T=`).
+Empty values produce no AFV-panel rows, so omitting them in our
+template is identical-behavior; we keep the URL shorter. The capital
+`TipForm.aspx` on LACS's own link is also case-insensitive against
+ASP.NET routing — `tipform.aspx` reaches the same handler. Pick one
+casing in our templates for consistency; this doc uses lowercase
+matching the canonical form returned by the AFV-panel-bearing
+responses in the original probe.
+
+### Not yet looked up
+
+- Long Beach Crime Stoppers: no separate affiliate (see ² above).
+- Santa Monica / Beverly Hills / Pasadena PDs: per
+  `docs/05_TIP_ROUTING.md` working assumptions, these are likely
+  agency-direct, not P3. Day-2 research will confirm.
+- LA County DA Bureau of Investigation: separate intake; not P3.
+- FBI Los Angeles Field Office: `https://tips.fbi.gov`; not P3.
+
+### What Phase 5 backfill should look like with this data
+
+For the three agencies confirmed routable through LA Crime Stoppers
+(LAPD, LASD, LBPD), the v1 update to `data/agencies/los_angeles.json`
+is roughly:
+
+```json
+{
+  "slug": "lapd",
+  "tip_route_kind": "crime_stoppers_p3",
+  "tip_url": "https://www.p3tips.com/tipform.aspx?ID=365",
+  "tip_url_template": "https://www.p3tips.com/tipform.aspx?ID=365&case={case_external_ref}&url={case_detail_url}"
+}
+```
+
+LASD currently has only `name` + `slug` + nulls. LBPD's row matches
+the LBPD finding above. The JSON backfill is a separate operational
+PR — the day-2/day-3 ceremony in `docs/05_TIP_ROUTING.md` should run
+against each row before flipping `routing_last_verified_at`.
 
 ## What this does NOT change
 
