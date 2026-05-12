@@ -58,14 +58,11 @@ Probe gates (do not write extractor before these pass):
 - Cross-check 5 known LA-county records already in our DB against MAP to size dedupe risk (`lastname_age_sex` tier-3 → review queue per CLAUDE.md, not auto-merge).
 - Decide: full ingest, geography-limited (LA county only), or aggregate-only (feeds Phase 3 pattern view without per-record cases).
 
-### 2.2 — FBI ViCAP probe
+### 2.2 — [DONE 2026-05-12] ViCAP probed → deferred indefinitely
 
-Editorially rich for the pattern/serial view. Must stay aggregate-only — no POI naming per `feedback_community_features_guardrail`.
+Probe captured in [docs/research/vicap-probe.md](research/vicap-probe.md). The public catalog is **475 alerts total** (261 homicides + 55 UID + 159 missing) — small, high-overlap with existing Doe / NamUs sources, and fbi.gov returns 403 to non-browser fetches (real anti-bot defense). Per-case quality is high (named victims, narratives, photos where applicable), so it's not editorially wrong the way FBI Wanted was — but the ROI is poor at this scale and the LEEP-tier rich version is LE-only.
 
-Probe gates:
-- Confirm public-data scope (which fields are public vs LE-restricted).
-- Sample editorial fit: is the public-facing slice rich enough to support a pattern view, or is it sparse summary text?
-- If thin, deprioritize behind MAP.
+**Re-probe triggers:** FBI opens machine-readable access (the [2026-05 MAP v. FBI lawsuit win](https://www.murderdata.org/2026/05/fbi-now-reports-homicides-following.html) suggests this is plausible mid-term), an LE-direct partnership materializes, or LA-county PMF opens the national-scope gate.
 
 ### 2.3 — Phase 2 state DBs (deferred behind LA-county product-market fit)
 
