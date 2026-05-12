@@ -36,6 +36,17 @@ supabase/.temp
 scraper-fixtures/*.html
 !scraper-fixtures/README.md
 
+# MAP (Murder Accountability Project) upstream artifacts — licensing
+# clarification pending with Tom Hargrove (see
+# docs/integrations/map-ingestion-plan.md §1). Synthetic fixtures
+# (montana_sample.csv, agencies_ori_montana_sample.json) are checked in.
+# Derived per-state ORI maps that pair MAP-CSV agency names with public
+# city/county-seat coordinates are also held back until the license clears.
+data/map/shr_*.csv
+data/map/MAPdefinitionsSHR.pdf
+data/map/agencies_ori_*_full.json
+data/map/agencies_ori_national.json
+
 # Coverage
 coverage/
 .nyc_output/
