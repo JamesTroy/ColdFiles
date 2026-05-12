@@ -6,10 +6,18 @@
 #   scripts/smoke-test-notify-fanout.sh saved_case_update CASE_ID
 #   scripts/smoke-test-notify-fanout.sh watch_zone_hit CASE_ID ZONE_ID
 #   scripts/smoke-test-notify-fanout.sh tip_status_change CASE_ID TIP_ID
+#   scripts/smoke-test-notify-fanout.sh ingest_alive_alarm USER_ID [HOURS_QUIET]
 #
 # Reads SUPABASE_SERVICE_ROLE_KEY from the repo-root .env file. The function
 # requires service-role auth because it fans out across every push_tokens
 # row whose user pref isn't explicitly false.
+#
+# For ingest_alive_alarm, USER_ID is the operator user_id that should receive
+# the alarm (matches the operator_user_id Vault secret from mig 49). The
+# HOURS_QUIET param defaults to 99 so the notification body is informative.
+# This mode validates the receive-path; it does NOT invoke check_ingest_alive().
+# To exercise the producer side directly: temporarily set the threshold Vault
+# secret to '0' and run `select check_ingest_alive()` from psql, then reset.
 
 set -euo pipefail
 
@@ -31,13 +39,16 @@ KIND="${1:-saved_case_update}"
 CASE_ID="${2:-}"
 ZONE_ID="${3:-}"
 TIP_ID="${3:-}"
+OPERATOR_USER_ID="${2:-}"
+HOURS_QUIET="${3:-99}"
 
 # Pre-flight: how many push tokens would receive this kind?
 echo "→ pre-flight: counting eligible push tokens for kind=$KIND..."
 case "$KIND" in
-  watch_zone_hit)    PREF_KEY="watchZoneAlerts" ;;
-  saved_case_update) PREF_KEY="savedCaseUpdates" ;;
-  tip_status_change) PREF_KEY="tipStatusUpdates" ;;
+  watch_zone_hit)     PREF_KEY="watchZoneAlerts" ;;
+  saved_case_update)  PREF_KEY="savedCaseUpdates" ;;
+  tip_status_change)  PREF_KEY="tipStatusUpdates" ;;
+  ingest_alive_alarm) PREF_KEY="systemAlarms" ;;
   *) echo "error: unknown kind '$KIND'"; exit 2 ;;
 esac
 
@@ -55,8 +66,10 @@ if [[ "$TOKEN_COUNT" == "0" ]]; then
   exit 0
 fi
 
-# Pick a real recent case if none provided.
-if [[ -z "$CASE_ID" && "$KIND" != "tip_status_change" ]]; then
+# Pick a real recent case if none provided. Skipped for tip_status_change
+# (which doesn't need a case) and ingest_alive_alarm (which is operator-only
+# and doesn't deep-link to a case).
+if [[ -z "$CASE_ID" && "$KIND" != "tip_status_change" && "$KIND" != "ingest_alive_alarm" ]]; then
   echo "→ picking a recent case_id..."
   CASE_ID=$(curl -sS \
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
@@ -66,13 +79,30 @@ if [[ -z "$CASE_ID" && "$KIND" != "tip_status_change" ]]; then
   echo "  case_id: $CASE_ID"
 fi
 
+# For ingest_alive_alarm the second positional is the operator user_id, not
+# a case_id. Require it explicitly — broadcasting an operator alarm is the
+# wrong default.
+if [[ "$KIND" == "ingest_alive_alarm" ]]; then
+  if [[ -z "$OPERATOR_USER_ID" ]]; then
+    echo "error: ingest_alive_alarm requires OPERATOR_USER_ID as the second arg" >&2
+    echo "  scripts/smoke-test-notify-fanout.sh ingest_alive_alarm <user_uuid> [hours_quiet]" >&2
+    exit 2
+  fi
+  echo "  operator_user_id: $OPERATOR_USER_ID"
+  echo "  hours_quiet: $HOURS_QUIET (synthetic)"
+fi
+
 # Build payload.
 PAYLOAD=$(python3 -c "
 import json,sys
 p={'kind':'$KIND'}
-if '$CASE_ID': p['case_id']='$CASE_ID'
+if '$CASE_ID' and '$KIND' != 'ingest_alive_alarm': p['case_id']='$CASE_ID'
 if '$KIND'=='watch_zone_hit' and '$ZONE_ID': p['zone_id']='$ZONE_ID'
 if '$KIND'=='tip_status_change' and '$TIP_ID': p['tip_id']='$TIP_ID'
+if '$KIND'=='ingest_alive_alarm':
+    p['user_ids']=['$OPERATOR_USER_ID']
+    p['hours_quiet']=float('$HOURS_QUIET')
+    p['threshold_hours']=24
 print(json.dumps(p))
 ")
 
