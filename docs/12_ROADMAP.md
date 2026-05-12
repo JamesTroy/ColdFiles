@@ -70,9 +70,13 @@ Probe captured in [docs/research/vicap-probe.md](research/vicap-probe.md). The p
 
 Virginia State Police cold-case DB, Colorado CBI, WaPo 50-city. Don't probe until LA-county engagement signals are in (saved-case rate, alert-tap rate, tip-route attribution). Geographic expansion before product-market fit is premature.
 
-### 2.4 — NARA Civil Rights Cold Case Records (RG 612)
+### 2.4 — [DONE 2026-05-12] NARA RG 612 probed → build deferred until catalog crosses 300 records
 
-Niche but editorially powerful. Worth a half-day probe after ViCAP — different editorial register, different audience hook. Could be its own "Civil Rights" filter rather than mixed into the main map.
+Probe captured in [docs/research/nara-rg612-probe.md](research/nara-rg612-probe.md). **Structurally the best of the three Phase 2 probes** — stable numeric per-case IDs, CSV/JSON/XML export built into the portal, federal public-domain posture, no anti-bot. Only block is volume: 76 cases released today, ceiling estimated in the "hundreds, perhaps thousands." Briefing's recommended UX (dedicated Civil Rights filter, NOT mixed into the main map) confirmed correct by the probe.
+
+**Re-probe triggers:** catalog crosses 300 records, NARA publishes a release-cadence commitment, advocacy partner (EJI / SPLC / CRRJ-Northeastern) asks for integration, or an editorial-register-variety feature ships in Cold File.
+
+**Re-probe cadence:** quarterly (next: 2026-08).
 
 ### 2.5 — NamUs server-to-server API (track, don't build)
 
