@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  constructTipUrl,
   resolveTipRoute,
   FBI_FALLBACK,
   type TipRouteAgency,
@@ -16,6 +17,7 @@ const baseCase = (over: Partial<TipRouteCase> = {}): TipRouteCase => ({
   tip_url: null,
   tip_phone: null,
   location_state: null,
+  tip_external_ref: null,
   ...over,
 });
 
@@ -25,6 +27,7 @@ const baseAgency = (over: Partial<TipRouteAgency> = {}): TipRouteAgency => ({
   short_name: null,
   tip_route_kind: null,
   tip_url: null,
+  tip_url_template: null,
   phone_tip: null,
   ...over,
 });
@@ -138,5 +141,161 @@ describe('resolveTipRoute — FBI fallback', () => {
       baseAgency({ tip_url: 'https://orphaned.example.com' }), // no route_kind
     );
     expect(r.agency_name).toContain('Alabama');
+  });
+});
+
+describe('constructTipUrl — P3 prefill template rendering', () => {
+  // The constructor's contract: replace whitelisted {placeholder} tokens,
+  // URL-encode each value, return null when the template is invalid or
+  // the context lacks required data. A null return signals the caller to
+  // fall back to plain tip_url — there is no "partial render" mode.
+
+  it('substitutes case_external_ref and URL-encodes the value', () => {
+    const url = constructTipUrl(
+      'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}',
+      baseCase({ tip_external_ref: '2003/12345' }),
+      {},
+    );
+    // %2F = URL-encoded slash; verifies special chars survive the constructor
+    // so P3's hidden form input receives the operator-clean value.
+    expect(url).toBe('https://www.p3tips.com/tipform.aspx?ID=107&case=2003%2F12345');
+  });
+
+  it('substitutes case_detail_url from context', () => {
+    const url = constructTipUrl(
+      'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}&url={case_detail_url}',
+      baseCase({ tip_external_ref: 'ABC-1' }),
+      { case_detail_url: 'https://thecoldfile.app/c/jane-doe-2003' },
+    );
+    expect(url).toBe(
+      'https://www.p3tips.com/tipform.aspx?ID=107&case=ABC-1&url=https%3A%2F%2Fthecoldfile.app%2Fc%2Fjane-doe-2003',
+    );
+  });
+
+  it('returns null when a referenced placeholder lacks data (case_external_ref absent)', () => {
+    const url = constructTipUrl(
+      'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}',
+      baseCase({ tip_external_ref: null }),
+      {},
+    );
+    expect(url).toBeNull();
+  });
+
+  it('returns null when case_detail_url placeholder is referenced but context omits it', () => {
+    const url = constructTipUrl(
+      'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}&url={case_detail_url}',
+      baseCase({ tip_external_ref: 'ABC-1' }),
+      {}, // no case_detail_url
+    );
+    expect(url).toBeNull();
+  });
+
+  it('returns null when the template references an unknown placeholder', () => {
+    // Whitelist guards against operator-side surprise: a typo or rogue
+    // template can't smuggle case fields into the URL.
+    const url = constructTipUrl(
+      'https://www.p3tips.com/tipform.aspx?ID=107&v={victim_name}',
+      baseCase({ tip_external_ref: 'ABC-1' }),
+      {},
+    );
+    expect(url).toBeNull();
+  });
+
+  it('returns null when case_external_ref is the empty string', () => {
+    // Empty string is operationally a missing value — empty case= sends a
+    // blank to the operator, which is worse than no prefill at all.
+    const url = constructTipUrl(
+      'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}',
+      baseCase({ tip_external_ref: '' }),
+      {},
+    );
+    expect(url).toBeNull();
+  });
+
+  it('templates with no placeholders render verbatim', () => {
+    // A legitimate use case: the agency has a template that doesn't need
+    // case-specific substitution (rare but valid). Should round-trip.
+    const url = constructTipUrl(
+      'https://www.p3tips.com/tipform.aspx?ID=107',
+      baseCase(),
+      {},
+    );
+    expect(url).toBe('https://www.p3tips.com/tipform.aspx?ID=107');
+  });
+});
+
+describe('resolveTipRoute — Tier 2 with P3 prefill (template wired in)', () => {
+  it('agency template renders when case has tip_external_ref', () => {
+    const r = resolveTipRoute(
+      baseCase({ tip_external_ref: 'LASD-2003-12345' }),
+      baseAgency({
+        tip_route_kind: 'crime_stoppers_p3',
+        tip_url: 'https://www.p3tips.com/tipform.aspx?ID=107',
+        tip_url_template: 'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}',
+      }),
+    );
+    expect(r.route_kind).toBe('crime_stoppers_p3');
+    expect(r.tip_url).toBe(
+      'https://www.p3tips.com/tipform.aspx?ID=107&case=LASD-2003-12345',
+    );
+  });
+
+  it('agency template falls back to plain tip_url when case has no external_ref', () => {
+    // The audit fence: missing data on the case is silent, never an error.
+    // Operators get the plain URL and the user composes their tip normally.
+    const r = resolveTipRoute(
+      baseCase({ tip_external_ref: null }),
+      baseAgency({
+        tip_route_kind: 'crime_stoppers_p3',
+        tip_url: 'https://www.p3tips.com/tipform.aspx?ID=107',
+        tip_url_template: 'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}',
+      }),
+    );
+    expect(r.tip_url).toBe('https://www.p3tips.com/tipform.aspx?ID=107');
+  });
+
+  it('agency without template uses plain tip_url (no behavior change for non-templated agencies)', () => {
+    const r = resolveTipRoute(
+      baseCase({ tip_external_ref: 'IGNORED-1' }),
+      baseAgency({
+        tip_route_kind: 'agency_form',
+        tip_url: 'https://lasd.org/tips',
+        tip_url_template: null,
+      }),
+    );
+    expect(r.tip_url).toBe('https://lasd.org/tips');
+  });
+
+  it('case_detail_url from context flows into the template', () => {
+    const r = resolveTipRoute(
+      baseCase({ tip_external_ref: 'ABC-1' }),
+      baseAgency({
+        tip_route_kind: 'crime_stoppers_p3',
+        tip_url: 'https://www.p3tips.com/tipform.aspx?ID=107',
+        tip_url_template: 'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}&url={case_detail_url}',
+      }),
+      { case_detail_url: 'https://thecoldfile.app/c/jane-doe-2003' },
+    );
+    expect(r.tip_url).toContain('case=ABC-1');
+    expect(r.tip_url).toContain('url=https%3A%2F%2Fthecoldfile.app%2Fc%2Fjane-doe-2003');
+  });
+
+  it('Tier 1 (case override) bypasses template construction entirely', () => {
+    // Case-level overrides are reserved for "FBI field office took over"
+    // scenarios — the case row carries the specific URL and that wins
+    // before the agency tier even runs. Template stays unused.
+    const r = resolveTipRoute(
+      baseCase({
+        tip_route_kind: 'fbi_tip',
+        tip_url: 'https://tips.fbi.gov',
+        tip_external_ref: 'AGENCY-REF-IGNORED',
+      }),
+      baseAgency({
+        tip_route_kind: 'crime_stoppers_p3',
+        tip_url: 'https://www.p3tips.com/tipform.aspx?ID=107',
+        tip_url_template: 'https://www.p3tips.com/tipform.aspx?ID=107&case={case_external_ref}',
+      }),
+    );
+    expect(r.tip_url).toBe('https://tips.fbi.gov');
   });
 });
