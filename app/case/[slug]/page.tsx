@@ -27,6 +27,8 @@ import { notFound } from 'next/navigation';
 
 import { getServerSupabase } from '@/lib/supabase-server';
 
+import { CaseJsonLd } from './_components/case-jsonld';
+
 const SITE_URL = 'https://coldfile.app';
 const PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=com.matteblackdev.coldfile';
@@ -35,11 +37,17 @@ interface CaseShareRow {
   slug: string;
   kind: 'homicide' | 'missing' | 'unidentified' | 'unclaimed' | 'suspicious_death';
   victim_name: string | null;
+  victim_first_name: string | null;
+  victim_last_name: string | null;
+  victim_sex: string | null;
+  victim_age: number | null;
   incident_date: string | null;
   location_city: string | null;
   location_state: string | null;
   narrative_short: string | null;
   case_number_primary: string | null;
+  created_at: string;
+  last_changed_at: string;
   primary_agency: { name: string | null } | null;
 }
 
@@ -56,7 +64,7 @@ async function fetchCase(slug: string): Promise<CaseShareRow | null> {
   const { data, error } = await supabase
     .from('cases')
     .select(
-      'slug, kind, victim_name, incident_date, location_city, location_state, narrative_short, case_number_primary, primary_agency:agencies!cases_primary_agency_id_fkey ( name )',
+      'slug, kind, victim_name, victim_first_name, victim_last_name, victim_sex, victim_age, incident_date, location_city, location_state, narrative_short, case_number_primary, created_at, last_changed_at, primary_agency:agencies!cases_primary_agency_id_fkey ( name )',
     )
     .eq('slug', slug)
     .is('deleted_at', null)
@@ -157,6 +165,7 @@ export default async function CaseSharePage({
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <CaseJsonLd caseRow={c} />
       <main className="container" style={{ flex: 1 }}>
         <p className="mono-cap" style={{ marginBottom: 12 }}>
           THE COLD FILE · {kindLabel.toUpperCase()}
