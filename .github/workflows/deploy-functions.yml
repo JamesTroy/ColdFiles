@@ -1,0 +1,194 @@
+# Auto-deploy changed Edge Functions on merge to main.
+#
+# Six functions are Edge-deployed (each is server-to-server: notify-fanout,
+# reverse-geocode, the takedown pair, tip-route-submit, dna-funding-route).
+# Four more under supabase/functions/ (ingest-source, ingest-tick,
+# geocode-pending, photo-cache) run via scripts/scrape-cli.ts locally and
+# from the scrape.yml workflow — they share the `Deno.serve` skeleton for
+# local-dev parity but are not deployed. They MUST be excluded here; a
+# stray deploy of ingest-tick would replace the scrape-cli code path with
+# a no-op Edge handler.
+#
+# Trigger logic:
+#   • push to main, paths-filtered to supabase/functions/**
+#   • git-diff between event.before and event.after locates changed
+#     top-level directories under supabase/functions/
+#   • Changes to _shared/** redeploy ALL six deployable functions
+#     (every deployable imports _shared)
+#   • Changes to import_map.json or deno.json likewise redeploy all six
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  — personal access token from
+#                            https://supabase.com/dashboard/account/tokens
+#                            (NOT the service-role key — that's row-level
+#                            DB auth; this is CLI auth)
+#   SUPABASE_PROJECT_REF   — project ref string (e.g. "abcdwxyz1234"),
+#                            the same `--project-ref` value used in any
+#                            local `supabase functions deploy` invocation
+#
+# Failure posture: deploys are atomic per-function. A failing deploy on
+# one function in the matrix does NOT block the others (fail-fast: false).
+# Rollback is a `git revert` + the next push deploys the prior code.
+
+name: deploy-functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Function to deploy ("all" redeploys every deployable function)'
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - dna-funding-route
+          - notify-fanout
+          - reverse-geocode
+          - takedown-confirm
+          - takedown-submit
+          - tip-route-submit
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      functions: ${{ steps.resolve.outputs.functions }}
+      count: ${{ steps.resolve.outputs.count }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          # Need history back to event.before so `git diff` works. On the
+          # first push to a new branch event.before is zero — handled by
+          # the resolve step falling back to the prior main commit.
+          fetch-depth: 0
+
+      - name: Resolve changed deployable functions
+        id: resolve
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
+          DISPATCH_TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+
+          # Six functions are Edge-deployed. Memorize the deny-list too
+          # so a typo in one set is caught by the other.
+          DEPLOYABLE=(dna-funding-route notify-fanout reverse-geocode takedown-confirm takedown-submit tip-route-submit)
+          LOCAL_ONLY=(geocode-pending ingest-source ingest-tick photo-cache)
+
+          # workflow_dispatch path: honor the operator's choice and skip
+          # the git-diff logic entirely.
+          if [ -n "${DISPATCH_TARGET:-}" ]; then
+            if [ "$DISPATCH_TARGET" = "all" ]; then
+              FUNCS=("${DEPLOYABLE[@]}")
+            else
+              FUNCS=("$DISPATCH_TARGET")
+            fi
+            JSON=$(printf '%s\n' "${FUNCS[@]}" | jq -Rcn '[inputs]')
+            echo "Dispatch deploy: $JSON"
+            echo "functions=$JSON" >> "$GITHUB_OUTPUT"
+            echo "count=${#FUNCS[@]}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # If event.before is the zero SHA (initial push), diff against
+          # the parent of HEAD instead — anything else loses history.
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE_SHA" ]; then
+            BASE="$(git rev-parse HEAD~1)"
+          else
+            BASE="$BEFORE_SHA"
+          fi
+
+          echo "Diffing $BASE..$AFTER_SHA"
+          CHANGED_PATHS="$(git diff --name-only "$BASE" "$AFTER_SHA" -- supabase/functions/ || true)"
+          echo "Changed paths under supabase/functions/:"
+          echo "$CHANGED_PATHS"
+
+          # Did anything shared change? If so, every deployable redeploys.
+          SHARED_TOUCHED=false
+          if echo "$CHANGED_PATHS" | grep -qE '^supabase/functions/(_shared/|import_map\.json$|deno\.json$)'; then
+            SHARED_TOUCHED=true
+          fi
+
+          if $SHARED_TOUCHED; then
+            echo "Shared code changed → redeploying all ${#DEPLOYABLE[@]} deployable functions"
+            FUNCS=("${DEPLOYABLE[@]}")
+          else
+            # Extract unique top-level dirs under supabase/functions/
+            DIRS=$(echo "$CHANGED_PATHS" \
+              | awk -F/ 'NF>=3 && $1=="supabase" && $2=="functions" {print $3}' \
+              | sort -u)
+
+            FUNCS=()
+            for d in $DIRS; do
+              # Skip the deny-list explicitly. Anything else not in the
+              # deployable set is a new function that needs to be added
+              # to DEPLOYABLE above — fail loudly so we notice.
+              if printf '%s\n' "${LOCAL_ONLY[@]}" | grep -qx "$d"; then
+                echo "skip (scrape-cli-only): $d"
+                continue
+              fi
+              if printf '%s\n' "${DEPLOYABLE[@]}" | grep -qx "$d"; then
+                FUNCS+=("$d")
+              else
+                echo "::error::Unknown function dir '$d' — add it to DEPLOYABLE or LOCAL_ONLY in deploy-functions.yml" >&2
+                exit 1
+              fi
+            done
+          fi
+
+          COUNT=${#FUNCS[@]}
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No deployable functions changed; nothing to do."
+            echo "functions=[]" >> "$GITHUB_OUTPUT"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Emit a JSON array for the downstream matrix.
+          JSON=$(printf '%s\n' "${FUNCS[@]}" | jq -Rcn '[inputs]')
+          echo "Deploying: $JSON"
+          echo "functions=$JSON" >> "$GITHUB_OUTPUT"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: detect
+    if: needs.detect.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        function: ${{ fromJSON(needs.detect.outputs.functions) }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Install Supabase CLI
+        run: |
+          set -euo pipefail
+          # Direct binary download from the official release. No third-
+          # party Action surface to vet; tarball is fetched by URL and
+          # placed in /usr/local/bin in one step. If the install URL
+          # shape changes, this is the only line that needs updating.
+          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin supabase
+          supabase --version
+
+      - name: Deploy ${{ matrix.function }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_ACCESS_TOKEN:?SUPABASE_ACCESS_TOKEN secret missing}"
+          : "${PROJECT_REF:?SUPABASE_PROJECT_REF secret missing}"
+          # verify_jwt setting per function lives in supabase/config.toml.
+          # The CLI honors that file when present, so the deploy here
+          # picks up each function's auth posture (public for tip-route-
+          # submit + takedown-confirm; service-role only for the rest).
+          supabase functions deploy "${{ matrix.function }}" \
+            --project-ref "$PROJECT_REF"

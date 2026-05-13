@@ -1,0 +1,172 @@
+# PR-time smoke tests against a staging Supabase project.
+#
+# Strategy: a second Supabase project mirrors prod schema. On each PR
+# that touches a smoke-relevant surface, we deploy any changed Edge
+# Functions to staging and run both smoke scripts there. If a smoke
+# fails, the PR check goes red.
+#
+# Migrations are NOT auto-applied here. The operator applies each new
+# migration to staging manually (same gate as prod). If a PR adds a
+# migration that staging hasn't received, the smoke will fail on the
+# missing-table / missing-column / missing-trigger error — which is
+# the correct signal. Apply the migration to staging, push again,
+# smoke goes green.
+#
+# ────────────────────────────────────────────────────────────────────
+# Gating: this workflow is OFF until `STAGING_ENABLED=true` is set as
+# a repository variable (Settings → Secrets and variables → Actions
+# → Variables → New repository variable). Until then the job skips
+# without running anything, and PR check shows a green "skipped"
+# status. Flip the variable when the staging project exists and the
+# secrets below are populated.
+# ────────────────────────────────────────────────────────────────────
+#
+# Required secrets (set ONLY after staging project exists):
+#   STAGING_SUPABASE_URL
+#       Project URL — https://<ref>.supabase.co
+#   STAGING_SUPABASE_SERVICE_ROLE_KEY
+#       Service-role key for the STAGING project (NEVER prod's).
+#       Used by the smoke scripts to bypass RLS during synthetic
+#       artifact insert + cleanup.
+#   STAGING_SUPABASE_PROJECT_REF
+#       Project ref string (e.g. "abcdwxyz1234"), for
+#       `supabase functions deploy --project-ref`.
+#   STAGING_OPERATOR_USER_ID
+#       UUID of the synthetic operator user in staging that the
+#       ingest_alive_alarm smoke posts to. Create the user once via
+#       `supabase auth users create` against staging; record the UUID.
+#   SUPABASE_ACCESS_TOKEN
+#       Same secret used by deploy-functions.yml — reused, not
+#       duplicated. Personal access token from
+#       https://supabase.com/dashboard/account/tokens.
+#
+# Operator setup checklist (one-time):
+#   1. Create staging Supabase project; record URL, service-role key,
+#      project ref.
+#   2. Apply all numbered migrations under migrations/ to staging
+#      via psql or the Supabase SQL editor — same procedure as prod.
+#   3. Seed staging Vault secrets that the producer triggers read:
+#        select vault.create_secret('<svc-role>', 'service_role_key');
+#        select vault.create_secret('<operator-uuid>', 'operator_user_id');
+#        select vault.create_secret('99', 'ingest_alive_threshold_hours');
+#   4. Add the secrets listed above to GitHub Actions secrets.
+#   5. Set `STAGING_ENABLED=true` repository variable.
+#   6. Periodically (suggest monthly): pg_dump the prod schema and
+#      apply to staging to catch drift from forgotten migrations.
+#      See docs/15_STAGING_CI.md for the exact command.
+#
+# Concurrency: serialized via group=staging-smoke. Two PRs cannot
+# touch staging at once — synthetic artifacts use timestamped names
+# but the Edge Function deploy step would collide. Cancel-in-progress
+# is OFF; each run completes so cleanup runs.
+
+name: staging-smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'migrations/**'
+      - 'scripts/smoke-test-*.sh'
+  workflow_dispatch:
+
+concurrency:
+  group: staging-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    # Gate on the repo variable so the workflow is inert until staging
+    # is actually provisioned. Until STAGING_ENABLED=true is set, this
+    # job shows as "skipped" (green) on PRs and never runs.
+    if: ${{ vars.STAGING_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+      OPERATOR_USER_ID: ${{ secrets.STAGING_OPERATOR_USER_ID }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Preflight — required secrets present
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_URL:?STAGING_SUPABASE_URL missing}"
+          : "${SUPABASE_SERVICE_ROLE_KEY:?STAGING_SUPABASE_SERVICE_ROLE_KEY missing}"
+          : "${SUPABASE_ACCESS_TOKEN:?SUPABASE_ACCESS_TOKEN missing}"
+          : "${PROJECT_REF:?STAGING_SUPABASE_PROJECT_REF missing}"
+          : "${OPERATOR_USER_ID:?STAGING_OPERATOR_USER_ID missing}"
+          echo "All staging secrets present."
+
+      - name: Write .env for smoke scripts
+        run: |
+          # Smoke scripts read from a repo-root .env via `set -a; source .env`.
+          # Same shape as the local dev .env — just the staging values.
+          cat > .env <<EOF
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
+          EOF
+
+      - name: Install Supabase CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin supabase
+          supabase --version
+
+      - name: Deploy changed Edge Functions to staging
+        run: |
+          set -euo pipefail
+          # Same deny-list as deploy-functions.yml — keep these in sync.
+          # If notify-fanout itself changed (or any shared code), redeploy
+          # it specifically because both smoke scripts depend on it.
+          DEPLOYABLE=(dna-funding-route notify-fanout reverse-geocode takedown-confirm takedown-submit tip-route-submit)
+          LOCAL_ONLY=(geocode-pending ingest-source ingest-tick photo-cache)
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          if [ -z "$BASE_SHA" ]; then
+            # workflow_dispatch path — deploy nothing, smoke against current staging.
+            echo "No PR base SHA; skipping function deploy (workflow_dispatch run)."
+            exit 0
+          fi
+
+          CHANGED="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- supabase/functions/ || true)"
+          # If shared code or notify-fanout changed, redeploy notify-fanout at minimum
+          # (every smoke depends on it). Plus any other deployable function that changed.
+          declare -a TO_DEPLOY=()
+          if echo "$CHANGED" | grep -qE '^supabase/functions/(_shared/|import_map\.json$|deno\.json$|notify-fanout/)'; then
+            TO_DEPLOY+=(notify-fanout)
+          fi
+          for d in $(echo "$CHANGED" | awk -F/ 'NF>=3 && $1=="supabase" && $2=="functions" {print $3}' | sort -u); do
+            if printf '%s\n' "${LOCAL_ONLY[@]}" | grep -qx "$d"; then continue; fi
+            if printf '%s\n' "${DEPLOYABLE[@]}" | grep -qx "$d"; then
+              TO_DEPLOY+=("$d")
+            fi
+          done
+          # Dedupe.
+          mapfile -t UNIQ < <(printf '%s\n' "${TO_DEPLOY[@]}" | sort -u)
+          if [ "${#UNIQ[@]}" -eq 0 ]; then
+            echo "No deployable function changes; smoke against current staging state."
+            exit 0
+          fi
+          for fn in "${UNIQ[@]}"; do
+            echo "→ deploying $fn to staging"
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+          done
+
+      - name: Smoke — watch_zone_hit (producer + dispatcher chain)
+        run: bash scripts/smoke-test-watch-zone-hit.sh
+
+      - name: Smoke — notify-fanout ingest_alive_alarm (dispatcher only)
+        run: bash scripts/smoke-test-notify-fanout.sh ingest_alive_alarm "$OPERATOR_USER_ID"
+
+      - name: Cleanup .env
+        if: always()
+        run: rm -f .env
