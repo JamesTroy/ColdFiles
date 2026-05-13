@@ -18,12 +18,12 @@ ritual. The workflow itself is inert (`if: vars.STAGING_ENABLED ==
 
 - New project on Supabase free tier. Name `coldfile-staging`.
 - Same region as prod.
-- Record three values:
-  - **Project URL** (`https://<ref>.supabase.co`)
+- Record two values:
+  - **Project URL** (`https://<ref>.supabase.co`) — the workflow
+    parses the `<ref>` out of the host, so the project ref is not
+    a separate secret.
   - **Service-role key** (Settings → API → `service_role` key —
-    NOT the anon key, the smoke scripts bypass RLS)
-  - **Project ref** (the `<ref>` slug from the URL; also in
-    Settings → General)
+    NOT the anon key, the smoke scripts bypass RLS).
 
 ### 2. Apply all migrations to staging
 
@@ -95,7 +95,6 @@ Settings → Secrets and variables → Actions:
 **Secrets:**
 - `STAGING_SUPABASE_URL`
 - `STAGING_SUPABASE_SERVICE_ROLE_KEY`
-- `STAGING_SUPABASE_PROJECT_REF`
 - `STAGING_OPERATOR_USER_ID`
 - `SUPABASE_ACCESS_TOKEN` (already exists for `deploy-functions.yml` —
   shared, not duplicated)

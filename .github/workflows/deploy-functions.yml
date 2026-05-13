@@ -22,9 +22,11 @@
 #                            https://supabase.com/dashboard/account/tokens
 #                            (NOT the service-role key — that's row-level
 #                            DB auth; this is CLI auth)
-#   SUPABASE_PROJECT_REF   — project ref string (e.g. "abcdwxyz1234"),
-#                            the same `--project-ref` value used in any
-#                            local `supabase functions deploy` invocation
+#   SUPABASE_URL           — already present (set for the scrape workflow).
+#                            The project ref needed by `--project-ref`
+#                            is parsed out of the URL host
+#                            (https://<ref>.supabase.co), so no second
+#                            secret is required.
 #
 # Failure posture: deploys are atomic per-function. A failing deploy on
 # one function in the matrix does NOT block the others (fail-fast: false).
@@ -181,11 +183,24 @@ jobs:
       - name: Deploy ${{ matrix.function }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         run: |
           set -euo pipefail
           : "${SUPABASE_ACCESS_TOKEN:?SUPABASE_ACCESS_TOKEN secret missing}"
-          : "${PROJECT_REF:?SUPABASE_PROJECT_REF secret missing}"
+          : "${SUPABASE_URL:?SUPABASE_URL secret missing}"
+
+          # Parse the project ref out of the URL host:
+          #   https://<ref>.supabase.co[/...]  →  <ref>
+          # The `sed` is anchored so a malformed URL fails the regex and
+          # PROJECT_REF lands empty, which the next check catches.
+          PROJECT_REF=$(echo "$SUPABASE_URL" \
+            | sed -nE 's|^https?://([a-z0-9]+)\.supabase\.co.*$|\1|p')
+          if [ -z "$PROJECT_REF" ]; then
+            echo "::error::Could not parse project ref from SUPABASE_URL='$SUPABASE_URL' — expected https://<ref>.supabase.co"
+            exit 1
+          fi
+          echo "Parsed project ref: $PROJECT_REF"
+
           # verify_jwt setting per function lives in supabase/config.toml.
           # The CLI honors that file when present, so the deploy here
           # picks up each function's auth posture (public for tip-route-
