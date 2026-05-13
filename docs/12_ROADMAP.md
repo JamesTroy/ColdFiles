@@ -60,14 +60,11 @@ The dataset is wrong for per-case ingest and right for the Phase 3 aggregate pat
 
 **Implication for this phase:** ViCAP (2.2) moves up — it might fit per-case OR also route to Phase 3. State DBs (2.3) become the next per-case candidates if ViCAP also routes aggregate-only.
 
-### 2.2 — FBI ViCAP probe
+### 2.2 — [DONE 2026-05-12] ViCAP probed → deferred indefinitely
 
-Editorially rich for the pattern/serial view. Must stay aggregate-only — no POI naming per `feedback_community_features_guardrail`.
+Probe captured in [docs/research/vicap-probe.md](research/vicap-probe.md). The public catalog is **475 alerts total** (261 homicides + 55 UID + 159 missing) — small, high-overlap with existing Doe / NamUs sources, and fbi.gov returns 403 to non-browser fetches (real anti-bot defense). Per-case quality is high (named victims, narratives, photos where applicable), so it's not editorially wrong the way FBI Wanted was — but the ROI is poor at this scale and the LEEP-tier rich version is LE-only.
 
-Probe gates:
-- Confirm public-data scope (which fields are public vs LE-restricted).
-- Sample editorial fit: is the public-facing slice rich enough to support a pattern view, or is it sparse summary text?
-- If thin, deprioritize behind MAP.
+**Re-probe triggers:** FBI opens machine-readable access (the [2026-05 MAP v. FBI lawsuit win](https://www.murderdata.org/2026/05/fbi-now-reports-homicides-following.html) suggests this is plausible mid-term), an LE-direct partnership materializes, or LA-county PMF opens the national-scope gate.
 
 ### 2.3 — Phase 2 state DBs (deferred behind LA-county product-market fit)
 
