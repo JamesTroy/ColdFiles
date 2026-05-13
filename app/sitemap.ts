@@ -42,22 +42,38 @@ interface CaseSitemapRow {
 }
 
 async function fetchCaseSitemapRows(): Promise<CaseSitemapRow[]> {
-  const supabase = getServerSupabase();
-  const { data, error } = await supabase
-    .from('cases')
-    .select('slug, kind, last_changed_at')
-    .is('deleted_at', null)
-    .order('last_changed_at', { ascending: false })
-    .limit(SITEMAP_HARD_LIMIT);
+  try {
+    const supabase = getServerSupabase();
+    const { data, error } = await supabase
+      .from('cases')
+      .select('slug, kind, last_changed_at')
+      .is('deleted_at', null)
+      .order('last_changed_at', { ascending: false })
+      .limit(SITEMAP_HARD_LIMIT);
 
-  if (error) {
-    // A transient DB error must not blank the sitemap — return empty
-    // so the static routes still serve. Log loudly; Vercel function
-    // logs are where this surfaces.
-    console.error('sitemap: cases query failed', { message: error.message });
+    if (error) {
+      // A transient DB error must not blank the sitemap — return empty
+      // so the static routes still serve. Log loudly; Vercel function
+      // logs are where this surfaces.
+      console.error('sitemap: cases query failed', { message: error.message });
+      return [];
+    }
+    return (data as CaseSitemapRow[]) ?? [];
+  } catch (err) {
+    // Two failure modes land here:
+    //   1. Build-time prerender — NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY
+    //      not present in the build sandbox; getServerSupabase() throws.
+    //      The ISR re-render at request time has the vars and produces
+    //      a full sitemap on the next revalidation, so degrading to
+    //      static-only on the build pass is the correct posture (do
+    //      NOT break the build over a missing-preview-env condition).
+    //   2. Unexpected runtime throw inside the Supabase client
+    //      constructor or fetch path. Same posture: log, degrade.
+    console.error('sitemap: cases fetch threw', {
+      message: err instanceof Error ? err.message : String(err),
+    });
     return [];
   }
-  return (data as CaseSitemapRow[]) ?? [];
 }
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
