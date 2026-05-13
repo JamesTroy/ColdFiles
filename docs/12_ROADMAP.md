@@ -48,15 +48,17 @@ Alerts are already designated the moat. Surface area to harden before promoting 
 
 Each candidate is in the inventory memory but unprobed. Per `feedback_source_search_broken_detail_live`: 5 minutes of curl saves a day of dead extractor work. Per `feedback_extractor_editorial_noise`: 100-URL editorial-sample is the gate before any integration.
 
-### 2.1 — Murder Accountability Project (MAP) probe
+### 2.1 — [DONE 2026-05-12] MAP probed → routed to Phase 3 (not per-case)
 
-Highest-leverage candidate. Tom Hargrove's open dataset combines FBI UCR (1965+) + SHR (1976+) + 22K FOIA homicides, searchable by location/weapon/time/demographics. Free download. Almost no consumer product uses it.
+Probe captured in [docs/research/map-probe.md](research/map-probe.md). Decisive structural mismatch with per-case ingest:
 
-Probe gates (do not write extractor before these pass):
-- Download the public CSV/dataset. Confirm record shape, license terms, attribution requirements.
-- Sample 100 records: do they cluster as cold-case-relevant (unsolved homicides with editorial weight) or muddied (closed cases, missing victim names, jurisdictional duplicates)?
-- Cross-check 5 known LA-county records already in our DB against MAP to size dedupe risk (`lastname_age_sex` tier-3 → review queue per CLAUDE.md, not auto-merge).
-- Decide: full ingest, geography-limited (LA county only), or aggregate-only (feeds Phase 3 pattern view without per-record cases).
+- MAP's SHR does not carry victim names ("Victim names are not reported to the SHR"). Our case rows are name-keyed.
+- No stable per-case primary key — only aggregate-fingerprint columns (agency ORI + month + year + demographics + weapon).
+- ~39K of the records are FOIA-acquired by MAP, not in the FBI public set; redistribution norms unspecified — operator-side follow-up to `hargrove@murderdata.org` before any prod use.
+
+The dataset is wrong for per-case ingest and right for the Phase 3 aggregate pattern view (geography × time × demographics × weapon × clearance). The probe doc carries the Phase 3 entry-point checklist.
+
+**Implication for this phase:** ViCAP (2.2) moves up — it might fit per-case OR also route to Phase 3. State DBs (2.3) become the next per-case candidates if ViCAP also routes aggregate-only.
 
 ### 2.2 — FBI ViCAP probe
 
@@ -73,7 +75,7 @@ Virginia State Police cold-case DB, Colorado CBI, WaPo 50-city. Don't probe unti
 
 ### 2.4 — NARA Civil Rights Cold Case Records (RG 612)
 
-Niche but editorially powerful. Worth a half-day probe after MAP lands — different editorial register, different audience hook. Could be its own "Civil Rights" filter rather than mixed into the main map.
+Niche but editorially powerful. Worth a half-day probe after ViCAP — different editorial register, different audience hook. Could be its own "Civil Rights" filter rather than mixed into the main map.
 
 ### 2.5 — NamUs server-to-server API (track, don't build)
 
@@ -81,16 +83,20 @@ In development per NamUs. Re-check quarterly. Until then, the existing scraper-f
 
 ---
 
-## Phase 3 — Pattern/serial view (depends on Phase 2)
+## Phase 3 — Pattern/serial view (depends on Phase 1.3 shipping)
 
 Read-only geographic + MO clustering. **Aggregate-only**, no POI/suspect naming, no comments, no theories. Editorially rich and shareable; defensibility against the inevitable AI-slop "solve a case" apps.
 
-Blocked until MAP and/or ViCAP land (Phase 2). When unblocked:
+Primary data source: **MAP SHR** (routed here from Phase 2.1 — see [docs/research/map-probe.md](research/map-probe.md) for the full probe). ViCAP may supplement once probed. Phase 3 entry-point checklist lives in the probe doc.
 
-- Data shape: per-region clusters by victim demographic × time-window × weapon, surfaced as visual heatmap or small-multiple grid.
+When unblocked:
+
+- Data shape: per-region clusters by victim demographic × time-window × weapon × clearance, surfaced as visual heatmap or small-multiple grid.
+- Storage: new aggregate table (`map_homicide_aggregates` or similar) — NOT inserts into `cases`. Keeps the per-case model clean and makes the "pattern view = different table" boundary explicit.
 - Strict guardrails per `feedback_community_features_guardrail`: no user input on this surface beyond filter selection. Each cluster is read-only context, not an invitation to investigate.
 - UI: amber palette, Newsreader headers, shape-first iconography per `feedback_amber_is_ethical_posture`.
 - Editorial sample: 5 clusters reviewed by operator for dignified framing before ship. The cluster that reads as "look at this serial killer" is the wrong framing; "this is what happened in this region" is the right one.
+- Operator-side: email Hargrove + agree on attribution before publishing the view.
 
 ---
 
