@@ -23,14 +23,13 @@
 #
 # Required secrets (set ONLY after staging project exists):
 #   STAGING_SUPABASE_URL
-#       Project URL — https://<ref>.supabase.co
+#       Project URL — https://<ref>.supabase.co. The `<ref>` for
+#       `supabase functions deploy --project-ref` is parsed out of
+#       the host, so no second secret is required.
 #   STAGING_SUPABASE_SERVICE_ROLE_KEY
 #       Service-role key for the STAGING project (NEVER prod's).
 #       Used by the smoke scripts to bypass RLS during synthetic
 #       artifact insert + cleanup.
-#   STAGING_SUPABASE_PROJECT_REF
-#       Project ref string (e.g. "abcdwxyz1234"), for
-#       `supabase functions deploy --project-ref`.
 #   STAGING_OPERATOR_USER_ID
 #       UUID of the synthetic operator user in staging that the
 #       ingest_alive_alarm smoke posts to. Create the user once via
@@ -41,8 +40,7 @@
 #       https://supabase.com/dashboard/account/tokens.
 #
 # Operator setup checklist (one-time):
-#   1. Create staging Supabase project; record URL, service-role key,
-#      project ref.
+#   1. Create staging Supabase project; record URL and service-role key.
 #   2. Apply all numbered migrations under migrations/ to staging
 #      via psql or the Supabase SQL editor — same procedure as prod.
 #   3. Seed staging Vault secrets that the producer triggers read:
@@ -87,22 +85,32 @@ jobs:
       SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      PROJECT_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
       OPERATOR_USER_ID: ${{ secrets.STAGING_OPERATOR_USER_ID }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Preflight — required secrets present
+      - name: Preflight — required secrets present, derive project ref
+        id: preflight
         run: |
           set -euo pipefail
           : "${SUPABASE_URL:?STAGING_SUPABASE_URL missing}"
           : "${SUPABASE_SERVICE_ROLE_KEY:?STAGING_SUPABASE_SERVICE_ROLE_KEY missing}"
           : "${SUPABASE_ACCESS_TOKEN:?SUPABASE_ACCESS_TOKEN missing}"
-          : "${PROJECT_REF:?STAGING_SUPABASE_PROJECT_REF missing}"
           : "${OPERATOR_USER_ID:?STAGING_OPERATOR_USER_ID missing}"
-          echo "All staging secrets present."
+
+          # Parse <ref> out of https://<ref>.supabase.co — same shape as
+          # deploy-functions.yml. Anchored regex so a malformed URL fails
+          # cleanly here rather than at deploy time.
+          PROJECT_REF=$(echo "$SUPABASE_URL" \
+            | sed -nE 's|^https?://([a-z0-9]+)\.supabase\.co.*$|\1|p')
+          if [ -z "$PROJECT_REF" ]; then
+            echo "::error::Could not parse project ref from STAGING_SUPABASE_URL='$SUPABASE_URL' — expected https://<ref>.supabase.co"
+            exit 1
+          fi
+          echo "All staging secrets present. Parsed project ref: $PROJECT_REF"
+          echo "project_ref=$PROJECT_REF" >> "$GITHUB_OUTPUT"
 
       - name: Write .env for smoke scripts
         run: |
@@ -121,6 +129,8 @@ jobs:
           supabase --version
 
       - name: Deploy changed Edge Functions to staging
+        env:
+          PROJECT_REF: ${{ steps.preflight.outputs.project_ref }}
         run: |
           set -euo pipefail
           # Same deny-list as deploy-functions.yml — keep these in sync.
