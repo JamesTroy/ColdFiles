@@ -24,12 +24,21 @@ export interface NotificationPrefs {
   savedCaseUpdates: boolean;
   watchZoneAlerts: boolean;
   tipStatusUpdates: boolean;
+  /**
+   * Operator-only kind (ingest_alive_alarm from mig 49). Server-side
+   * fan-out targets the operator user_id via user_ids; this pref exists so
+   * the operator can silence the alarm from their own device. Default-true
+   * matches server-side default-true semantics. Intentionally not rendered
+   * in the notifications screen — non-operator users never receive it.
+   */
+  systemAlarms: boolean;
 }
 
 const DEFAULTS: NotificationPrefs = {
   savedCaseUpdates: true,
   watchZoneAlerts: true,
   tipStatusUpdates: true,
+  systemAlarms: true,
 };
 
 let cache: NotificationPrefs | null = null;
@@ -48,6 +57,7 @@ async function loadPrefs(): Promise<NotificationPrefs> {
       savedCaseUpdates: typeof parsed.savedCaseUpdates === 'boolean' ? parsed.savedCaseUpdates : DEFAULTS.savedCaseUpdates,
       watchZoneAlerts: typeof parsed.watchZoneAlerts === 'boolean' ? parsed.watchZoneAlerts : DEFAULTS.watchZoneAlerts,
       tipStatusUpdates: typeof parsed.tipStatusUpdates === 'boolean' ? parsed.tipStatusUpdates : DEFAULTS.tipStatusUpdates,
+      systemAlarms: typeof parsed.systemAlarms === 'boolean' ? parsed.systemAlarms : DEFAULTS.systemAlarms,
     };
     return cache;
   } catch {

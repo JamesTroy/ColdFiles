@@ -30,7 +30,11 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-type NotifyKind = 'watch_zone_hit' | 'saved_case_update' | 'tip_status_change';
+type NotifyKind =
+  | 'watch_zone_hit'
+  | 'saved_case_update'
+  | 'tip_status_change'
+  | 'ingest_alive_alarm';
 
 interface NotifyPayload {
   kind: NotifyKind;
@@ -46,6 +50,13 @@ interface NotifyPayload {
    * producer determined the recipient set by user identity.
    */
   user_ids?: string[];
+  /**
+   * ingest_alive_alarm payload: hours since the corpus last advanced and
+   * the configured threshold. Set by the check_ingest_alive() trigger
+   * (mig 49); other kinds ignore these.
+   */
+  hours_quiet?: number;
+  threshold_hours?: number;
 }
 
 interface PushToken {
@@ -183,7 +194,12 @@ Deno.serve(async (req) => {
 });
 
 function isNotifyKind(s: unknown): s is NotifyKind {
-  return s === 'watch_zone_hit' || s === 'saved_case_update' || s === 'tip_status_change';
+  return (
+    s === 'watch_zone_hit' ||
+    s === 'saved_case_update' ||
+    s === 'tip_status_change' ||
+    s === 'ingest_alive_alarm'
+  );
 }
 
 function prefKeyForKind(kind: NotifyKind): string {
@@ -194,6 +210,13 @@ function prefKeyForKind(kind: NotifyKind): string {
       return 'savedCaseUpdates';
     case 'tip_status_change':
       return 'tipStatusUpdates';
+    case 'ingest_alive_alarm':
+      // Operator-only kind. The recipient is filtered server-side via
+      // user_ids (mig 49 sets it to operator_user_id), so the per-device
+      // pref gate is incidental — keeping a key here keeps the
+      // default-true contract consistent across kinds and lets the
+      // operator opt out from their device if they ever need to.
+      return 'systemAlarms';
   }
 }
 
@@ -286,6 +309,26 @@ async function buildEnvelope(
         body: 'An agency updated the status of a tip you submitted.',
         data,
       };
+    case 'ingest_alive_alarm': {
+      // Operator alarm. The body intentionally surfaces the numeric signal
+      // (hours_quiet vs threshold_hours) so the operator can decide whether
+      // to drop everything or finish coffee first. No case_slug — this
+      // doesn't deep-link anywhere case-specific; deep-link target is the
+      // diagnostics screen.
+      const hoursQuiet = body.hours_quiet ?? null;
+      const threshold = body.threshold_hours ?? null;
+      data.alarm = 'ingest_alive';
+      if (hoursQuiet != null) data.hours_quiet = hoursQuiet;
+      if (threshold != null) data.threshold_hours = threshold;
+      return {
+        title: 'Cold File ingest is quiet',
+        body:
+          hoursQuiet != null && threshold != null
+            ? `No case activity for ${hoursQuiet}h (threshold ${threshold}h). Check scrapers.`
+            : 'No case activity above the configured threshold. Check scrapers.',
+        data,
+      };
+    }
   }
 }
 
