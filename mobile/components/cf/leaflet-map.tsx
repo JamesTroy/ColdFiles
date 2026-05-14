@@ -652,31 +652,6 @@ function buildLeafletHtml(
       35%  { transform: scale(0.82); }
       100% { transform: scale(1); }
     }
-    /* Imprecise-precision modifier — applied to pins whose underlying
-       case has location_precision in (city, county, unknown). Visual
-       cue that the point is approximate (city centroid pile-up, etc.)
-       rather than a real event coordinate.
-
-       Two cues stacked:
-         1. Reduced fill opacity on the SVG pin (faded amber instead
-            of solid).
-         2. Dashed amber halo behind the pin via box-shadow inset on
-            the wrapper div.
-
-       Tap interaction stays the same (tap → select → popup); the
-       coincident-cluster detection (multiple pins at same coord →
-       sheet) also fires on these pins as on precise ones. */
-    .cf-pin--imprecise svg {
-      opacity: 0.55;
-    }
-    .cf-pin--imprecise {
-      border: 1.5px dashed ${tokens.color.cluster.ring};
-      border-radius: 50%;
-      background: rgba(197, 165, 114, 0.08);
-      box-sizing: content-box;
-      margin: -2px;
-      padding: 1px;
-    }
     /* "You are here" — solid blue dot, no concentric rings (those collide
        with the open-ring Doe pin grammar). The halo is a separate element
        underneath that pulses ONLY when the location fix is fresh. A pulsing
@@ -1375,18 +1350,14 @@ function buildLeafletHtml(
           selected: !!m.selected,
           recentDays: m.recentDays,
         });
-        // Precision tier — address/street precision render as the
-        // standard sharp pin (real position). Anything coarser
-        // ('city', 'county', 'unknown') gets the .cf-pin--imprecise
-        // modifier: reduced opacity + dashed halo. Visual cue for
-        // "this point is approximate." Pre-migration-34 rows that
-        // don't carry precision render as standard pins (treated as
-        // address-precision for backward compat).
-        var precise =
-          !m.precision || m.precision === 'address' || m.precision === 'street';
-        var className = precise ? 'cf-pin' : 'cf-pin cf-pin--imprecise';
+        // Every case renders as the same sharp pin — single visual
+        // primitive for case identity. Precision differences are
+        // baked into the position (raw centroid + client jitter for
+        // coarse-precision rows); the pin itself never varies. The
+        // `precision` prop is preserved on the marker for diagnostics
+        // and future use but is not consumed by the renderer.
         var icon = L.divIcon({
-          className: className,
+          className: 'cf-pin',
           html: svg.html,
           iconSize: [svg.size, svg.size],
           iconAnchor: [svg.size / 2, svg.size / 2],
