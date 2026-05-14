@@ -73,21 +73,6 @@ import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapBbox } from '@/lib/types/database';
 
 const ZONE_SOFT_CAP = 25;
-
-/**
- * Zoom at or above which the precision-keyed centroid badge layer
- * turns on. Below this, the parent passes [] to LeafletMap and only
- * the marker layer + grid layer render. Picked to dodge the prior
- * badge-layer retirement's "every small town carries a 2-disc"
- * failure mode: zoom 11 ≈ a single metro fills the screen, so the
- * user only sees a handful of badges (the LA pile, the surrounding
- * cities' piles) — not thousands of small-town badges at once.
- *
- * Above POINT_ZOOM_THRESHOLD (8) we're in point mode; the grid layer
- * handles aggregation below that. Badges live on TOP of point mode
- * starting at this threshold.
- */
-const BADGE_MIN_ZOOM = 11;
 const ZONES_VISIBLE_KEY = 'cf:zones_visible:v1';
 
 type Filter = 'all' | 'homicide' | 'missing' | 'unidentified';
@@ -457,12 +442,14 @@ export default function MapScreen() {
     // apply client-side, RPC doesn't refetch on toggle.
   });
 
-  // Map CaseCentroidRow → LeafletCentroid. Zoom-gated here so the
-  // child renderer doesn't need to know about BADGE_MIN_ZOOM: pass
-  // [] below the threshold, the array above.
+  // Map CaseCentroidRow → LeafletCentroid. Visible whenever point
+  // mode is active (i.e., zoom ≥ POINT_ZOOM_THRESHOLD). The grid
+  // layer handles continental zoom below that threshold, precision-
+  // blind by design. Per the operator brief "city/state precision →
+  // badge always; address/street → pin always" — one rule, no
+  // zoom-tiered visibility on the badge layer itself.
   const leafletCentroids: LeafletCentroid[] = useMemo(() => {
     if (!isPoint) return [];
-    if (zoom < BADGE_MIN_ZOOM) return [];
     return centroidRows.map((c) => ({
       lat: c.lat,
       lng: c.lng,
@@ -473,7 +460,7 @@ export default function MapScreen() {
       precision_floor: c.precision_floor,
       locale_label: c.locale_label,
     }));
-  }, [centroidRows, isPoint, zoom]);
+  }, [centroidRows, isPoint]);
 
   // Grid-mode bottom-sheet header summary. Sums the per-cell counts
   // for the "{N} cases · {M} regions" sub-line. When in point mode
@@ -539,38 +526,22 @@ export default function MapScreen() {
     return casesAll.filter((c) => allowed.includes(c.kind));
   }, [casesAll, filter]);
 
-  // Pin-layer cases — zoom-aware precision filter.
+  // Pin-layer cases — address/street precision only. City/county/
+  // unknown precision rows render as their centroid badge (see
+  // leafletCentroids), never as pins. Precision routes the visual;
+  // zoom doesn't.
   //
-  // The badge layer is gated on zoom ≥ BADGE_MIN_ZOOM. If we filtered
-  // city-precision cases out of the pin layer unconditionally, zooms
-  // 8-10 (point mode active, badges still off) would render NOTHING
-  // for the city-precision rows — neither pins nor badges. That dead
-  // zone is what triggered this fix.
-  //
-  // Rule:
-  //   • zoom < BADGE_MIN_ZOOM → keep city/county cases in the pin
-  //     layer. The client's 880m applyImpreciseSpread jitter is
-  //     sub-pixel at state-wide zoom so they read as a single dot
-  //     per city (not the donut artifact mig 53 fixed — that only
-  //     shows at zoom 11+ where 880m is many pixels). Coastal-city
-  //     pins stay on land per mig 53's raw-point projection.
-  //   • zoom ≥ BADGE_MIN_ZOOM → filter to address/street only; the
-  //     badge layer represents the city/county pile instead.
-  //
-  // The bottom-sheet list always shows the full `cases` set so the
-  // user's scroll-through never drops rows on a zoom change.
+  // The bottom-sheet list always shows the full kind-filtered
+  // `cases` set so the user's scroll-through never drops rows on a
+  // zoom change.
   const pinCases = useMemo(() => {
     // Sample mode (no Supabase) has no precision tagging — render
     // the dev dataset as-is.
     if (source === 'sample') return cases;
-    // Below the badge threshold: keep everything (city-precision
-    // cases need a representation, and the badge layer isn't there
-    // yet).
-    if (zoom < BADGE_MIN_ZOOM) return cases;
     return cases.filter(
       (c) => c.location_precision === 'address' || c.location_precision === 'street',
     );
-  }, [cases, source, zoom]);
+  }, [cases, source]);
 
   // Cases at the tapped coincident coord, filtered by the active kind
   // chip the same way the marker layer is filtered. casesAll is bbox-
