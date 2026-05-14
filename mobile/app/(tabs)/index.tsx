@@ -32,8 +32,6 @@ import { EmptyState } from '@/components/cf/empty-state';
 import { ErrorState } from '@/components/cf/error-state';
 import {
   LeafletMap,
-  type LeafletCell,
-  type LeafletCellPress,
   type LeafletMapHandle,
   type LeafletMarker,
 } from '@/components/cf/leaflet-map';
@@ -53,11 +51,7 @@ import { tokens } from '@/constants/theme';
 import { alphaToDays } from '@/lib/format';
 import { useCaseCount } from '@/lib/hooks/use-case-count';
 import {
-  POINT_ZOOM_THRESHOLD,
-  aggregationForZoom,
-  isGridUnavailable,
   useCasesInBbox,
-  useCellsGridInBbox,
   type CaseBounds,
 } from '@/lib/hooks/use-cases-in-bbox';
 import { useHere } from '@/lib/hooks/use-here';
@@ -266,10 +260,8 @@ export default function MapScreen() {
   );
   const handleCoincidentClose = useCallback(() => setOpenCoord(null), []);
 
-  // Imperative handle for "drill into a cell on tap." Used by
-  // handleCellPress below. Declared early so the ref reference is
-  // stable across the render; the handler that consumes it is
-  // declared further down once `zoom` and `isGrid` exist.
+  // Imperative handle for programmatic recenter/zoom. Kept on the
+  // LeafletMap to allow future drill-in or "fly to coord" patterns.
   const mapRef = useRef<LeafletMapHandle>(null);
 
   // Stepwise recency_alpha → days, mirroring use across the list tab.
@@ -303,11 +295,10 @@ export default function MapScreen() {
   //                  drifts outside the current fetchBounds.
   const [fetchBounds, setFetchBounds] = useState<CaseBounds | null>(null);
   const fetchBoundsRef = useRef<CaseBounds | null>(null);
-  // Current Leaflet zoom — drives aggregationForZoom() routing between
-  // cases_in_bbox (zoom ≥ 8) and cases_grid_in_bbox (zoom < 8). Default
-  // 9 keeps the first frame in point mode on cold start; the WebView
-  // posts the real zoom via its initial `region` message before any
-  // pin-fetch can run.
+  // Current Leaflet zoom. Held in state for any downstream consumer
+  // that wants to vary behavior by zoom (none today now that grid
+  // mode is retired). Default 9 — overwritten by the WebView's first
+  // region message before any pin fetch runs.
   const [zoom, setZoom] = useState<number>(9);
 
   const handleRegionChange = useCallback(
@@ -344,16 +335,6 @@ export default function MapScreen() {
     [],
   );
 
-  // Map-aggregation mode + cell size, derived from the current zoom.
-  // isGrid is the load-bearing render-mode flag — gates which hook
-  // fetches and which Leaflet layer the WebView attaches. The
-  // gridUnavailable kill-switch (set by the cell hook on PGRST202
-  // when a stale OTA hits a server without mig 44) flips us back to
-  // point mode for the rest of the session — silent fail-open.
-  const aggregation = useMemo(() => aggregationForZoom(zoom), [zoom]);
-  const isGrid = aggregation.mode === 'grid' && !isGridUnavailable();
-  const isPoint = !isGrid;
-
   const {
     data: casesAll,
     loading,
@@ -363,90 +344,15 @@ export default function MapScreen() {
   } = useCasesInBbox({
     bounds: fetchBounds,
     kinds: null,
-    // 6000 limit is the legacy "fetch everything" headroom from the
-    // pre-B1 era when the client did all aggregation. Now that grid
-    // mode handles low zoom server-side, this cap only matters at
-    // zoom ≥ 8 (point mode) where the bbox is small enough that
-    // ≤500 rows is the typical return. The 6000 ceiling stays as
-    // belt-and-suspenders headroom for future corpus growth — it
-    // doesn't bite in either mode at current scale.
-    limit: 6000,
-    // Gated off in grid mode — the hook holds its last point-mode
-    // snapshot internally so flipping back to point mode shows
-    // last-known pins immediately while the next fetch loads.
-    enabled: isPoint,
+    // Bumped from 6000 → 20000 when the grid layer was retired.
+    // Continental zoom now returns every case (corpus ~11,636 as of
+    // 2026-05-14; the 20000 ceiling is forward-headroom for corpus
+    // growth). Markercluster handles visual aggregation at any zoom.
+    // Cost: ~2.4MB JSON over the wire at continental view, ~500KB
+    // gzipped — paid once per region change (bbox-expansion logic
+    // keeps small pans from re-fetching).
+    limit: 20000,
   });
-
-  // Tile-grid aggregation hook (mig 44 — cases_grid_in_bbox). Fires
-  // only in grid mode; idle otherwise. Cell-size pulls from the
-  // editorial schedule in aggregationForZoom(). The fallback 1.0°
-  // cellSize when in point mode is unused (enabled=false) but keeps
-  // the prop type narrow.
-  const { data: cells } = useCellsGridInBbox({
-    bounds: fetchBounds,
-    cellSizeDeg:
-      aggregation.mode === 'grid' ? aggregation.cellSizeDeg : 1.0,
-    kinds: null,
-    enabled: isGrid,
-  });
-
-  // Translation: snake_case CaseGridCell from the RPC → camelCase
-  // LeafletCell that LeafletMap consumes. Keeps LeafletMap agnostic
-  // of the RPC schema; field-name churn at either end stays local.
-  const leafletCells: LeafletCell[] = useMemo(
-    () =>
-      cells.map((c) => ({
-        lat: c.cell_lat,
-        lng: c.cell_lng,
-        count: c.case_count,
-        dominantKind: c.dominant_kind,
-        precisionFloor: c.precision_floor,
-        recencyMax: c.recency_max,
-        modeCity: c.mode_city,
-        modeState: c.mode_state,
-      })),
-    [cells],
-  );
-
-  // Grid-mode bottom-sheet header summary. Sums the per-cell counts
-  // for the "{N} cases · {M} regions" sub-line. When in point mode
-  // the sheet ignores this prop, so the cheap recompute on every
-  // render is fine (~tens of cells max in grid mode anyway).
-  const gridSummary = useMemo(
-    () => ({
-      cellCount: cells.length,
-      totalCases: cells.reduce((n, c) => n + c.case_count, 0),
-    }),
-    [cells],
-  );
-
-  // Cell-tap zoom-in handler. Drills by 2 zoom levels from the
-  // current zoom, capped at POINT_ZOOM_THRESHOLD so any tap from
-  // grid mode crosses one full step toward pins. Continental cells
-  // (zoom 4 → 6) stay in grid mode but at finer cell size; metro-
-  // adjacent cells (zoom 7 → 9) cross into point mode and surface
-  // individual pins. Progressive disclosure: continental → regional
-  // → state → city → addresses.
-  const handleCellPress = useCallback(
-    (cell: LeafletCellPress) => {
-      const target = Math.max(zoom + 2, POINT_ZOOM_THRESHOLD);
-      mapRef.current?.setView({
-        lat: cell.lat,
-        lng: cell.lng,
-        zoomLevel: target,
-      });
-    },
-    [zoom],
-  );
-
-  // Defensive: if the user lands in grid mode while a coincident-
-  // sheet is open (rare — would require crossing the threshold
-  // mid-sheet), close it. The cluster-tap that opened it can't
-  // happen in grid mode (markercluster layer is detached), so
-  // there's no path back to opening another while in grid.
-  useEffect(() => {
-    if (isGrid && openCoord) setOpenCoord(null);
-  }, [isGrid, openCoord]);
 
   // Headline corpus-size stat for the bottom-sheet header. Cached at
   // module scope inside the hook (5min TTL) so this is a no-op on
@@ -662,9 +568,6 @@ export default function MapScreen() {
             zones={zoneOverlays}
             zonesVisible={zonesVisible}
             onRegionChange={handleRegionChange}
-            mode={isGrid ? 'grid' : 'point'}
-            cells={leafletCells}
-            onCellPress={handleCellPress}
           />
         )}
         {zoneOverlays.length > 0 ? (
@@ -760,8 +663,6 @@ export default function MapScreen() {
           animatedIndex={sheetIndex}
           onWatchHere={() => router.push('/watch-zone')}
           watchHereDisabled={zones.length >= ZONE_SOFT_CAP}
-          inGridMode={isGrid}
-          gridSummary={gridSummary}
         />
       ) : null}
 
@@ -846,9 +747,6 @@ interface LeafletRendererProps {
     bounds: { minLng: number; minLat: number; maxLng: number; maxLat: number };
     zoom: number;
   }) => void;
-  mode?: 'point' | 'grid';
-  cells?: LeafletCell[];
-  onCellPress?: (cell: LeafletCellPress) => void;
 }
 
 const LeafletRenderer = forwardRef<LeafletMapHandle, LeafletRendererProps>(function LeafletRenderer(
@@ -862,9 +760,6 @@ const LeafletRenderer = forwardRef<LeafletMapHandle, LeafletRendererProps>(funct
     zones,
     zonesVisible,
     onRegionChange,
-    mode = 'point',
-    cells = [],
-    onCellPress,
   },
   ref,
 ) {
@@ -969,9 +864,6 @@ const LeafletRenderer = forwardRef<LeafletMapHandle, LeafletRendererProps>(funct
       onMarkerOpen={onMarkerOpen}
       onCoincidentCluster={onCoincidentCluster}
       onRegionChange={onRegionChange}
-      mode={mode}
-      cells={cells}
-      onCellPress={onCellPress}
     />
   );
 });
