@@ -1354,7 +1354,7 @@ function buildLeafletHtml(
         // primitive for case identity. Precision differences are
         // baked into the position (raw centroid + client jitter for
         // coarse-precision rows); the pin itself never varies. The
-        // `precision` prop is preserved on the marker for diagnostics
+        // m.precision prop is preserved on the marker for diagnostics
         // and future use but is not consumed by the renderer.
         var icon = L.divIcon({
           className: 'cf-pin',
