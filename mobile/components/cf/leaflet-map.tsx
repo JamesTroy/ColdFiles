@@ -128,44 +128,6 @@ export interface LeafletCellPress {
 }
 
 /**
- * Precision-keyed centroid badge — one per (city, state) for city-
- * precision aggregates, one per state for state-precision aggregates
- * (post-mig-54). Rendered alongside the marker layer in 'point' mode;
- * zoom-gated visibility comes from the parent (passes []
- * below the threshold so the badge layer turns off at continental
- * zoom and the grid layer handles aggregation there).
- *
- * Visual is the cream-outlined corner-bracket frame with a Newsreader
- * numeral — distinct from the cluster icon, distinct from cell badges.
- * See docs/research/centroid-badge-revival-plan.md for the rationale.
- */
-export interface LeafletCentroid {
-  lat: number;
-  lng: number;
-  case_count: number;
-  kinds_homicide: number;
-  kinds_missing: number;
-  kinds_doe: number;
-  /**
-   * Coarsest precision in the group. 'state' renders the state-tier
-   * badge variant ("TX · 1,340"); 'city' / 'county' / 'unknown'
-   * render the city-tier variant ("Los Angeles, CA · 782").
-   */
-  precision_floor: 'address' | 'street' | 'city' | 'county' | 'state' | 'unknown';
-  /** "City, ST" or "Texas" — server-built. NULL when no shared locale. */
-  locale_label: string | null;
-}
-
-/** Payload posted from the WebView when the user taps a centroid badge. */
-export interface LeafletCentroidPress {
-  lat: number;
-  lng: number;
-  case_count: number;
-  precision_floor: LeafletCentroid['precision_floor'];
-  locale_label: string | null;
-}
-
-/**
  * Imperative handle exposed via forwardRef. Currently only `setView`
  * (programmatic re-center + zoom). Added so the home screen can
  * "drill into" a cell on tap without prop-drilling a one-shot
@@ -246,24 +208,6 @@ interface LeafletMapProps {
    * by ~2 zoom levels.
    */
   onCellPress?: (cell: LeafletCellPress) => void;
-  /**
-   * City/state precision centroid badges. Rendered as an overlay on
-   * top of the marker layer in 'point' mode. The PARENT decides
-   * visibility by passing the array (or [] to hide); the renderer
-   * doesn't zoom-gate internally. Map mode is unrelated — badges
-   * never render in 'grid' mode (the cell layer covers continental
-   * aggregation; mixing both at low zoom defeats the cell layer's
-   * purpose).
-   */
-  centroids?: LeafletCentroid[];
-  /**
-   * Fired when the user taps a centroid badge. Parent opens a
-   * stacked CentroidCasesSheet over the persistent map sheet; the
-   * map view itself does NOT re-center or re-zoom (per the
-   * 2026-05-14 brief — users should scan multiple city aggregates
-   * in sequence without losing context).
-   */
-  onCentroidPress?: (centroid: LeafletCentroidPress) => void;
 }
 
 // Module-level memory of the last-viewed map center. Survives Leaflet
@@ -288,8 +232,6 @@ export const LeafletMap = forwardRef<LeafletMapHandle, LeafletMapProps>(function
     mode = 'point',
     cells = [],
     onCellPress,
-    centroids = [],
-    onCentroidPress,
   },
   ref,
 ) {
@@ -369,22 +311,6 @@ export const LeafletMap = forwardRef<LeafletMapHandle, LeafletMapProps>(function
     [cells],
   );
   const cellsJson = useMemo(() => JSON.stringify(cells), [cells]);
-  // Centroids — stable key, same rebuild-only-when-content-changes
-  // discipline as markers + cells. precision_floor is in the key so
-  // a city→state precision flip on a tied locale triggers a relayout
-  // (rare but well-defined).
-  const centroidsKey = useMemo(
-    () =>
-      centroids
-        .map(
-          (c) =>
-            `${c.lat.toFixed(5)}|${c.lng.toFixed(5)}|${c.case_count}|${c.kinds_homicide}|${c.kinds_missing}|${c.kinds_doe}|${c.precision_floor}|${c.locale_label ?? ''}`,
-        )
-        .sort()
-        .join(','),
-    [centroids],
-  );
-  const centroidsJson = useMemo(() => JSON.stringify(centroids), [centroids]);
   const hereJson = JSON.stringify(here ?? null);
   const zonesJson = JSON.stringify(zones);
 
@@ -415,22 +341,6 @@ export const LeafletMap = forwardRef<LeafletMapHandle, LeafletMapProps>(function
     `);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, cellsKey]);
-
-  // Centroids channel — push the badge set. Same stable-key
-  // discipline. Parent controls visibility by passing []
-  // (zoom-gated upstream); the renderer just renders whatever is in
-  // the prop. No mode-gating on the React side — the WebView
-  // detaches centroidLayer in 'grid' mode (cells take over there).
-  useEffect(() => {
-    if (!ready) return;
-    webRef.current?.injectJavaScript(`
-      try {
-        window.__cf_setCentroids && window.__cf_setCentroids(${centroidsJson});
-      } catch (e) {}
-      true;
-    `);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, centroidsKey]);
 
   // Mode channel — toggles which Leaflet layer is attached. The
   // WebView side no-ops when next === currentMode so this is safe to
@@ -596,20 +506,6 @@ export const LeafletMap = forwardRef<LeafletMapHandle, LeafletMapProps>(function
             precisionFloor: msg.precision_floor,
             modeCity: msg.mode_city ?? null,
             modeState: msg.mode_state ?? null,
-          });
-        }
-      } else if (msg.type === 'centroid-press') {
-        // User tapped a precision-keyed centroid badge (city or state
-        // aggregate). Selection haptic; parent opens
-        // CentroidCasesSheet without moving the map per brief.
-        Haptics.selectionAsync().catch(() => {});
-        if (typeof msg.lat === 'number' && typeof msg.lng === 'number') {
-          onCentroidPress?.({
-            lat: msg.lat,
-            lng: msg.lng,
-            case_count: msg.case_count,
-            precision_floor: msg.precision_floor,
-            locale_label: msg.locale_label ?? null,
           });
         }
       } else if (msg.type === 'region') {
@@ -905,127 +801,6 @@ function buildLeafletHtml(
        agnostic. */
     .cf-cell-press {
       animation: cf-pin-press 220ms ease-out;
-    }
-
-    /* Precision-keyed centroid badges — cream-outlined corner-bracket
-       frame with a Newsreader numeral inside. Distinct from cluster
-       icons (solid amber ring) and cell badges (filled kind-tint
-       disc): the bracket frame says "this is an aggregate at a
-       coarse-precision coord, the box around it is the editorial
-       admission that the count is here, not at any specific point
-       inside it."
-
-       Geometry: ::before draws TL+TR brackets, ::after draws BL+BR
-       brackets. Each "bracket" is two 1px borders on adjacent edges
-       of a positioned pseudo-element pinned to the corner. No SVG;
-       pure CSS so the divIcon HTML stays one element. Stroke color
-       matches the PhotoFrame corner-bracket motif
-       (tokens.color.evidence.chrome via the React side). */
-    .cf-centroid {
-      background: ${tokens.color.bg.elev1}d9; /* ~85% alpha */
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 1px 6px rgba(10, 10, 10, 0.45);
-    }
-    .cf-centroid:active { transform: scale(0.96); }
-    /* Top-left + top-right brackets. */
-    .cf-centroid::before,
-    .cf-centroid::after {
-      content: '';
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      pointer-events: none;
-    }
-    .cf-centroid::before {
-      top: 0;
-      left: 0;
-      border-top: 1px solid ${tokens.color.evidence.chrome};
-      border-left: 1px solid ${tokens.color.evidence.chrome};
-    }
-    .cf-centroid::after {
-      bottom: 0;
-      right: 0;
-      border-bottom: 1px solid ${tokens.color.evidence.chrome};
-      border-right: 1px solid ${tokens.color.evidence.chrome};
-    }
-    /* The two extra corners are drawn via the inner numeral element's
-       pseudo-elements — keeps the markup to a single divIcon child.
-       TR + BL brackets. */
-    .cf-centroid-num::before,
-    .cf-centroid-num::after {
-      content: '';
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      pointer-events: none;
-    }
-    .cf-centroid-num::before {
-      top: 0;
-      right: 0;
-      border-top: 1px solid ${tokens.color.evidence.chrome};
-      border-right: 1px solid ${tokens.color.evidence.chrome};
-    }
-    .cf-centroid-num::after {
-      bottom: 0;
-      left: 0;
-      border-bottom: 1px solid ${tokens.color.evidence.chrome};
-      border-left: 1px solid ${tokens.color.evidence.chrome};
-    }
-    .cf-centroid-num {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
-      font-weight: 500;
-      color: ${tokens.color.text.primary};
-      letter-spacing: 0.01em;
-      /* Drop a 1px transparent inset so the numeral doesn't crowd
-         the brackets at small sizes (32px badge with a 14px numeral
-         leaves ~9px clearance on each side; without inset the figure
-         visually rides into the top-left bracket). */
-      padding: 2px;
-    }
-    /* State-tier badge variant. Same bracket frame; slightly more
-       elevated background so a state pile reads as "bigger context"
-       than a city pile at the same count. */
-    .cf-centroid--state {
-      background: ${tokens.color.bg.elev2}e6; /* ~90% alpha */
-    }
-    /* Locale label hanging under the badge — small mono pill, same
-       legibility approach the retired badge used but in the cream
-       palette instead of amber. */
-    .cf-centroid-wrap {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      pointer-events: none;
-    }
-    .cf-centroid-wrap .cf-centroid {
-      pointer-events: auto;
-    }
-    .cf-centroid-label {
-      margin-top: 2px;
-      padding: 1px 5px;
-      font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
-      font-weight: 500;
-      font-size: 9px;
-      letter-spacing: 0.04em;
-      color: ${tokens.color.text.secondary};
-      background: rgba(10, 10, 10, 0.55);
-      border-radius: 3px;
-      max-width: 140px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      pointer-events: none;
     }
 
     /* Case-file popup. Replaces leaflet's default white-rectangle styling
@@ -1423,14 +1198,6 @@ function buildLeafletHtml(
       var cellById = Object.create(null);
       var currentMode = 'point';
 
-      // Centroid layer — flat L.layerGroup (precision-keyed aggregates,
-      // already aggregated server-side via cases_centroids_in_bbox).
-      // Attached at construction in 'point' mode; __cf_setMode detaches
-      // it when grid mode takes over (the cell layer's aggregation
-      // covers the same conceptual job at low zoom).
-      var centroidLayer = L.layerGroup().addTo(map);
-      var centroidById = Object.create(null);
-
       // Cell badge factory. Diameter scales sqrt(count) like clusters
       // but tighter — cells are coarser than clusters so the count-
       // to-area mapping is gentler. Class name combines the kind tint
@@ -1515,103 +1282,16 @@ function buildLeafletHtml(
       // Mode toggle — attach/detach the active layer. Hard cutover
       // (no cross-fade); the WebView region-change debounce on the
       // React side absorbs any rapid threshold-crossing during a
-      // pinch gesture. Centroid layer rides with point mode: it
-      // attaches alongside markerLayer and detaches alongside it.
+      // pinch gesture.
       window.__cf_setMode = function (next) {
         if (next === currentMode) return;
         currentMode = next;
         if (next === 'grid') {
           if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
-          if (map.hasLayer(centroidLayer)) map.removeLayer(centroidLayer);
           if (!map.hasLayer(cellLayer)) cellLayer.addTo(map);
         } else {
           if (map.hasLayer(cellLayer)) map.removeLayer(cellLayer);
           if (!map.hasLayer(markerLayer)) markerLayer.addTo(map);
-          if (!map.hasLayer(centroidLayer)) centroidLayer.addTo(map);
-        }
-      };
-
-      // Centroid badge factory. Size scales with log2(case_count),
-      // clamped 32-72 per the visual brief. Locale label hangs under
-      // the bracket frame when present; iconAnchor pins the BRACKET
-      // CENTER (not the wrapper center) to the lat/lng so the label
-      // is decorative context, not part of the position claim.
-      function centroidIconFor(c) {
-        var n = Math.max(2, c.case_count || 0);
-        var d = Math.max(32, Math.min(72, Math.round(28 + Math.log(n) / Math.log(2) * 6)));
-        // Numeral size scales gently with badge size — bigger frames
-        // can hold a larger numeral without crowding the brackets.
-        var fs = n >= 1000 ? Math.max(13, Math.round(d * 0.30)) : Math.round(d * 0.40);
-        var label = n >= 1000 ? Math.round(n / 100) / 10 + 'k' : String(n);
-        var stateClass = c.precision_floor === 'state' ? ' cf-centroid--state' : '';
-        var localePill = c.locale_label
-          ? '<div class="cf-centroid-label">' + escapeHtml(c.locale_label) + '</div>'
-          : '';
-        var labelH = c.locale_label ? 14 : 0;
-        return L.divIcon({
-          className: 'cf-centroid-wrap',
-          html:
-            '<div class="cf-centroid' + stateClass + '" style="width:' + d + 'px;height:' + d + 'px;">' +
-              '<div class="cf-centroid-num" style="font-size:' + fs + 'px;">' + escapeHtml(label) + '</div>' +
-            '</div>' +
-            localePill,
-          iconSize: [d, d + labelH + 2],
-          // Anchor at the bracket center horizontally; vertically at
-          // the bracket center too (NOT the wrapper center — the
-          // label hangs below the lat/lng).
-          iconAnchor: [d / 2, d / 2],
-        });
-      }
-
-      // Incremental-diff push, mirrors __cf_setCells. Key includes
-      // every field that affects the rendered icon so a count or
-      // precision-tier shift triggers a layer swap. 5-decimal lat/lng
-      // matches the centroid RPC's snapped centroid resolution and
-      // the React-side stable-key precision.
-      window.__cf_setCentroids = function (list) {
-        if (!Array.isArray(list)) return;
-        var nextById = Object.create(null);
-        for (var i = 0; i < list.length; i++) {
-          var c = list[i];
-          var key =
-            c.lat.toFixed(5) + '|' + c.lng.toFixed(5) +
-            '|' + c.case_count +
-            '|' + c.precision_floor +
-            '|' + (c.locale_label || '');
-          nextById[key] = c;
-        }
-        // Remove badges gone from the new set (or whose key changed).
-        for (var k in centroidById) {
-          if (!nextById[k]) {
-            centroidLayer.removeLayer(centroidById[k]);
-            delete centroidById[k];
-          }
-        }
-        // Add new badges. Existing keys are no-ops (already in layer).
-        for (var nk in nextById) {
-          if (centroidById[nk]) continue;
-          var ct = nextById[nk];
-          var marker = L.marker([ct.lat, ct.lng], {
-            icon: centroidIconFor(ct),
-            keyboard: false,
-            // Render above cluster icons so a coincident-coord cluster
-            // doesn't visually steal the badge's tap target.
-            zIndexOffset: 1000,
-          });
-          marker._cfCentroid = ct;
-          marker.on('click', function (e) {
-            var t = e.target;
-            postMessage({
-              type: 'centroid-press',
-              lat: t._cfCentroid.lat,
-              lng: t._cfCentroid.lng,
-              case_count: t._cfCentroid.case_count,
-              precision_floor: t._cfCentroid.precision_floor,
-              locale_label: t._cfCentroid.locale_label,
-            });
-          });
-          centroidLayer.addLayer(marker);
-          centroidById[nk] = marker;
         }
       };
 

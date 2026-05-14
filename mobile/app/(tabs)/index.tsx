@@ -27,10 +27,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  CentroidCasesSheet,
-  type CentroidContext,
-} from '@/components/cf/centroid-cases-sheet';
 import { CoincidentCasesSheet } from '@/components/cf/coincident-cases-sheet';
 import { EmptyState } from '@/components/cf/empty-state';
 import { ErrorState } from '@/components/cf/error-state';
@@ -38,8 +34,6 @@ import {
   LeafletMap,
   type LeafletCell,
   type LeafletCellPress,
-  type LeafletCentroid,
-  type LeafletCentroidPress,
   type LeafletMapHandle,
   type LeafletMarker,
 } from '@/components/cf/leaflet-map';
@@ -58,7 +52,6 @@ import { MonoLabel, SerifTitle } from '@/components/cf/text';
 import { tokens } from '@/constants/theme';
 import { alphaToDays } from '@/lib/format';
 import { useCaseCount } from '@/lib/hooks/use-case-count';
-import { useCentroidsInBbox } from '@/lib/hooks/use-centroids-in-bbox';
 import {
   POINT_ZOOM_THRESHOLD,
   aggregationForZoom,
@@ -73,21 +66,6 @@ import { SAMPLE_LAST_CHANGED_DAYS } from '@/lib/sample-data';
 import type { CaseKind, CaseRowMapBbox } from '@/lib/types/database';
 
 const ZONE_SOFT_CAP = 25;
-
-/**
- * Zoom at or above which the precision-keyed centroid badge layer
- * turns on. Below this, the parent passes [] to LeafletMap and only
- * the marker layer + grid layer render. Picked to dodge the prior
- * badge-layer retirement's "every small town carries a 2-disc"
- * failure mode: zoom 11 ≈ a single metro fills the screen, so the
- * user only sees a handful of badges (the LA pile, the surrounding
- * cities' piles) — not thousands of small-town badges at once.
- *
- * Above POINT_ZOOM_THRESHOLD (8) we're in point mode; the grid layer
- * handles aggregation below that. Badges live on TOP of point mode
- * starting at this threshold.
- */
-const BADGE_MIN_ZOOM = 11;
 const ZONES_VISIBLE_KEY = 'cf:zones_visible:v1';
 
 type Filter = 'all' | 'homicide' | 'missing' | 'unidentified';
@@ -288,23 +266,6 @@ export default function MapScreen() {
   );
   const handleCoincidentClose = useCallback(() => setOpenCoord(null), []);
 
-  // Centroid badge tap state. Distinct from openCoord because the
-  // sheets carry different data (CentroidCasesSheet fetches via
-  // useCasesAtCoordinate; CoincidentCasesSheet uses pre-filtered
-  // cases from the parent's bbox). Map view does NOT re-center or
-  // re-zoom on badge tap per the operator brief — user scans
-  // multiple city aggregates in sequence without losing context.
-  const [openCentroid, setOpenCentroid] = useState<CentroidContext | null>(null);
-  const handleCentroidPress = useCallback((p: LeafletCentroidPress) => {
-    setOpenCentroid({
-      lat: p.lat,
-      lng: p.lng,
-      label: p.locale_label,
-      count: p.case_count,
-    });
-  }, []);
-  const handleCentroidClose = useCallback(() => setOpenCentroid(null), []);
-
   // Imperative handle for "drill into a cell on tap." Used by
   // handleCellPress below. Declared early so the ref reference is
   // stable across the render; the handler that consumes it is
@@ -447,34 +408,6 @@ export default function MapScreen() {
     [cells],
   );
 
-  // Centroid badge data (mig 54 / mig 55). One row per (city, state)
-  // for city-precision cases, one per state for state-precision. Hook
-  // is enabled in point mode only — the grid layer handles continental
-  // aggregation; running both at low zoom would overlap visually.
-  const { data: centroidRows } = useCentroidsInBbox({
-    bounds: fetchBounds,
-    // Same kind-agnostic posture as useCasesInBbox — filter chips
-    // apply client-side, RPC doesn't refetch on toggle.
-  });
-
-  // Map CaseCentroidRow → LeafletCentroid. Zoom-gated here so the
-  // child renderer doesn't need to know about BADGE_MIN_ZOOM: pass
-  // [] below the threshold, the array above.
-  const leafletCentroids: LeafletCentroid[] = useMemo(() => {
-    if (!isPoint) return [];
-    if (zoom < BADGE_MIN_ZOOM) return [];
-    return centroidRows.map((c) => ({
-      lat: c.lat,
-      lng: c.lng,
-      case_count: c.case_count,
-      kinds_homicide: c.kinds_homicide,
-      kinds_missing: c.kinds_missing,
-      kinds_doe: c.kinds_doe,
-      precision_floor: c.precision_floor,
-      locale_label: c.locale_label,
-    }));
-  }, [centroidRows, isPoint, zoom]);
-
   // Grid-mode bottom-sheet header summary. Sums the per-cell counts
   // for the "{N} cases · {M} regions" sub-line. When in point mode
   // the sheet ignores this prop, so the cheap recompute on every
@@ -538,22 +471,6 @@ export default function MapScreen() {
     if (!allowed) return casesAll;
     return casesAll.filter((c) => allowed.includes(c.kind));
   }, [casesAll, filter]);
-
-  // Pin-layer cases — only address/street precision rows reach the
-  // marker layer once the badge layer is live. City/county/unknown
-  // precision rows are represented by their centroid badges instead
-  // (see leafletCentroids above + docs/research/centroid-badge-
-  // revival-plan.md). The bottom-sheet list still shows the full
-  // `cases` set (kind-filtered) so the user's scroll-through doesn't
-  // suddenly drop ~95% of the corpus.
-  const pinCases = useMemo(() => {
-    // Sample mode (no Supabase) returns no precision tagging — let the
-    // sample dataset render as-is to avoid blanking the dev-mode map.
-    if (source === 'sample') return cases;
-    return cases.filter(
-      (c) => c.location_precision === 'address' || c.location_precision === 'street',
-    );
-  }, [cases, source]);
 
   // Cases at the tapped coincident coord, filtered by the active kind
   // chip the same way the marker layer is filtered. casesAll is bbox-
@@ -736,7 +653,7 @@ export default function MapScreen() {
         ) : (
           <LeafletRenderer
             ref={mapRef}
-            cases={pinCases}
+            cases={cases}
             selectedSlug={selectedSlug}
             onMarkerPress={handleMarkerPress}
             onMarkerOpen={(slug) => router.push({ pathname: '/case/[slug]', params: { slug } })}
@@ -748,8 +665,6 @@ export default function MapScreen() {
             mode={isGrid ? 'grid' : 'point'}
             cells={leafletCells}
             onCellPress={handleCellPress}
-            centroids={leafletCentroids}
-            onCentroidPress={handleCentroidPress}
           />
         )}
         {zoneOverlays.length > 0 ? (
@@ -863,17 +778,6 @@ export default function MapScreen() {
         />
       ) : null}
 
-      {/* Precision-keyed centroid badge tap-drill. Opens over the
-          persistent MapBottomSheet without moving the map; closes
-          on the X / pan-down without unmounting the underlying
-          state, so the user can tap the next badge cleanly. */}
-      {openCentroid ? (
-        <CentroidCasesSheet
-          centroid={openCentroid}
-          onClose={handleCentroidClose}
-        />
-      ) : null}
-
     </View>
   );
 }
@@ -945,8 +849,6 @@ interface LeafletRendererProps {
   mode?: 'point' | 'grid';
   cells?: LeafletCell[];
   onCellPress?: (cell: LeafletCellPress) => void;
-  centroids?: LeafletCentroid[];
-  onCentroidPress?: (c: LeafletCentroidPress) => void;
 }
 
 const LeafletRenderer = forwardRef<LeafletMapHandle, LeafletRendererProps>(function LeafletRenderer(
@@ -963,8 +865,6 @@ const LeafletRenderer = forwardRef<LeafletMapHandle, LeafletRendererProps>(funct
     mode = 'point',
     cells = [],
     onCellPress,
-    centroids = [],
-    onCentroidPress,
   },
   ref,
 ) {
@@ -1072,8 +972,6 @@ const LeafletRenderer = forwardRef<LeafletMapHandle, LeafletRendererProps>(funct
       mode={mode}
       cells={cells}
       onCellPress={onCellPress}
-      centroids={centroids}
-      onCentroidPress={onCentroidPress}
     />
   );
 });
