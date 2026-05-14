@@ -108,6 +108,49 @@ export interface CaseRowMapBbox {
 }
 
 /**
+ * Aggregated centroid row from cases_centroids_in_bbox() — one entry
+ * per coincident-coord group (city centroid for city-precision cases,
+ * state centroid for state-precision cases post-mig-54).
+ *
+ * Used by the centroid badge layer in the home map. Per-kind counts
+ * drive the badge tint (dominant kind > 60% → tinted; mixed → neutral
+ * cream bracket frame). `locale_label` is the server-built
+ * "City, ST" / "Texas" string the badge prints below the count;
+ * NULL when cases in the group don't share a single city/state.
+ *
+ * `precision_floor` is the coarsest precision in the group. Used by
+ * the renderer to decide between two badge tiers:
+ *   - 'city' / 'county' → city-centroid badge (zoom-gated ≥ ~11).
+ *   - 'state' → state-centroid badge (zoom-gated ≥ ~6, lower so
+ *     the user sees the state's pile when zoomed out enough that
+ *     the state fits in the viewport).
+ *
+ * Schema source: migrations/35 → migrations/54.
+ */
+export interface CaseCentroidRow {
+  /** WGS84 latitude of the centroid coord. */
+  lat: number;
+  /** WGS84 longitude of the centroid coord. */
+  lng: number;
+  case_count: number;
+  kinds_homicide: number;
+  kinds_missing: number;
+  kinds_doe: number;
+  /**
+   * Coarsest precision tier in the group. Post-mig-54 includes
+   * 'state' as a distinct value (previously collapsed into 'unknown').
+   * 'unknown' remains for groups with NULL or unclassified precision.
+   */
+  precision_floor: 'address' | 'street' | 'city' | 'county' | 'state' | 'unknown';
+  /**
+   * Server-built locale label. "City, ST" for single-city groups,
+   * just the state for state-precision groups. NULL when the group's
+   * cases don't share a single locale.
+   */
+  locale_label: string | null;
+}
+
+/**
  * Result row from cases_within_radius() — the legacy radius-based query
  * surface. Tier 4 cleanup will retire this along with use-cases-near.ts;
  * after that, CaseRowMapBbox is the only map-tier row type.
